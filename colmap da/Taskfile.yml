@@ -1,0 +1,163 @@
+# yaml-language-server: $schema=.taskfile-schema.json
+version: "3"
+
+vars:
+  COLMAP_PROJECT_DIR: "/home/sha/Documents/work/robohand_v2/colmap/data1"
+  INPUT_IMAGES: "{{.COLMAP_PROJECT_DIR}}/images/input_imgs"
+  LEFT_IMAGES: "{{.COLMAP_PROJECT_DIR}}/images/devide/left"
+  RIGHT_IMAGES: "{{.COLMAP_PROJECT_DIR}}/images/devide/right"
+  DENSE_DIR: "{{.COLMAP_PROJECT_DIR}}/dense1"
+  DATABASE_PATH: "{{.COLMAP_PROJECT_DIR}}/database.db"
+  SPARSE_DIR: "{{.COLMAP_PROJECT_DIR}}/sparse1"
+  COMBINED_IMAGES: "{{.COLMAP_PROJECT_DIR}}/images/devide_combined"
+
+tasks:
+  setup:
+    desc: "Prepare directory structure for COLMAP"
+    cmds:
+      - mkdir -p {{.LEFT_IMAGES}} {{.RIGHT_IMAGES}} {{.DENSE_DIR}}/images {{.SPARSE_DIR}}/0 {{.SPARSE_DIR}}/triangulated
+      - |
+        python split_stereo_images.py \
+          --input_dir {{.INPUT_IMAGES}} \
+          --left_dir {{.LEFT_IMAGES}} \
+          --right_dir {{.RIGHT_IMAGES}}
+      - python for_col.py
+      - mkdir -p {{.COMBINED_IMAGES}}
+      - cp {{.LEFT_IMAGES}}/* {{.COMBINED_IMAGES}}
+      - cp {{.RIGHT_IMAGES}}/* {{.COMBINED_IMAGES}}
+      - rm -f {{.DATABASE_PATH}}
+      - colmap database_creator --database_path {{.DATABASE_PATH}}
+      # - |
+      #   colmap model_converter \
+      #     --input_path {{.COLMAP_PROJECT_DIR}} \
+      #     --output_path {{.SPARSE_DIR}}/0 \
+      #     --output_type TXT
+
+  import_model_to_db:
+    desc: "Import cameras and images from TXT files into COLMAP database"
+    cmds:
+      - |
+        colmap feature_extractor \
+          --database_path {{.DATABASE_PATH}} \
+          --image_path {{.COLMAP_PROJECT_DIR}}/images/devide \
+          --ImageReader.single_camera 1 \
+          --SiftExtraction.max_num_features 1 || true
+      - python import_cameras.py
+
+  feature_extraction:
+    desc: "Extract features from images"
+    cmds:
+      - |
+        colmap feature_extractor \
+          --database_path {{.DATABASE_PATH}} \
+          --image_path {{.COLMAP_PROJECT_DIR}}/images/devide \
+          --ImageReader.single_camera 1
+
+  feature_matching:
+    desc: "Match features"
+    cmds:
+      - |
+        colmap exhaustive_matcher \
+          --database_path {{.DATABASE_PATH}}
+
+  mapper_no_ba:
+    desc: "Run incremental mapper with BA disabled to keep original poses"
+    cmds:
+      - |
+        colmap mapper \
+          --database_path {{.DATABASE_PATH}} \
+          --image_path {{.COLMAP_PROJECT_DIR}}/images/devide \
+          --output_path {{.SPARSE_DIR}}/0 \
+          # --Mapper.ba_refine_focal_length 0 \
+          # --Mapper.ba_refine_principal_point 0 \
+          # --Mapper.ba_refine_extra_params 0 \
+          --Mapper.num_threads -1 \
+          # --Mapper.ba_refine_focal_length 0 \
+          # --Mapper.ba_refine_principal_point 0 \
+          # --Mapper.ba_refine_extra_params 0 
+
+  print_sparse_points:
+    desc: "Print number of points in each sparse submodel"
+    cmds:
+      - |
+        for d in {{.SPARSE_DIR}}/0/*/; do
+          relative=$(realpath --relative-to="$(pwd)" "$d")
+          echo "Scene: $relative"
+          colmap model_converter \
+            --input_path "$d" \
+            --output_path "$d" \
+            --output_type TXT
+          if [ -f "$d/points3D.txt" ]; then
+            count=$(grep -cv '^#' "$d/points3D.txt")
+            echo "  points: $count"
+          else
+            echo "  points3D.txt not found"
+          fi
+        done
+
+  triangulate_points:
+    desc: "Triangulate points"
+    cmds:
+      # - |
+      #   colmap model_converter \
+      #     --input_path {{.COLMAP_PROJECT_DIR}} \
+      #     --output_path {{.SPARSE_DIR}}/0 \
+      #     --output_type BIN
+      - |
+        colmap point_triangulator \
+          --database_path {{.DATABASE_PATH}} \
+          --image_path {{.COLMAP_PROJECT_DIR}}/images/devide \
+          --input_path {{.SPARSE_DIR}}/0/2 \
+          --output_path {{.SPARSE_DIR}}/triangulated
+
+  image_undistorter:
+    desc: "Undistort images"
+    cmds:
+      - rm -rf {{.COLMAP_PROJECT_DIR}}/dense1/images
+      - rm -rf {{.COLMAP_PROJECT_DIR}}/dense
+      - |
+        colmap image_undistorter \
+          --image_path {{.COLMAP_PROJECT_DIR}}/images/devide \
+          --input_path {{.SPARSE_DIR}}/triangulated \
+          --output_path {{.DENSE_DIR}} \
+          --output_type COLMAP
+
+  dense_stereo:
+    desc: "Run dense stereo reconstruction"
+    cmds:
+      # - python generate_stereo_pairs.py
+      - |
+        colmap patch_match_stereo \
+          --workspace_path {{.DENSE_DIR}} \
+          --workspace_format COLMAP \
+          --PatchMatchStereo.geom_consistency true
+
+  dense_fusion:
+    desc: "Fuse dense point cloud"
+    cmds:
+      - |
+        colmap stereo_fusion \
+          --workspace_path {{.DENSE_DIR}} \
+          --workspace_format COLMAP \
+          --input_type geometric \
+          --output_path {{.DENSE_DIR}}/fused.ply
+
+  visualize_results:
+    desc: "Visualize reconstruction using custom vis.py script"
+    cmds:
+      - python3 /home/sha/Documents/work/robohand_v2/colmap/vis.py
+
+  full_pipeline:
+    desc: "Run full pipeline"
+    cmds:
+      - task: setup
+      - task: feature_extraction
+      - task: feature_matching
+      - task: mapper_no_ba
+      - task: print_sparse_points
+      - task: triangulate_points
+      - task: image_undistorter
+      - task: dense_stereo
+      - task: dense_fusion
+      - task: print_sparse_points
+      - task: visualize_results

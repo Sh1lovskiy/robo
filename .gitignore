@@ -1,0 +1,46 @@
+# Virtual environment
+venv/
+.venv/
+
+# Python Caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE temporary files (VS Code, PyCharm)
+.vscode/
+.idea/
+*.swp
+
+# All from fairino except Robot.py
+fairino/*
+!fairino/Robot.py
+
+# Calibration files
+calibration_data/
+logs/
+models/
+results/
+vision/imgs_fix/left_imgs
+funetune/orig
+funetune/orig_jpg
+calib_first
+calib_second
+colmap/colmap
+colmap/data1
+colmap4
+colmap3
+colmap2
+colmap1
+colmap_old
+colmap_da
+calib/images
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# Dependencies if they are cached
+pip-log.txt
+pip-delete-this-directory.txt

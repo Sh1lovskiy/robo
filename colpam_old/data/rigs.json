@@ -1,0 +1,10 @@
+{
+    "rigs": [
+      {
+        "cameras": [
+          {"camera_id": 1, "image_prefix": "frame_*_left"},
+          {"camera_id": 2, "image_prefix": "frame_*_right"}
+        ]
+      }
+    ]
+  }

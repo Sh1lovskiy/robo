@@ -1,0 +1,129 @@
+version: "3"
+
+vars:
+  COLMAP_PROJECT_DIR: "/home/sha/Documents/work/robohand_v2/colmap/data"
+  INPUT_IMAGES: "{{.COLMAP_PROJECT_DIR}}/images/input_imgs"
+  LEFT_IMAGES: "{{.COLMAP_PROJECT_DIR}}/images/devide/left"
+  RIGHT_IMAGES: "{{.COLMAP_PROJECT_DIR}}/images/devide/right"
+  DENSE_DIR: "{{.COLMAP_PROJECT_DIR}}/dense"
+  DATABASE_PATH: "{{.COLMAP_PROJECT_DIR}}/database.db"
+  SPARSE_DIR: "{{.COLMAP_PROJECT_DIR}}/sparse"
+
+tasks:
+  setup:
+    desc: "Prepare directory structure for COLMAP"
+    cmds:
+      - mkdir -p {{.LEFT_IMAGES}} {{.RIGHT_IMAGES}} {{.DENSE_DIR}}/images {{.SPARSE_DIR}}/0 {{.SPARSE_DIR}}/triangulated
+
+  split_images:
+    desc: "Split stereo images into left/right"
+    cmds:
+      - |
+        python split_stereo_images.py \
+          --input_dir {{.INPUT_IMAGES}} \
+          --left_dir {{.LEFT_IMAGES}} \
+          --right_dir {{.RIGHT_IMAGES}}
+
+  initialize_database:
+    desc: "Create empty COLMAP database"
+    cmds:
+      - rm -f {{.DATABASE_PATH}}
+      - colmap database_creator --database_path {{.DATABASE_PATH}}
+
+  feature_extraction:
+    desc: "Extract features from LEFT images"
+    cmds:
+      - |
+        colmap feature_extractor \
+          --database_path {{.DATABASE_PATH}} \
+          --image_path {{.LEFT_IMAGES}} \
+          --ImageReader.camera_model PINHOLE \
+          --ImageReader.single_camera 1 \
+          --SiftExtraction.use_gpu 1
+
+  feature_matching:
+    desc: "Match features between LEFT images"
+    cmds:
+      - |
+        colmap exhaustive_matcher \
+          --database_path {{.DATABASE_PATH}} \
+          --SiftMatching.use_gpu 1
+
+  mapper:
+    desc: "Reconstruct sparse model from LEFT images"
+    cmds:
+      - |
+        colmap mapper \
+          --database_path {{.DATABASE_PATH}} \
+          --image_path {{.LEFT_IMAGES}} \
+          --output_path {{.SPARSE_DIR}} \
+          --Mapper.num_threads 16 \
+          --Mapper.init_min_tri_angle 4 \
+          --Mapper.abs_pose_min_num_inliers 20
+
+  triangulate_points:
+    desc: "Triangulate 3D points again (optional)"
+    cmds:
+      - |
+        colmap point_triangulator \
+          --database_path {{.DATABASE_PATH}} \
+          --image_path {{.LEFT_IMAGES}} \
+          --input_path {{.SPARSE_DIR}}/0 \
+          --output_path {{.SPARSE_DIR}}/triangulated
+
+  image_undistorter:
+    desc: "Undistort images for dense reconstruction"
+    cmds:
+      - |
+        colmap image_undistorter \
+          --image_path {{.LEFT_IMAGES}} \
+          --input_path {{.SPARSE_DIR}}/triangulated \
+          --output_path {{.DENSE_DIR}} \
+          --output_type COLMAP
+
+  dense_stereo:
+    desc: "Compute dense stereo depth maps"
+    cmds:
+      - |
+        colmap patch_match_stereo \
+          --workspace_path {{.DENSE_DIR}} \
+          --workspace_format COLMAP \
+          --PatchMatchStereo.geom_consistency true
+
+  dense_fusion:
+    desc: "Fuse depth maps into dense point cloud"
+    cmds:
+      - |
+        colmap stereo_fusion \
+          --workspace_path {{.DENSE_DIR}} \
+          --workspace_format COLMAP \
+          --output_path {{.DENSE_DIR}}/fused.ply
+
+  dense_mesher:
+    desc: "Mesh the dense cloud"
+    cmds:
+      - |
+        colmap poisson_mesher \
+          --input_path {{.DENSE_DIR}}/fused.ply \
+          --output_path {{.DENSE_DIR}}/mesh.ply
+
+  visualize_results:
+    desc: "Visualize reconstruction using custom vis.py script"
+    cmds:
+      - python3 /home/sha/Documents/work/robohand_v2/colmap/vis.py
+
+  full_pipeline:
+    desc: "Run full COLMAP pipeline on LEFT images"
+    cmds:
+      # - task: setup
+      # - task: split_images
+      # - task: initialize_database
+      # - task: feature_extraction
+      # - task: feature_matching
+      - task: mapper
+      - task: triangulate_points
+      - task: image_undistorter
+      - task: dense_stereo
+      - task: dense_fusion
+      - task: dense_mesher
+      - task: visualize_results
