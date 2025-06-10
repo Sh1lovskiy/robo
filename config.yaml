@@ -1,0 +1,35 @@
+# config.yaml
+robot:
+  ip: "192.168.1.10"
+  tool_id: 0
+  user_frame_id: 0
+  velocity: 20.0
+  emergency_delay: 0.5
+
+vision:
+  realsense_width: 640
+  realsense_height: 480
+  realsense_fps: 30
+
+logging:
+  log_dir: "./logs"
+  level: "INFO"
+  json: true
+
+charuco:
+  squares_x: 5
+  squares_y: 7
+  square_length: 0.035
+  marker_length: 0.026
+  aruco_dict: 5X5_100
+  calib_output_dir: calibration/results
+  xml_file: charuco_cam.xml
+  txt_file: charuco_cam.txt
+  images_dir: calibration/camera_calib_images
+
+handeye:
+  images_dir: calibration/handeye_data
+  calib_output_dir: calibration/results
+  npz_file: handeye.npz
+  txt_file: handeye.txt
+  method: all

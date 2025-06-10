@@ -1,0 +1,44 @@
+# Python virtual environment
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# HandEye calibration data
+calibration/handeye_data/
+
+# Cython build artifacts
+robot/build/
+robot/*.c
+robot/*.so
+robot/*.pyd
+
+# General build artifacts
+build/
+dist/
+*.egg-info/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# IDE/editor configs
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+logs/
+
+# Environment variables files
+.env
+.env.*
