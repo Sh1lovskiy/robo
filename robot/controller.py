@@ -1,6 +1,6 @@
 # robot/controller.py
 
-from typing import List, Optional
+from typing import List, Optional, Union
 from robot.rpc import RPC
 from utils.logger import Logger
 from utils.config import Config
@@ -9,20 +9,38 @@ from utils.config import Config
 class RobotController:
     """
     High-level robot controller for movement, pose, and state management.
-    All configuration is loaded from config.yaml.
+    All configuration is loaded from config.yaml unless overridden.
     """
 
     def __init__(
-        self, rpc: Optional[RPC] = None, logger=None, config: Optional[Config] = None
+        self,
+        rpc: Optional[Union[str, RPC]] = None,
+        logger=None,
+        config: Optional[Config] = None,
     ):
         self.config = config or Config
         self.ip_address = self.config.get("robot.ip", default="192.168.1.10")
         self.tool_id = self.config.get("robot.tool_id", default=0)
         self.user_frame_id = self.config.get("robot.user_frame_id", default=0)
         self.velocity = self.config.get("robot.velocity", default=20.0)
-        self.rpc = rpc or RPC(ip=self.ip_address)
         self.logger = logger or Logger.get_logger("robot.controller", json_format=True)
         self.initial_pose = None
+
+        if rpc is None:
+            self.rpc = RPC(ip=self.ip_address)
+            self.logger.info(
+                f"RobotController initialized with IP {self.ip_address} (default from config)"
+            )
+        elif isinstance(rpc, str):
+            self.rpc = RPC(ip=rpc)
+            self.logger.info(f"RobotController initialized with IP {rpc} (from string)")
+        elif isinstance(rpc, RPC):
+            self.rpc = rpc
+            self.logger.info(
+                f"RobotController initialized with external RPC (IP: {self.ip_address})"
+            )
+        else:
+            raise TypeError(f"Invalid rpc argument: {type(rpc)}")
         self.logger.info(f"RobotController initialized with IP {self.ip_address}")
 
     def connect(self) -> bool:
@@ -32,7 +50,7 @@ class RobotController:
         self.logger.info("Robot connected")
         return True
 
-    def get_current_pose(self) -> Optional[List[float]]:
+    def get_tcp_pose(self) -> Optional[List[float]]:
         res = self.rpc.GetActualTCPPose()
         if res[0] == 0:
             self.logger.debug(f"Current pose: {res[1]}")
