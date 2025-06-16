@@ -50,7 +50,7 @@ project-root/
 │   └── README.md         # Explanation of transform chain
 |
 ├── config.yaml           # Main configuration file
-├── Makefile              # Automated build/task runner
+├── pyproject.toml        # Project metadata & build config
 ├── README.md             # You are here
 └── requirements.txt      # Python package list
 ```
@@ -65,7 +65,7 @@ project-root/
 git clone ...
 cd project-root
 uv venv .venv -p 3.9
-.venv/bin/pip install -r requirements.txt
+uv pip install -e .
 ```
 
 ### 2. Configure
@@ -95,15 +95,13 @@ Edit `config.yaml` for your robot/camera IP, tool, velocity, logging, and point 
   .venv/bin/python -m cli.pointcloud_capture --output cloud.ply
   ```
 
-### 4. Make Automation
+### 4. Build & Install
 
-Use [Makefile](Makefile) and [uv](https://github.com/astral-sh/uv) for reproducible environments/builds:
+Use `pyproject.toml` together with [uv](https://github.com/astral-sh/uv) for reproducible environments/builds:
 
 ```bash
-make venv    # Create venv
-make build   # Build extensions
-make install # Install requirements
-make run     # Run CLI scripts
+uv venv .venv -p 3.9
+uv pip install -e .
 ```
 
 ---
