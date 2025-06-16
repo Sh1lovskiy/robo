@@ -1,5 +1,3 @@
-# calibration/handeye.py
-
 import numpy as np
 import cv2
 from utils.logger import Logger
@@ -100,17 +98,39 @@ class HandEyeCalibrator:
         )
 
 
+def simple_handeye_test():
+    R_g2b = []
+    t_g2b = []
+    R_t2c = []
+    t_t2c = []
+
+    angles = [0, np.pi / 8, -np.pi / 8]
+    translations = [
+        [0, 0, 0],
+        [0.035, 0.000, 0.000],
+        [0.000, 0.035, 0.000],
+    ]
+
+    for ang, t in zip(angles, translations):
+        R = cv2.Rodrigues(np.array([0, 0, ang], dtype=np.float64))[0]
+        R_g2b.append(R)
+        t_g2b.append(np.array(t, dtype=np.float64))
+        Rt = cv2.Rodrigues(np.array([0, ang / 2, 0], dtype=np.float64))[0]
+        tt = np.array([0.01, 0.01, 0.5], dtype=np.float64) + np.random.normal(
+            0, 0.001, 3
+        )
+        R_t2c.append(Rt)
+        t_t2c.append(tt)
+
+    R, t = cv2.calibrateHandEye(
+        R_g2b, t_g2b, R_t2c, t_t2c, method=cv2.CALIB_HAND_EYE_TSAI
+    )
+
+    print("Hand-Eye calibration (TSAI) result:")
+    print("R =\n", R)
+    print("t =\n", t)
+    print("Norm t (meters):", np.linalg.norm(t))
+
+
 if __name__ == "__main__":
-    calibrator = HandEyeCalibrator()
-    R = np.eye(3)
-    t = np.zeros((3,))
-    calibrator.add_sample(R, t, R, t)
-    # Example: single method
-    R_res, t_res = calibrator.calibrate("TSAI")
-    saver = NPZHandEyeSaver()
-    calibrator.save(saver, "handeye_test.npz", R_res, t_res)
-    # Example: all methods
-    results = calibrator.calibrate_all()
-    for method, (R, t) in results.items():
-        calibrator.save(TxtHandEyeSaver(), f"handeye_{method}.txt", R, t)
-    print("HandEyeCalibrator minimal test OK")
+    simple_handeye_test()

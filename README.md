@@ -48,6 +48,7 @@ project-root/
 │   ├── pointcloud.py     # Point cloud generation/IO/processing
 │   ├── transform.py      # 3D transformation utilities (see vision/README.md)
 │   └── README.md         # Explanation of transform chain
+|
 ├── config.yaml           # Main configuration file
 ├── Makefile              # Automated build/task runner
 ├── README.md             # You are here

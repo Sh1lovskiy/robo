@@ -19,7 +19,7 @@ class JSONPoseLoader:
 
         Rs, ts = [], []
         for pose in data.values():
-            tcp_pose = pose["robot_tcp_pose"]  # [x, y, z, rx, ry, rz]
+            tcp_pose = pose["tcp_coords"]  # [x, y, z, rx, ry, rz]
             t = np.array(tcp_pose[:3], dtype=np.float64) / 1000.0  # mm → meters
             rx, ry, rz = np.deg2rad(tcp_pose[3:])  # если углы в градусах!
             rot = R.from_euler("xyz", [rx, ry, rz])

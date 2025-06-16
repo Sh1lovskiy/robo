@@ -1,10 +1,14 @@
 # config.yaml
 robot:
-  ip: "192.168.1.10"
+  ip: "192.168.58.2"
   tool_id: 0
   user_frame_id: 0
   velocity: 20.0
   emergency_delay: 0.5
+
+path_saver:
+  captures_dir: cloud
+  path_file: cloud/poses.json
 
 vision:
   realsense_width: 640
@@ -28,7 +32,8 @@ charuco:
   images_dir: calibration/camera_calib_images
 
 handeye:
-  images_dir: calibration/handeye_data
+  # images_dir: calibration/handeye_data
+  images_dir: cloud
   calib_output_dir: calibration/results
   npz_file: handeye.npz
   txt_file: handeye.txt
