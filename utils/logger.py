@@ -316,14 +316,17 @@ class Logger:
         return decorator
 
 
-class Timer:
-    """Simple timer utility to measure elapsed time"""
+from dataclasses import dataclass, field
 
-    def __init__(self, name: str = None, logger: Union[logging.Logger, None] = None):
-        self.name = name or "Timer"
-        self.logger = logger
-        self.start_time = None
-        self.end_time = None
+
+@dataclass
+class Timer:
+    """Simple timer utility to measure elapsed time."""
+
+    name: str = "Timer"
+    logger: Union[logging.Logger, None] = None
+    start_time: Optional[datetime] = field(default=None, init=False)
+    end_time: Optional[datetime] = field(default=None, init=False)
 
     def __enter__(self):
         self.start()
