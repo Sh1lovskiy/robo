@@ -1,64 +1,119 @@
-# cli/poses_saver.py
-
+import os
 import time
+import json
 import numpy as np
+import cv2
 from robot.controller import RobotController
 from utils.logger import Logger
+from utils.config import Config
+from vision.realsense import RealSenseCamera
+
+
+# Directory where captures and poses.json will be saved (modify this as needed)
+CAPTURES_DIR = "cloud"
 
 
 class PoseSaver:
-    def save(self, filename, pose):
+    """Abstract base class for saving poses."""
+
+    def save(self, filename, pose_id, pose):
         raise NotImplementedError
 
 
-class TxtPoseSaver(PoseSaver):
-    def save(self, filename, pose):
-        with open(filename, "a") as f:
-            f.write(" ".join(f"{v:.8f}" for v in pose) + "\n")
+class JsonPoseSaver(PoseSaver):
+    """
+    Saves poses in JSON format.
+    Structure: {pose_id: {"tcp_coords": [x, y, z, rx, ry, rz]}}
+    """
+
+    def save(self, filename, pose_id, pose):
+        try:
+            dir_ = os.path.dirname(filename)
+            if dir_ and not os.path.exists(dir_):
+                os.makedirs(dir_, exist_ok=True)
+            with open(filename, "r") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            data = {}
+        data[pose_id] = {"tcp_coords": pose}
+        with open(filename, "w") as f:
+            json.dump(data, f, indent=4)
+
+
+def show_depth(depth):
+    depth_vis = np.clip(depth, 0, np.percentile(depth, 99))  # обрежь выбросы
+    depth_vis = (depth_vis / depth_vis.max() * 255).astype(np.uint8)
+    depth_colormap = cv2.applyColorMap(depth_vis, cv2.COLORMAP_JET)
+    cv2.imshow("Depth Colormap", depth_colormap)
 
 
 def main(
     controller: RobotController = None,
     saver: PoseSaver = None,
     logger=None,
-    filename: str = "poses.txt",
+    filename: str = os.path.join(CAPTURES_DIR, "poses.json"),
+    ip_address: str = None,
 ):
-    controller = controller or RobotController()
-    saver = saver or TxtPoseSaver()
+    """
+    Main function to save robot poses using key presses.
+    - Shows RGB camera stream.
+    - Press ENTER to save current pose & RGB/depth images.
+    - Press 'q' to quit.
+    """
+    Config.load("config.yaml")
+    if ip_address is None:
+        ip_address = Config.get("robot.ip", default="192.168.1.10")
+
+    controller = controller or RobotController(rpc=ip_address)
+    saver = saver or JsonPoseSaver()
     logger = logger or Logger.get_logger("cli.poses_saver")
 
     if hasattr(controller, "initialize"):
         controller.initialize()
-    print("Press ENTER to save current pose. Type 'q' + ENTER to quit.")
+
+    # === Init camera ===
+    cam = RealSenseCamera()
+    cam.start()
+
+    # === Prepare capture dir ===
+    os.makedirs(CAPTURES_DIR, exist_ok=True)
+
+    pose_count = 0
+    print("Press ENTER to save current pose. Press 'q' to quit.")
 
     while True:
-        inp = input("> ")
-        if inp.strip().lower() == "q":
+        color, depth = cam.get_frames()
+        if depth is not None:
+            show_depth(depth)
+        if color is not None:
+            cv2.imshow("RGB Camera Stream", color)
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord("q"):
+            print(f"All poses saved to {filename}")
+            logger.info(f"Exit requested by user, saved to {filename}")
             break
-        pose = controller.get_current_pose()
-        if pose is not None:
-            saver.save(filename, pose)
-            logger.info(f"Pose saved: {pose}")
-            print(f"Saved: {pose}")
-        else:
-            logger.error("Failed to get pose.")
-        time.sleep(0.2)
+        elif key == 13 or key == 10:  # ENTER (Windows/Linux)
+            pose = controller.get_tcp_pose()
+            if pose is not None:
+                pose_id = f"{pose_count:03d}"
+                saver.save(filename, pose_id, pose)
+                logger.info(f"Pose {pose_id} saved: {pose}")
+                print(f"Saved pose {pose_id}: {pose}")
+
+                # --- Save RGB & depth images ---
+                rgb_path = os.path.join(CAPTURES_DIR, f"{pose_id}_rgb.png")
+                depth_path = os.path.join(CAPTURES_DIR, f"{pose_id}_depth.npy")
+                cv2.imwrite(rgb_path, color)
+                np.save(depth_path, depth)
+                logger.info(f"RGB saved: {rgb_path}; Depth saved: {depth_path}")
+
+                pose_count += 1
+            else:
+                logger.error("Failed to get pose.")
+
+    cam.stop()
+    cv2.destroyAllWindows()
     controller.shutdown()
-    print(f"All poses saved to {filename}")
-
-
-def _test_save_pose():
-    import tempfile, os
-
-    arr = [1.0, 2.0, 3.0, 0.1, 0.2, 0.3]
-    saver = TxtPoseSaver()
-    with tempfile.NamedTemporaryFile(delete=False) as f:
-        fname = f.name
-    saver.save(fname, arr)
-    arr2 = np.loadtxt(fname)
-    assert np.allclose(arr, arr2), "Saved pose not equal to loaded pose"
-    os.remove(fname)
-    print("save_pose test OK")
 
 
 if __name__ == "__main__":
