@@ -38,4 +38,3 @@ robot = ["*.py", "*.pyx"]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["cli*", "robot*", "utils*", "vision*", "calibration*"]
-
