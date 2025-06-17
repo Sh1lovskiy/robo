@@ -43,9 +43,9 @@ project-root/
 │   └── constants.py      # Shared paths and defaults
 │
 ├── vision/               # Vision, cloud, and camera utils
-│   ├── opencv_utils.py   # Drawing/normalization helpers
+│   ├── opencv_utils.py   # OpenCV helper class
 │   ├── realsense.py      # RealSense camera wrapper
-│   ├── pointcloud.py     # Point cloud generation/IO/processing
+│   ├── pointcloud.py     # PointCloudGenerator class and utilities
 │   ├── transform.py      # 3D transformation utilities (see vision/README.md)
 │   └── README.md         # Explanation of transform chain
 |
@@ -116,7 +116,7 @@ All runtime dependencies live in `pyproject.toml`. If you need a classic
 * `vision:` — RealSense stream parameters, cloud parameters
 * `logging:` — log directory, level, JSON output
 * `cloud:` — point cloud settings (resolution, voxel size, output dir, ...)
-* Defaults for paths are defined in `utils/constants.py`
+* Defaults for paths, robot IP, and Charuco dictionary mapping are defined in `utils/constants.py`
 
 ### Logger (`utils/logger.py`)
 
