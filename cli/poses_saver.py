@@ -40,7 +40,9 @@ class JsonPoseSaver(PoseSaver):
 class PoseSaverCLI:
     """Interactive CLI for saving robot poses with synchronized images."""
 
-    def __init__(self, controller=None, saver=None, logger=None, filename=None, ip_address=None):
+    def __init__(
+        self, controller=None, saver=None, logger=None, filename=None, ip_address=None
+    ):
         Config.load()
         self.captures_dir = Config.get("path_saver.captures_dir", "cloud")
         self.filename = filename or os.path.join(self.captures_dir, "poses.json")

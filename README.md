@@ -63,7 +63,8 @@ project-root/
 ```bash
 git clone ...
 cd project-root
-uv venv .venv -p 3.12
+uv venv .venv -p 3.11
+source .venv/bin/activate
 uv pip install -e .
 ```
 

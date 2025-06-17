@@ -39,6 +39,24 @@ Thumbs.db
 *.log
 logs/
 
+# Images
+cloud/
+cloud1/
+clouds/
+
+calibration/calib_hand17_06_1/
+calibration/calib_hand17_06_2/
+calibration/calib_hand16_06_1/
+
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tiff
+*.gif
+*.webp
+*.npy
+
 # Environment variables files
 .env
 .env.*

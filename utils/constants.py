@@ -10,12 +10,6 @@ DEFAULT_ROBOT_IP = "192.168.58.2"
 
 # Mapping of Charuco dictionary names to OpenCV constants
 CHARUCO_DICT_MAP = {
-    "4X4_50": 0,
-    "4X4_100": 1,
     "5X5_50": 8,
     "5X5_100": 9,
-    "6X6_50": 16,
-    "6X6_100": 17,
 }
-
-
