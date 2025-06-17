@@ -15,8 +15,11 @@ import json
 import functools
 from datetime import datetime
 from typing import Optional, Union, Dict, Any
-from utils.constants import LOG_DIR
+from pathlib import Path
 import traceback
+from utils.constants import DEFAULT_LOG_DIR
+
+LOG_DIR = str(DEFAULT_LOG_DIR)
 from pythonjsonlogger import jsonlogger
 
 
@@ -316,14 +319,17 @@ class Logger:
         return decorator
 
 
-class Timer:
-    """Simple timer utility to measure elapsed time"""
+from dataclasses import dataclass, field
 
-    def __init__(self, name: str = None, logger: Union[logging.Logger, None] = None):
-        self.name = name or "Timer"
-        self.logger = logger
-        self.start_time = None
-        self.end_time = None
+
+@dataclass
+class Timer:
+    """Simple timer utility to measure elapsed time."""
+
+    name: str = "Timer"
+    logger: Union[logging.Logger, None] = None
+    start_time: Optional[datetime] = field(default=None, init=False)
+    end_time: Optional[datetime] = field(default=None, init=False)
 
     def __enter__(self):
         self.start()

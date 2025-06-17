@@ -1,8 +1,10 @@
 # utils/config.py
+"""Configuration loader with YAML backend."""
 
 import yaml
 from pathlib import Path
 from utils.logger import Logger
+from utils.constants import DEFAULT_CONFIG_PATH
 
 
 class ConfigLoader:
@@ -24,7 +26,7 @@ class Config:
     _logger = Logger.get_logger("utils.config")
 
     @classmethod
-    def load(cls, filename="config.yaml"):
+    def load(cls, filename=DEFAULT_CONFIG_PATH):
         try:
             cls._data = cls._loader.load(filename)
             cls._logger.info(f"Config loaded from {filename}")

@@ -1,3 +1,6 @@
+# cli/path_runner.py
+"""Execute stored robot trajectories and capture camera frames."""
+
 import os
 import time
 import json
@@ -23,7 +26,7 @@ class PathRunner:
         path_file=None,
         ip_address=None,
     ):
-        Config.load("config.yaml")
+        Config.load()
         robot_cfg = Config.get("robot")
         path_cfg = Config.get("path_runner", {})
 

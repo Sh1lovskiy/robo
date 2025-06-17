@@ -1,8 +1,11 @@
 # calibration/charuco.py
+"""Charuco board calibration utilities."""
 
 import os
 import cv2
 import numpy as np
+from dataclasses import dataclass, field
+from typing import List
 from utils.logger import Logger
 
 
@@ -34,19 +37,16 @@ class TextSaver(CalibrationSaver):
             np.savetxt(f, dist_coeffs, fmt="%.8f", header="dist_coeffs")
 
 
+@dataclass
 class CharucoCalibrator:
-    """
-    Charuco board calibration using OpenCV.
-    Logs via utils.logger.Logger.
-    """
+    """Charuco board calibration using OpenCV."""
 
-    def __init__(self, board, dictionary, logger=None):
-        self.board = board
-        self.dictionary = dictionary
-        self.all_corners = []
-        self.all_ids = []
-        self.img_size = None
-        self.logger = logger or Logger.get_logger("calibration.charuco")
+    board: any
+    dictionary: any
+    logger: any = field(default_factory=lambda: Logger.get_logger("calibration.charuco"))
+    all_corners: List[np.ndarray] = field(default_factory=list, init=False)
+    all_ids: List[np.ndarray] = field(default_factory=list, init=False)
+    img_size: any = field(default=None, init=False)
 
     def add_frame(self, img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)

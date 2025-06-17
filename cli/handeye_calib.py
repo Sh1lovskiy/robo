@@ -1,3 +1,6 @@
+# cli/handeye_calib.py
+"""Command-line interface for hand-eye calibration."""
+
 import os
 import numpy as np
 import cv2
@@ -42,11 +45,8 @@ def extract_charuco_poses(
                 and charuco_ids is not None
                 and len(charuco_corners) >= 4
             ):
-                # Под opencv-contrib-python>=4.7.x допускается (N,2) float32 и (N,1) int32
-                cc = np.ascontiguousarray(
-                    charuco_corners.reshape(-1, 2).astype(np.float32)
-                )
-                ci = np.ascontiguousarray(charuco_ids.reshape(-1, 1).astype(np.int32))
+                cc = np.ascontiguousarray(charuco_corners.astype(np.float32))
+                ci = np.ascontiguousarray(charuco_ids.astype(np.int32))
                 if cc.shape[0] != ci.shape[0]:
                     logger.error(
                         f"Charuco count mismatch in {os.path.basename(img_path)}: corners={cc.shape[0]}, ids={ci.shape[0]}"
@@ -96,7 +96,7 @@ def load_robot_poses_from_json(filename):
     Rs, ts = [], []
     for key in sorted(data.keys()):
         tcp = data[key]["tcp_coords"]
-        t = np.array(tcp[:3], dtype=np.float64)
+        t = np.array(tcp[:3], dtype=np.float64) / 1000.0
         angles = np.deg2rad(np.array(tcp[3:6], dtype=np.float64))
         from scipy.spatial.transform import Rotation as R
 
@@ -113,15 +113,18 @@ class HandEyeCalibrationCLI:
     """
 
     def __init__(self, logger=None):
-        Config.load("config.yaml")
+        Config.load()
         self.cfg = Config.get("handeye")
         self.logger = logger or Logger.get_logger("cli.handeye_calib")
         self.output_dir = self.cfg.get("calib_output_dir", "calibration/results")
         os.makedirs(self.output_dir, exist_ok=True)
 
     def run(self):
-        images_dir = self.cfg.get("images_dir", "cloud")
-        robot_poses_file = self.cfg.get("robot_poses_file", "poses.json")
+        # images_dir = self.cfg.get("images_dir", "cloud")
+        images_dir = "calib_hand17_06_2"
+        robot_poses_file = self.cfg.get(
+            "robot_poses_file", "calib_hand17_06_2/poses.json"
+        )
         charuco_xml = self.cfg.get(
             "charuco_xml", os.path.join(self.output_dir, "charuco_cam.xml")
         )

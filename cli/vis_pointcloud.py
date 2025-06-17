@@ -1,4 +1,5 @@
 # cli/vis_pointcloud.py
+"""Quick point cloud viewer."""
 
 import open3d as o3d
 from utils.logger import Logger

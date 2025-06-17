@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=64", "wheel", "cython>=3.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robo"
+version = "0.1.0"
+description = "Robotics Vision & Calibration Suite"
+readme = "README.md"
+requires-python = "3.11"
+dependencies = [
+    "numpy==2.3.0",
+    "open3d==0.19.0",
+    "opencv-contrib-python==4.11.0.86",
+    "pynput==1.8.1",
+    "pyrealsense2==2.55.1.6486",
+    "python-json-logger==3.3.0",
+    "pyyaml==6.0.2",
+    "scipy==1.15.3",
+    "tqdm==4.67.1"
+]
+
+[project.scripts]
+poses-saver = "cli.poses_saver:main"
+path-runner = "cli.path_runner:main"
+charuco-calib = "cli.charuco_calib:main"
+handeye-calib = "cli.handeye_calib:main"
+get-intrinsics = "cli.get_intrinsics:main"
+depth-check = "cli.depth_check:main"
+pointcloud-capture = "cli.pointcloud_capture:main"
+pointcloud-transform = "cli.pointcloud_transform:main"
+pointcloud-view = "cli.pointcloud_view:main"
+vis-pointcloud = "cli.vis_pointcloud:main"
+
+[tool.setuptools.package-data]
+robot = ["*.py", "*.pyx"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cli*", "robot*", "utils*", "vision*", "calibration*"]

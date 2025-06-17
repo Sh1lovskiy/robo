@@ -1,14 +1,21 @@
+# restart.py
+"""Simple robot restart utility using RPC."""
+
 import time
 from robot.controller import RobotController
 from robot.rpc import RPC
 from utils.logger import Logger
+from utils.config import Config
+from utils.constants import DEFAULT_ROBOT_IP
 
 logger = Logger.get_logger("robot_controller")
 
 
-def restart_robot(ip_address="192.168.58.2"):
+def restart_robot(ip_address: str | None = None):
     """Restart robot by disabling, closing connection, reconnecting and enabling."""
-    rpc = RPC(ip=ip_address)
+    Config.load()
+    ip = ip_address or Config.get("robot.ip", DEFAULT_ROBOT_IP)
+    rpc = RPC(ip=ip)
     robot = RobotController(rpc=rpc, logger=logger)
     logger.info("Connection to robot established")
 
@@ -24,7 +31,7 @@ def restart_robot(ip_address="192.168.58.2"):
 
     time.sleep(3)
 
-    rpc = RPC(ip=ip_address)
+    rpc = RPC(ip=ip)
     robot = RobotController(rpc=rpc, logger=logger)
     logger.info("Reconnection to robot established")
 
@@ -45,7 +52,7 @@ def restart_robot(ip_address="192.168.58.2"):
 
 
 if __name__ == "__main__":
-    success = restart_robot("192.168.58.2")
+    success = restart_robot()
     if success:
         logger.info("Robot restart completed successfully")
     else:
