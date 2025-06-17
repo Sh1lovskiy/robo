@@ -15,7 +15,16 @@ from utils.config import Config
 import struct
 import sys
 import ctypes
-from ctypes import *
+from ctypes import (
+    Structure,
+    c_byte,
+    c_int,
+    c_double,
+    c_float,
+    c_uint16,
+    c_uint8,
+    c_ushort,
+)
 
 # from Cython.Compiler.Options import error_on_unknown_names
 
