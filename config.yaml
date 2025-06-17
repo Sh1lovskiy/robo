@@ -20,6 +20,9 @@ logging:
   level: "INFO"
   json: true
 
+cloud:
+  output_dir: clouds
+
 charuco:
   squares_x: 5
   squares_y: 7

@@ -15,8 +15,10 @@ import json
 import functools
 from datetime import datetime
 from typing import Optional, Union, Dict, Any
-from utils.constants import LOG_DIR
+from pathlib import Path
 import traceback
+
+LOG_DIR = str(Path(__file__).resolve().parent.parent / "logs")
 from pythonjsonlogger import jsonlogger
 
 
