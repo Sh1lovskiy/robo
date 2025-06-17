@@ -1,4 +1,5 @@
 # calibration/charuco.py
+"""Charuco board calibration utilities."""
 
 import os
 import cv2

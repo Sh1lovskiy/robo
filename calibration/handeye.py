@@ -1,4 +1,5 @@
 # calibration/handeye.py
+"""Hand-eye calibration helpers using OpenCV."""
 
 import numpy as np
 import cv2

@@ -1,4 +1,5 @@
 # robot/rpc.py
+"""Low-level RPC interface for the Fairino robot."""
 
 import xmlrpc.client
 import os
@@ -227,7 +228,7 @@ class RPC():
 
 
     def __init__(self, ip: str | None = None):
-        Config.load("config.yaml")
+        Config.load()
         self.ip_address = ip or Config.get("robot.ip", "192.168.58.2")
         link = 'http://' + self.ip_address + ":20003"
         self.robot = xmlrpc.client.ServerProxy(link)#xmlrpcConnecting the robot20003port，Used to send robot instruction data frames

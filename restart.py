@@ -1,4 +1,5 @@
 # restart.py
+"""Simple robot restart utility using RPC."""
 
 import time
 from robot.controller import RobotController
@@ -11,7 +12,7 @@ logger = Logger.get_logger("robot_controller")
 
 def restart_robot(ip_address: str | None = None):
     """Restart robot by disabling, closing connection, reconnecting and enabling."""
-    Config.load("config.yaml")
+    Config.load()
     ip = ip_address or Config.get("robot.ip", "192.168.58.2")
     rpc = RPC(ip=ip)
     robot = RobotController(rpc=rpc, logger=logger)

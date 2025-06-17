@@ -1,4 +1,5 @@
 # calibration/pose_loader.py
+"""Helper to load robot poses from JSON files."""
 
 import json
 import numpy as np

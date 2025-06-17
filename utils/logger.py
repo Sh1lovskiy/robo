@@ -17,8 +17,9 @@ from datetime import datetime
 from typing import Optional, Union, Dict, Any
 from pathlib import Path
 import traceback
+from utils.constants import DEFAULT_LOG_DIR
 
-LOG_DIR = str(Path(__file__).resolve().parent.parent / "logs")
+LOG_DIR = str(DEFAULT_LOG_DIR)
 from pythonjsonlogger import jsonlogger
 
 

@@ -37,9 +37,10 @@ project-root/
 │   ├── controller.py     # Main control class
 │   └── rpc.py            # RPC protocol and low-level driver
 │
-├── utils/                # Utilities: configuration and logging
+├── utils/                # Utilities: configuration, logging, constants
 │   ├── config.py         # Config loading/abstraction
-│   └── logger.py         # Centralized, JSON-capable logger
+│   ├── logger.py         # Centralized, JSON-capable logger
+│   └── constants.py      # Shared paths and defaults
 │
 ├── vision/               # Vision, cloud, and camera utils
 │   ├── opencv_utils.py   # Drawing/normalization helpers
@@ -115,6 +116,7 @@ All runtime dependencies live in `pyproject.toml`. If you need a classic
 * `vision:` — RealSense stream parameters, cloud parameters
 * `logging:` — log directory, level, JSON output
 * `cloud:` — point cloud settings (resolution, voxel size, output dir, ...)
+* Defaults for paths are defined in `utils/constants.py`
 
 ### Logger (`utils/logger.py`)
 

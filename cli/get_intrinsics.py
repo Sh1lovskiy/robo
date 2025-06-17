@@ -1,4 +1,5 @@
 # cli/get_intrinsics.py
+"""Print RealSense intrinsics to the console."""
 
 from vision.realsense import RealSenseCamera
 from utils.logger import Logger

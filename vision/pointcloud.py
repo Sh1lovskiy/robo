@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-"""
-Build, ICP-align, and merge all clouds (with RGB color) in cloud_dir into a single base-frame point cloud.
-Allows picking any point to see its base-frame coordinates.
-"""
+# vision/pointcloud.py
+"""Point cloud building, alignment, and visualization utilities."""
 
 import argparse
 import os

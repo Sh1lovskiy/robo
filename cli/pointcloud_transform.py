@@ -1,4 +1,5 @@
 # cli/pointcloud_transform.py
+"""Transform point clouds using calibration results."""
 
 import argparse
 import numpy as np
@@ -14,7 +15,7 @@ def main():
     )
     parser.add_argument("--input", required=True, help="Input PLY file")
     parser.add_argument("--calib", required=True, help="Calibration .npz file")
-    Config.load("config.yaml")
+    Config.load()
     out_dir = Config.get("cloud.output_dir", "clouds")
     parser.add_argument(
         "--output",

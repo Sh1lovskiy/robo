@@ -1,4 +1,5 @@
 # cli/pointcloud_view.py
+"""Visualize a PLY point cloud with Open3D."""
 import argparse
 import open3d as o3d
 from utils.logger import Logger

@@ -1,3 +1,6 @@
+# vision/gpt.py
+"""Minimal wrapper for DeepSeek and Anthropic APIs."""
+
 import requests
 import json
 from typing import List, Tuple
