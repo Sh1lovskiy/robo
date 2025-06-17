@@ -37,9 +37,8 @@ project-root/
 │   ├── controller.py     # Main control class
 │   └── rpc.py            # RPC protocol and low-level driver
 │
-├── utils/                # Utilities: config, logger, constants
+├── utils/                # Utilities: configuration and logging
 │   ├── config.py         # Config loading/abstraction
-│   ├── constants.py      # Global constants
 │   └── logger.py         # Centralized, JSON-capable logger
 │
 ├── vision/               # Vision, cloud, and camera utils
@@ -50,9 +49,8 @@ project-root/
 │   └── README.md         # Explanation of transform chain
 |
 ├── config.yaml           # Main configuration file
-├── pyproject.toml        # Project metadata & build config
-├── README.md             # You are here
-└── requirements.txt      # Python package list
+├── pyproject.toml        # Project metadata & dependencies
+└── README.md             # You are here
 ```
 
 ---
@@ -64,7 +62,7 @@ project-root/
 ```bash
 git clone ...
 cd project-root
-uv venv .venv -p 3.9
+uv venv .venv -p 3.12
 uv pip install -e .
 ```
 
@@ -92,7 +90,7 @@ Edit `config.yaml` for your robot/camera IP, tool, velocity, logging, and point 
 * Capture point cloud:
 
   ```bash
-  .venv/bin/python -m cli.pointcloud_capture --output cloud.ply
+  .venv/bin/python -m cli.pointcloud_capture --output clouds/cloud.ply
   ```
 
 ### 4. Build & Install
@@ -100,9 +98,12 @@ Edit `config.yaml` for your robot/camera IP, tool, velocity, logging, and point 
 Use `pyproject.toml` together with [uv](https://github.com/astral-sh/uv) for reproducible environments/builds:
 
 ```bash
-uv venv .venv -p 3.9
+uv venv .venv -p 3.12
 uv pip install -e .
 ```
+
+All runtime dependencies live in `pyproject.toml`. If you need a classic
+`requirements.txt` file, generate it with `uv pip freeze > requirements.txt`.
 
 ---
 
