@@ -37,9 +37,8 @@ project-root/
 │   ├── controller.py     # Main control class
 │   └── rpc.py            # RPC protocol and low-level driver
 │
-├── utils/                # Utilities: config, logger, constants
+├── utils/                # Utilities: configuration and logging
 │   ├── config.py         # Config loading/abstraction
-│   ├── constants.py      # Global constants
 │   └── logger.py         # Centralized, JSON-capable logger
 │
 ├── vision/               # Vision, cloud, and camera utils
@@ -63,7 +62,7 @@ project-root/
 ```bash
 git clone ...
 cd project-root
-uv venv .venv -p 3.9
+uv venv .venv -p 3.12
 uv pip install -e .
 ```
 
@@ -91,7 +90,7 @@ Edit `config.yaml` for your robot/camera IP, tool, velocity, logging, and point 
 * Capture point cloud:
 
   ```bash
-  .venv/bin/python -m cli.pointcloud_capture --output cloud.ply
+  .venv/bin/python -m cli.pointcloud_capture --output clouds/cloud.ply
   ```
 
 ### 4. Build & Install
@@ -99,7 +98,7 @@ Edit `config.yaml` for your robot/camera IP, tool, velocity, logging, and point 
 Use `pyproject.toml` together with [uv](https://github.com/astral-sh/uv) for reproducible environments/builds:
 
 ```bash
-uv venv .venv -p 3.9
+uv venv .venv -p 3.12
 uv pip install -e .
 ```
 
