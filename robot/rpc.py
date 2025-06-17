@@ -1,3 +1,5 @@
+# robot/rpc.py
+
 import xmlrpc.client
 import os
 import socket
@@ -9,6 +11,7 @@ from functools import wraps
 from logging.handlers import RotatingFileHandler
 from queue import Queue
 import threading
+from utils.config import Config
 import struct
 import sys
 import ctypes
@@ -197,7 +200,7 @@ class RobotError:
 
 
 class RPC():
-    ip_address = "192.168.58.2"
+    ip_address = None
 
     logger = None
     log_output_model = -1
@@ -214,8 +217,9 @@ class RPC():
     closeRPC_state = False
 
 
-    def __init__(self, ip="192.168.58.2"):
-        self.ip_address = ip
+    def __init__(self, ip: str | None = None):
+        Config.load("config.yaml")
+        self.ip_address = ip or Config.get("robot.ip", "192.168.58.2")
         link = 'http://' + self.ip_address + ":20003"
         self.robot = xmlrpc.client.ServerProxy(link)#xmlrpcConnecting the robot20003port，Used to send robot instruction data frames
 

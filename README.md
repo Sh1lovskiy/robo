@@ -50,9 +50,8 @@ project-root/
 │   └── README.md         # Explanation of transform chain
 |
 ├── config.yaml           # Main configuration file
-├── pyproject.toml        # Project metadata & build config
-├── README.md             # You are here
-└── requirements.txt      # Python package list
+├── pyproject.toml        # Project metadata & dependencies
+└── README.md             # You are here
 ```
 
 ---
@@ -103,6 +102,9 @@ Use `pyproject.toml` together with [uv](https://github.com/astral-sh/uv) for rep
 uv venv .venv -p 3.9
 uv pip install -e .
 ```
+
+All runtime dependencies live in `pyproject.toml`. If you need a classic
+`requirements.txt` file, generate it with `uv pip freeze > requirements.txt`.
 
 ---
 
