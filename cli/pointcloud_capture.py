@@ -1,4 +1,5 @@
 # cli/pointcloud_capture.py
+"""Capture a single point cloud using RealSense."""
 
 import argparse
 from vision.realsense import RealSenseCamera
@@ -11,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Capture and save a point cloud from RealSense."
     )
-    Config.load("config.yaml")
+    Config.load()
     out_dir = Config.get("cloud.output_dir", "clouds")
     parser.add_argument(
         "--output", default=f"{out_dir}/cloud.ply", help="Output PLY file"
