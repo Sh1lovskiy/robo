@@ -35,6 +35,13 @@ def apply_colormap(depth_uint8: np.ndarray) -> np.ndarray:
     return cv2.applyColorMap(depth_uint8, cv2.COLORMAP_JET)
 
 
+def show_depth(depth: np.ndarray, window: str = "Depth Colormap") -> None:
+    """Display a depth image with a JET colormap."""
+    depth_uint8 = normalize_depth(depth)
+    depth_color = apply_colormap(depth_uint8)
+    cv2.imshow(window, depth_color)
+
+
 def load_camera_calib_from_xml(filename):
     """
     Load camera matrix and distortion coefficients from OpenCV XML/YAML file.

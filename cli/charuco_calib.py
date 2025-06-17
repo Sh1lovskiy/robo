@@ -1,4 +1,5 @@
 # cli/charuco_calib.py
+"""Batch Charuco calibration from a folder of images."""
 
 import os
 import cv2
@@ -18,7 +19,7 @@ DICT_MAP = {
 
 
 def calibrate_from_folder():
-    Config.load("config.yaml")
+    Config.load()
     cfg = Config.get("charuco")
 
     logger = Logger.get_logger("cli.charuco_batch_calib")

@@ -1,4 +1,5 @@
 # cli/poses_saver.py
+"""Interactive tool to capture and save robot poses with depth images."""
 
 import os
 import time
@@ -9,8 +10,7 @@ from robot.controller import RobotController
 from utils.logger import Logger
 from utils.config import Config
 from vision.realsense import RealSenseCamera
-
-
+from vision.opencv_utils import show_depth
 
 
 class PoseSaver:
@@ -39,14 +39,6 @@ class JsonPoseSaver(PoseSaver):
         with open(filename, "w") as f:
             json.dump(data, f, indent=4)
 
-
-def show_depth(depth):
-    depth_vis = np.clip(depth, 0, np.percentile(depth, 99))  # обрежь выбросы
-    depth_vis = (depth_vis / depth_vis.max() * 255).astype(np.uint8)
-    depth_colormap = cv2.applyColorMap(depth_vis, cv2.COLORMAP_JET)
-    cv2.imshow("Depth Colormap", depth_colormap)
-
-
 def main(
     controller: RobotController = None,
     saver: PoseSaver = None,
@@ -60,7 +52,7 @@ def main(
     - Press ENTER to save current pose & RGB/depth images.
     - Press 'q' to quit.
     """
-    Config.load("config.yaml")
+    Config.load()
     captures_dir = Config.get("path_saver.captures_dir", "cloud")
     filename = filename or os.path.join(captures_dir, "poses.json")
     if ip_address is None:

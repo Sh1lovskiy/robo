@@ -1,3 +1,6 @@
+# robot/setup.py
+"""Cython build script for the RPC extension."""
+
 import os
 from setuptools import setup, Extension, find_packages
 from Cython.Build import cythonize
