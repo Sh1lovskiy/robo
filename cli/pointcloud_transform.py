@@ -25,7 +25,7 @@ def main():
     args = parser.parse_args()
 
     logger = Logger.get_logger("cli.pointcloud_transform")
-    cloud_gen = PointCloudGenerator(logger)
+    cloud_gen = PointCloudGenerator()
     points, colors = cloud_gen.load_ply(args.input)
 
     calib = np.load(args.calib)

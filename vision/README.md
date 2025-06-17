@@ -14,7 +14,7 @@ A robust, modular set of tools for 3D vision tasks: point cloud generation from 
 * Save/load point clouds (PLY, XYZ, npz)
 * All steps and transforms logged via `utils.logger`
 * Easy to test and extend in production pipelines
-* `vision.opencv_utils.show_depth` for quick depth visualization
+* `OpenCVUtils.show_depth` for quick depth visualization
 
 ---
 

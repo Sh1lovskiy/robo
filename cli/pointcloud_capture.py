@@ -21,7 +21,7 @@ def main():
 
     logger = Logger.get_logger("cli.pointcloud_capture")
     cam = RealSenseCamera()
-    cloud_gen = PointCloudGenerator(logger)
+    cloud_gen = PointCloudGenerator()
     cam.start()
     color, depth = cam.get_frames()
     intr = cam.get_intrinsics()
