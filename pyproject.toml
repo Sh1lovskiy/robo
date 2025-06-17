@@ -12,7 +12,6 @@ dependencies = [
     "numpy==1.26.4",
     "open3d==0.19.0",
     "opencv-contrib-python==4.5.5.64",
-    "pip==25.1.1",
     "pynput==1.8.1",
     "pyrealsense2==2.55.1.6486",
     "python-json-logger==3.3.0",
@@ -40,5 +39,3 @@ robot = ["*.py", "*.pyx"]
 where = ["."]
 include = ["cli*", "robot*", "utils*", "vision*", "calibration*"]
 
-[tool.setuptools.ext_modules]
-"robot.rpc" = {sources = ["robot/rpc.py"], extra_compile_args = ["-fno-var-tracking-assignments"], cython = true}

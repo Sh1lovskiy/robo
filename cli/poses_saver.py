@@ -1,3 +1,5 @@
+# cli/poses_saver.py
+
 import os
 import time
 import json
@@ -9,8 +11,6 @@ from utils.config import Config
 from vision.realsense import RealSenseCamera
 
 
-# Directory where captures and poses.json will be saved (modify this as needed)
-CAPTURES_DIR = "cloud"
 
 
 class PoseSaver:
@@ -51,8 +51,8 @@ def main(
     controller: RobotController = None,
     saver: PoseSaver = None,
     logger=None,
-    filename: str = os.path.join(CAPTURES_DIR, "poses.json"),
-    ip_address: str = None,
+    filename: str | None = None,
+    ip_address: str | None = None,
 ):
     """
     Main function to save robot poses using key presses.
@@ -61,6 +61,8 @@ def main(
     - Press 'q' to quit.
     """
     Config.load("config.yaml")
+    captures_dir = Config.get("path_saver.captures_dir", "cloud")
+    filename = filename or os.path.join(captures_dir, "poses.json")
     if ip_address is None:
         ip_address = Config.get("robot.ip", default="192.168.1.10")
 
@@ -76,7 +78,7 @@ def main(
     cam.start()
 
     # === Prepare capture dir ===
-    os.makedirs(CAPTURES_DIR, exist_ok=True)
+    os.makedirs(captures_dir, exist_ok=True)
 
     pose_count = 0
     print("Press ENTER to save current pose. Press 'q' to quit.")
@@ -101,8 +103,8 @@ def main(
                 print(f"Saved pose {pose_id}: {pose}")
 
                 # --- Save RGB & depth images ---
-                rgb_path = os.path.join(CAPTURES_DIR, f"{pose_id}_rgb.png")
-                depth_path = os.path.join(CAPTURES_DIR, f"{pose_id}_depth.npy")
+                rgb_path = os.path.join(captures_dir, f"{pose_id}_rgb.png")
+                depth_path = os.path.join(captures_dir, f"{pose_id}_depth.npy")
                 cv2.imwrite(rgb_path, color)
                 np.save(depth_path, depth)
                 logger.info(f"RGB saved: {rgb_path}; Depth saved: {depth_path}")
