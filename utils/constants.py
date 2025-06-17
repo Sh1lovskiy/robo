@@ -1,18 +1,21 @@
 # utils/constants.py
+"""Common constants used across the project."""
+from pathlib import Path
 
-import os
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_CONFIG_PATH = REPO_ROOT / "config.yaml"
+DEFAULT_LOG_DIR = REPO_ROOT / "logs"
+DEFAULT_CLOUD_DIR = REPO_ROOT / "clouds"
+DEFAULT_ROBOT_IP = "192.168.58.2"
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LOG_DIR = os.path.join(BASE_DIR, "logs")
-CLOUD_OUTPUT_DIR = os.path.join(BASE_DIR, "clouds")
+# Mapping of Charuco dictionary names to OpenCV constants
+CHARUCO_DICT_MAP = {
+    "4X4_50": 0,
+    "4X4_100": 1,
+    "5X5_50": 8,
+    "5X5_100": 9,
+    "6X6_50": 16,
+    "6X6_100": 17,
+}
 
-DEFAULT_IP = "192.168.1.10"
-TOOL_ID = 0
-USER_FRAME_ID = 0
-NORMAL_VELOCITY = 35.0
-EMERGENCY_DELAY = 0.5
 
-POSES_FILE = "poses.txt"
-PATH_FILE = "path.txt"
-HAND_EYE_FILE = "handeye.npz"
-CHARUCO_CALIB_FILE = "charuco_cam.xml"

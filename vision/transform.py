@@ -24,6 +24,13 @@ class TransformUtils:
         return T
 
     @staticmethod
+    def apply_transform(points: np.ndarray, R: np.ndarray, t: np.ndarray) -> np.ndarray:
+        """Apply rotation and translation to Nx3 points."""
+        T = TransformUtils.build_transform(R, t)
+        points_h = np.hstack([points, np.ones((points.shape[0], 1))])
+        return (T @ points_h.T).T[:, :3]
+
+    @staticmethod
     def decompose_transform(T: np.ndarray):
         """
         Decompose 4x4 transform into (R, t).

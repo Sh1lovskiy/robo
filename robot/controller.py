@@ -1,9 +1,11 @@
 # robot/controller.py
+"""High-level robot control interface."""
 
 from typing import List, Optional, Union
 from robot.rpc import RPC
 from utils.logger import Logger
 from utils.config import Config
+from utils.constants import DEFAULT_ROBOT_IP
 
 
 class RobotController:
@@ -19,7 +21,7 @@ class RobotController:
         config: Optional[Config] = None,
     ):
         self.config = config or Config
-        self.ip_address = self.config.get("robot.ip", default="192.168.1.10")
+        self.ip_address = self.config.get("robot.ip", default=DEFAULT_ROBOT_IP)
         self.tool_id = self.config.get("robot.tool_id", default=0)
         self.user_frame_id = self.config.get("robot.user_frame_id", default=0)
         self.velocity = self.config.get("robot.velocity", default=20.0)

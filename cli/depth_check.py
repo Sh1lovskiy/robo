@@ -1,4 +1,5 @@
 # cli/depth_check.py
+"""Display live depth stream for camera tuning."""
 
 import cv2
 import numpy as np
