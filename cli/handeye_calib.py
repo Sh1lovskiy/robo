@@ -1,4 +1,5 @@
 # cli/handeye_calib.py
+"""Command-line interface for hand-eye calibration."""
 
 import os
 import numpy as np
@@ -115,7 +116,7 @@ class HandEyeCalibrationCLI:
     """
 
     def __init__(self, logger=None):
-        Config.load("config.yaml")
+        Config.load()
         self.cfg = Config.get("handeye")
         self.logger = logger or Logger.get_logger("cli.handeye_calib")
         self.output_dir = self.cfg.get("calib_output_dir", "calibration/results")

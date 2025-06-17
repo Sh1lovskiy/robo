@@ -1,4 +1,5 @@
 # robot/controller.py
+"""High-level robot control interface."""
 
 from typing import List, Optional, Union
 from robot.rpc import RPC
