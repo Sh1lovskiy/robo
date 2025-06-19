@@ -47,6 +47,9 @@ clouds/
 calibration/calib_hand17_06_1/
 calibration/calib_hand17_06_2/
 calibration/calib_hand16_06_1/
+calibration/calib_hand17_06_3/
+calibration/handeye_data1
+captures/
 
 *.jpg
 *.jpeg
@@ -60,3 +63,5 @@ calibration/calib_hand16_06_1/
 # Environment variables files
 .env
 .env.*
+
+

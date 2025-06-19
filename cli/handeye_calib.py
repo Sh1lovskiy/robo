@@ -121,10 +121,8 @@ class HandEyeCalibrationCLI:
 
     def run(self):
         # images_dir = self.cfg.get("images_dir", "cloud")
-        images_dir = "calib_hand17_06_2"
-        robot_poses_file = self.cfg.get(
-            "robot_poses_file", "calib_hand17_06_2/poses.json"
-        )
+        images_dir = "cloud"
+        robot_poses_file = self.cfg.get("robot_poses_file", "cloud/poses.json")
         charuco_xml = self.cfg.get(
             "charuco_xml", os.path.join(self.output_dir, "charuco_cam.xml")
         )

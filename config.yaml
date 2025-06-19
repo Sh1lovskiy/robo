@@ -29,10 +29,10 @@ charuco:
   square_length: 0.035
   marker_length: 0.026
   aruco_dict: 5X5_100
-  calib_output_dir: calibration/results
+  calib_output_dir: calibration/results2
   xml_file: charuco_cam.xml
   txt_file: charuco_cam.txt
-  images_dir: calibration/camera_calib_images
+  images_dir: cloud
 
 handeye:
   # images_dir: calibration/handeye_data
