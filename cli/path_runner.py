@@ -1,5 +1,8 @@
-# cli/path_runner.py
-"""Execute stored robot trajectories and capture camera frames."""
+#!/usr/bin/env python3
+"""
+Execute robot trajectory and capture synchronized RGB/depth images at each waypoint.
+Saves RGB (PNG) and depth (NPY) to the specified output directory.
+"""
 
 import os
 import time
@@ -12,36 +15,47 @@ from utils.config import Config
 from vision.realsense import RealSenseCamera
 
 
-class PathRunner:
+class FrameSaver:
     """
-    Executes a robot path from file using RobotController.
-    Captures RGB (PNG) and depth (NPY) images at each waypoint using RealSenseCamera.
+    Handles saving of RGB and depth images to disk.
+    """
+
+    def __init__(self, out_dir, logger=None):
+        self.out_dir = out_dir
+        self.logger = logger or Logger.get_logger("cli.path_runner.framesaver")
+        os.makedirs(self.out_dir, exist_ok=True)
+
+    def save(self, idx, color_img, depth_img):
+        rgb_path = os.path.join(self.out_dir, f"{idx:03d}_rgb.png")
+        depth_path = os.path.join(self.out_dir, f"{idx:03d}_depth.npy")
+        cv2.imwrite(rgb_path, color_img)
+        np.save(depth_path, depth_img)
+        self.logger.info(f"Saved RGB to {rgb_path}, depth to {depth_path}")
+
+
+class CameraManager:
+    """
+    Wraps RealSenseCamera: start, stop, warmup, and robust frame retrieval.
     """
 
     def __init__(
-        self,
-        controller=None,
-        logger=None,
-        out_dir=None,
-        path_file=None,
-        ip_address=None,
+        self, expected_shape=(480, 640, 3), expected_depth_shape=(480, 640), logger=None
     ):
-        Config.load()
-        robot_cfg = Config.get("robot")
-        path_cfg = Config.get("path_runner", {})
-
-        self.ip_address = ip_address or robot_cfg.get("ip", "192.168.58.2")
-        self.path_file = path_file or path_cfg.get("path_file", "poses.json")
-        self.out_dir = out_dir or path_cfg.get("out_dir", "captures")
-
-        self.controller = controller or RobotController(rpc=self.ip_address)
-        self.logger = logger or Logger.get_logger("cli.path_runner")
         self.cam = RealSenseCamera()
-        os.makedirs(self.out_dir, exist_ok=True)
+        self.logger = logger or Logger.get_logger("cli.path_runner.camera")
+        self.expected_shape = expected_shape
+        self.expected_depth_shape = expected_depth_shape
 
-    def _warmup_camera(self, n=10):
+    def start(self):
+        self.cam.start()
+        self._warmup(n=10)
+
+    def stop(self):
+        self.cam.stop()
+
+    def _warmup(self, n=10):
         """
-        Warm up the RealSense camera pipeline by grabbing and dropping n frames.
+        Grab and discard n frames to stabilize camera auto-exposure etc.
         """
         for _ in range(n):
             try:
@@ -50,27 +64,23 @@ class PathRunner:
                 pass
             time.sleep(0.05)
 
-    def _get_valid_frames(
-        self, retries=10, expected_shape=(480, 640, 3), expected_depth_shape=(480, 640)
-    ):
+    def get_valid_frames(self, retries=10):
         """
-        Try to get valid RGB and depth frames. Ensures frames have expected shape.
+        Robustly fetch valid color and depth frames with expected shapes.
         """
         for attempt in range(retries):
             try:
                 color_img, depth_img = self.cam.get_frames()
-                # Проверка размеров, чтобы не было обрезанных снимков
                 if (
                     color_img is not None
-                    and color_img.shape == expected_shape
+                    and color_img.shape == self.expected_shape
                     and depth_img is not None
-                    and depth_img.shape == expected_depth_shape
+                    and depth_img.shape == self.expected_depth_shape
                 ):
                     return color_img, depth_img
                 else:
                     self.logger.warning(
-                        f"Got frames of unexpected shape: "
-                        f"color={getattr(color_img, 'shape', None)}, "
+                        f"Unexpected frame shape: color={getattr(color_img, 'shape', None)}, "
                         f"depth={getattr(depth_img, 'shape', None)} (attempt {attempt+1})"
                     )
             except Exception as e:
@@ -80,51 +90,100 @@ class PathRunner:
             time.sleep(0.2)
         raise RuntimeError("Failed to get valid camera frames after retries")
 
-    def run(self, path_file=None):
-        path_file = path_file or self.path_file
-        self.cam.start()
-        self._warmup_camera(n=10)
-        with open(path_file, "r") as f:
+
+class TrajectoryLoader:
+    """
+    Loads trajectory/waypoints from a JSON file.
+    """
+
+    def __init__(self, path_file, logger=None):
+        self.path_file = path_file
+        self.logger = logger or Logger.get_logger("cli.path_runner.trajloader")
+
+    def load(self):
+        with open(self.path_file, "r") as f:
             data = json.load(f)
         pose_ids = sorted(data.keys(), key=lambda x: int(x))
         path = [data[k]["tcp_coords"] for k in pose_ids]
+        self.logger.info(f"Loaded {len(path)} waypoints from {self.path_file}")
+        return path
 
-        for i, pose in enumerate(path):
-            self.logger.info(f"Moving to pose {i}: {pose}")
+
+class PathRunner:
+    """
+    Executes a robot path and captures RGB/depth images at each waypoint.
+    """
+
+    def __init__(self, controller, camera_mgr, frame_saver, traj_loader, logger=None):
+        self.controller = controller
+        self.camera_mgr = camera_mgr
+        self.frame_saver = frame_saver
+        self.traj_loader = traj_loader
+        self.logger = logger or Logger.get_logger("cli.path_runner")
+
+    def run(self):
+        path = self.traj_loader.load()
+        self.camera_mgr.start()
+
+        for idx, pose in enumerate(path):
+            self.logger.info(f"Moving to pose {idx}: {pose}")
             if not self.controller.move_linear(pose):
-                self.logger.error(f"Movement to pose {i} failed.")
+                self.logger.error(f"Movement to pose {idx} failed.")
                 break
 
-            # Задержка для стабилизации камеры и позы
-            time.sleep(0.5)
+            time.sleep(0.5)  # Stabilize before capturing
 
             try:
-                color_img, depth_img = self._get_valid_frames()
+                color_img, depth_img = self.camera_mgr.get_valid_frames()
             except RuntimeError as e:
                 self.logger.error(str(e))
                 continue
 
-            rgb_path = os.path.join(self.out_dir, f"{i:03d}_rgb.png")
-            depth_npy_path = os.path.join(self.out_dir, f"{i:03d}_depth.npy")
+            self.frame_saver.save(idx, color_img, depth_img)
 
-            cv2.imwrite(rgb_path, color_img)
-            np.save(depth_npy_path, depth_img)
-            self.logger.info(f"Saved RGB to {rgb_path}, depth to {depth_npy_path}")
-
-        self.cam.stop()
+        self.camera_mgr.stop()
         self.controller.shutdown()
-        print("Path execution complete.")
+        self.logger.info("Path execution complete.")
 
 
 def main():
-    import sys
+    import argparse
 
-    ip = sys.argv[1] if len(sys.argv) > 1 else None
-    path_file = sys.argv[2] if len(sys.argv) > 2 else None
-    out_dir = sys.argv[3] if len(sys.argv) > 3 else None
-    runner = PathRunner(ip_address=ip, path_file=path_file, out_dir=out_dir)
+    parser = argparse.ArgumentParser(description="Execute robot path and save captures")
+    parser.add_argument("--ip", type=str, help="Robot controller IP address")
+    parser.add_argument(
+        "--path_file",
+        type=str,
+        default="captures/poses.json",
+        help="Path to poses JSON",
+    )
+    parser.add_argument(
+        "--out_dir", type=str, default="captures", help="Output directory for captures"
+    )
+    args = parser.parse_args()
+
+    Config.load()
+    robot_cfg = Config.get("robot", {})
+    ip_address = args.ip or robot_cfg.get("ip", "192.168.58.2")
+
+    controller = RobotController(rpc=ip_address)
+    camera_mgr = CameraManager()
+    frame_saver = FrameSaver(args.out_dir)
+    traj_loader = TrajectoryLoader(args.path_file)
+
+    runner = PathRunner(controller, camera_mgr, frame_saver, traj_loader)
     runner.run()
 
 
+def main1():
+    from robot.controller import RobotController
+
+    controller = RobotController()
+    pose1 = [320, -300, 320, -40, -10, -150]
+    pose2 = [330, -310, 320, -40, -10, -150]
+    controller.move_linear(pose1)
+    controller.move_linear(pose2)
+
+
 if __name__ == "__main__":
-    main()
+    main1()

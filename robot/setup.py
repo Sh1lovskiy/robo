@@ -1,6 +1,3 @@
-# robot/setup.py
-"""Cython build script for the RPC extension."""
-
 import os
 from setuptools import setup, Extension, find_packages
 from Cython.Build import cythonize
@@ -9,7 +6,7 @@ from Cython.Build import cythonize
 ext_modules = cythonize(
     Extension(
         "robot.rpc",
-        ["rpc.py"],
+        ["Robot.py"],
         extra_compile_args=["-fno-var-tracking-assignments"]
     ),
     compiler_directives={'language_level': "3"}

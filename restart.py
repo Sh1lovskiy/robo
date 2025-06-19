@@ -3,7 +3,7 @@
 
 import time
 from robot.controller import RobotController
-from robot.rpc import RPC
+from robot.Robot import RPC
 from utils.logger import Logger
 from utils.config import Config
 from utils.constants import DEFAULT_ROBOT_IP

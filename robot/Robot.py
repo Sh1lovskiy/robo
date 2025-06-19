@@ -1,6 +1,3 @@
-# robot/rpc.py
-"""Low-level RPC interface for the Fairino robot."""
-
 import xmlrpc.client
 import os
 import socket
@@ -12,20 +9,10 @@ from functools import wraps
 from logging.handlers import RotatingFileHandler
 from queue import Queue
 import threading
-from utils.config import Config
 import struct
 import sys
 import ctypes
-from ctypes import (
-    Structure,
-    c_byte,
-    c_int,
-    c_double,
-    c_float,
-    c_uint16,
-    c_uint8,
-    c_ushort,
-)
+from ctypes import *
 
 # from Cython.Compiler.Options import error_on_unknown_names
 
@@ -210,7 +197,7 @@ class RobotError:
 
 
 class RPC():
-    ip_address = None
+    ip_address = "192.168.58.2"
 
     logger = None
     log_output_model = -1
@@ -227,9 +214,8 @@ class RPC():
     closeRPC_state = False
 
 
-    def __init__(self, ip: str | None = None):
-        Config.load()
-        self.ip_address = ip or Config.get("robot.ip", "192.168.58.2")
+    def __init__(self, ip="192.168.58.2"):
+        self.ip_address = ip
         link = 'http://' + self.ip_address + ":20003"
         self.robot = xmlrpc.client.ServerProxy(link)#xmlrpcConnecting the robot20003port，Used to send robot instruction data frames
 
