@@ -2,6 +2,7 @@
 
 import cv2
 import numpy as np
+from utils.io import load_camera_params
 
 
 class OpenCVUtils:
@@ -41,9 +42,5 @@ class OpenCVUtils:
 
     @staticmethod
     def load_camera_calib_from_xml(filename):
-        """Load camera matrix and distortion coefficients from OpenCV XML/YAML file."""
-        fs = cv2.FileStorage(filename, cv2.FILE_STORAGE_READ)
-        camera_matrix = fs.getNode("camera_matrix").mat()
-        dist_coeffs = fs.getNode("dist_coeffs").mat()
-        fs.release()
-        return camera_matrix, dist_coeffs
+        """Load camera matrix and distortion coefficients from file."""
+        return load_camera_params(filename)

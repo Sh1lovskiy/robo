@@ -1,56 +1,77 @@
-# Python virtual environment
+# ---------------------------
+# Python virtual environments
+# ---------------------------
 .venv/
 venv/
 
-# Python cache
+# -----------------
+# Python artifacts
+# -----------------
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
 *.pyd
+*.so
 
-# HandEye calibration data
-calibration/handeye_data/
-
-# Cython build artifacts
+# -----------------
+# Compiled Cython
+# -----------------
 robot/build/
 robot/*.c
 robot/*.so
 robot/*.pyd
 
-# General build artifacts
+# --------------------
+# Build/Dist artifacts
+# --------------------
 build/
 dist/
 *.egg-info/
 
-# Jupyter Notebook checkpoints
+# -----------------
+# Jupyter Notebooks
+# -----------------
 .ipynb_checkpoints/
 
-# IDE/editor configs
+# -----------------
+# IDE/Editor configs
+# -----------------
 .vscode/
 .idea/
 *.sublime-workspace
 *.sublime-project
 
+# -----------------
 # OS-generated files
+# -----------------
 .DS_Store
 Thumbs.db
 
-# Log files
+# -----------------
+# Logs
+# -----------------
 *.log
 logs/
 
-# Images
-cloud/
-cloud1/
-clouds/
-
+# -----------------
+# Calibration and data artifacts
+# -----------------
+calibration/handeye_data/
+calibration/handeye_data1/
+calibration/calib_hand16_06_1/
 calibration/calib_hand17_06_1/
 calibration/calib_hand17_06_2/
-calibration/calib_hand16_06_1/
 calibration/calib_hand17_06_3/
-calibration/handeye_data1
 captures/
 
+# -----------------
+# Raw data & clouds
+# -----------------
+cloud/
+clouds/
+
+# -----------------
+# Image/data files
+# -----------------
 *.jpg
 *.jpeg
 *.png
@@ -60,8 +81,12 @@ captures/
 *.webp
 *.npy
 
-# Environment variables files
+# -----------------
+# Env files
+# -----------------
 .env
 .env.*
 
-
+# Ignore additional data folders if used in future
+data/
+tmp/
