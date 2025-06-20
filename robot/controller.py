@@ -152,9 +152,19 @@ class RobotController:
         """
         Disable and disconnect robot.
         """
-        self.rpc.RobotEnable(0)
+        self.disable()
         self.rpc.closeRPC_state = True
         self.logger.info("Robot shutdown complete")
+
+    def enable(self) -> None:
+        """Enable robot motors."""
+        self.rpc.RobotEnable(1)
+        self.logger.info("Robot enabled")
+
+    def disable(self) -> None:
+        """Disable robot motors."""
+        self.rpc.RobotEnable(0)
+        self.logger.info("Robot disabled")
 
     # --- Примеры дополнительных методов с SOLID ---
     def wait_motion_done(self, timeout_sec=20):
@@ -190,3 +200,4 @@ class RobotController:
             return res[1]
         self.logger.error("GetActualJointPosDegree failed")
         return None
+
