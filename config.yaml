@@ -41,3 +41,20 @@ handeye:
   npz_file: handeye.npz
   txt_file: handeye.txt
   method: all
+
+cloud_pipeline:
+  data_dir: captures
+  charuco_xml: calibration/results/charuco_cam.xml
+  handeye_txt: calibration/results/handeye_PARK.txt
+  poses_file: captures/poses.json
+  depth_scale: 0.001
+  roi_limits:
+    x: [-0.3, -0.1]
+    y: [-0.2, 0.2]
+    z: [0.02, 0.1]
+
+gpt:
+  deepseek_api_key: "key"
+  anthropic_api_key: "key"
+  deepseek_url: https://api.deepseek.com/v1/chat/completions
+  anthropic_url: https://api.anthropic.com/v1/messages

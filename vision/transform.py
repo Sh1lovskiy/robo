@@ -2,6 +2,7 @@
 
 import numpy as np
 from utils.logger import Logger
+from utils.geometry import euler_to_matrix
 
 
 class TransformUtils:
@@ -81,9 +82,9 @@ class TransformUtils:
         if tcp_offset is None or np.allclose(tcp_offset, 0):
             return np.eye(4)
         x, y, z, rx, ry, rz = tcp_offset
-        from scipy.spatial.transform import Rotation as R
+        from utils.geometry import euler_to_matrix
 
-        rot = R.from_euler("xyz", [rx, ry, rz]).as_matrix()
+        rot = euler_to_matrix(rx, ry, rz, degrees=True)
         return self.build_transform(rot, np.array([x, y, z]))
 
     def tcp_to_camera(self, R_handeye: np.ndarray, t_handeye: np.ndarray):
@@ -154,7 +155,7 @@ def _test_transform_utils():
 
     # Offset and handeye rotation
     tcp_offset = np.array([0.1, 0.2, 0.3, 0, 0, np.pi / 2])
-    R_handeye = R.from_euler("z", 90, degrees=True).as_matrix()
+    R_handeye = euler_to_matrix(0, 0, 90)
     t_handeye = np.array([0.05, 0, 0])
     T_base_cam = tu.get_base_to_camera(tcp_pose, tcp_offset, R_handeye, t_handeye)
     assert T_base_cam.shape == (4, 4)

@@ -5,12 +5,17 @@ import requests
 import json
 from typing import List, Tuple
 
-# Configuration for APIs - replace with your actual keys
-DEEPSEEK_API_KEY = "key"
-ANTHROPIC_API_KEY = "key"
+from utils.config import Config
 
-DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
-ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+Config.load()
+DEEPSEEK_API_KEY = Config.get("gpt.deepseek_api_key", "")
+ANTHROPIC_API_KEY = Config.get("gpt.anthropic_api_key", "")
+DEEPSEEK_URL = Config.get(
+    "gpt.deepseek_url", "https://api.deepseek.com/v1/chat/completions"
+)
+ANTHROPIC_URL = Config.get(
+    "gpt.anthropic_url", "https://api.anthropic.com/v1/messages"
+)
 
 
 def build_prompt(

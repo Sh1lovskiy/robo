@@ -21,20 +21,21 @@ dependencies = [
 ]
 
 [project.scripts]
-poses-saver = "cli.poses_saver:main"
-path-runner = "cli.path_runner:main"
-charuco-calib = "cli.charuco_calib:main"
-handeye-calib = "cli.handeye_calib:main"
-get-intrinsics = "cli.get_intrinsics:main"
-depth-check = "cli.depth_check:main"
-pointcloud-capture = "cli.pointcloud_capture:main"
-pointcloud-transform = "cli.pointcloud_transform:main"
-pointcloud-view = "cli.pointcloud_view:main"
-vis-pointcloud = "cli.vis_pointcloud:main"
+poses-saver = "robot.workflows:main_record_poses"
+path-runner = "robot.workflows:main_run_path"
+charuco-calib = "calibration.workflows:main_charuco"
+handeye-calib = "calibration.workflows:main_handeye"
+get-intrinsics = "vision.tools:main_intrinsics"
+depth-check = "vision.tools:main_depth"
+pointcloud-capture = "vision.tools:main_capture"
+pointcloud-transform = "vision.tools:main_transform"
+pointcloud-view = "vision.tools:main_view"
+vis-pointcloud = "vision.tools:main_pipeline"
+robot-restart = "restart:restart_robot"
 
 [tool.setuptools.package-data]
 robot = ["*.py", "*.pyx"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["cli*", "robot*", "utils*", "vision*", "calibration*"]
+include = ["robot*", "utils*", "vision*", "calibration*"]

@@ -18,37 +18,35 @@ A modular, production-grade Python toolkit for robotics calibration, vision, 3D 
 ```
 project-root/
 │
-├── calibration/          # Calibration algorithms & data savers
-│   ├── charuco.py        # Charuco board calibration
-│   └── handeye.py        # Hand-eye calibration
+├── calibration/          # Calibration algorithms & workflows
+│   ├── charuco.py              # Charuco board calibration helpers
+│   ├── handeye.py              # Hand-eye calibration helpers
+│   ├── pose_loader.py          # Load robot poses from JSON
+│   ├── workflows.py            # High-level calibration routines
+│   └── README.md               # Package overview
 │
-├── cli/                  # CLI utilities (ready-to-run scripts)
-│   ├── poses_saver.py           # Save robot poses to file
-│   ├── path_runner.py           # Run robot path from file
-│   ├── charuco_calib.py         # Charuco calibration wizard
-│   ├── handeye_calib.py         # Hand-eye calibration wizard
-│   ├── get_intrinsics.py        # Print RealSense camera intrinsics
-│   ├── depth_check.py           # Real-time depth stream debug
-│   ├── pointcloud_capture.py    # Capture and save point cloud
-│   ├── pointcloud_transform.py  # Transform point clouds (hand-eye/world)
-│   └── pointcloud_view.py       # View/inspect point clouds
+├── robot/                # Robot API & workflows
+│   ├── controller.py          # Main control class
+│   ├── workflows.py          # Pose recorder and path runner
+│   ├── marker.py             # Simple marker utilities
+│   ├── Robot.py              # Cython RPC bindings
+│   └── README.md             # Package overview
 │
-├── robot/                # Robot high-level and low-level logic
-│   ├── controller.py     # Main control class
-│   └── rpc.py            # RPC protocol and low-level driver
-│
-├── utils/                # Utilities: configuration, logging, constants
+├── utils/                # Common utilities
 │   ├── config.py         # Config loading/abstraction
 │   ├── logger.py         # Centralized, JSON-capable logger
-│   └── constants.py      # Shared paths and defaults
+│   ├── io.py             # Camera calibration I/O
+│   ├── geometry.py       # Math helpers
+│   └── README.md         # Package overview
 │
 ├── vision/               # Vision, cloud, and camera utils
-│   ├── opencv_utils.py   # OpenCV helper class
-│   ├── realsense.py      # RealSense camera wrapper
-│   ├── pointcloud.py     # PointCloudGenerator class and utilities
-│   ├── transform.py      # 3D transformation utilities (see vision/README.md)
-│   └── README.md         # Explanation of transform chain
-|
+│   ├── opencv_utils.py        # OpenCV helper class
+│   ├── realsense.py           # RealSense camera wrapper
+│   ├── pointcloud.py          # PointCloudGenerator class and utilities
+│   ├── tools.py               # Camera and cloud helper routines
+│   ├── transform.py           # 3D transformation utilities
+│   └── README.md              # Explanation of transform chain
+│
 ├── config.yaml           # Main configuration file
 ├── pyproject.toml        # Project metadata & dependencies
 └── README.md             # You are here
@@ -73,26 +71,33 @@ uv pip install -e .
 Edit `config.yaml` for your robot/camera IP, tool, velocity, logging, and point cloud settings.
 
 ### 3. Run CLI Tools
+CLI modules are thin wrappers calling workflow helpers under
+`calibration/`, `robot/`, and `vision/`.
 
 * Save a pose:
 
   ```bash
-  .venv/bin/python -m cli.poses_saver
+  poses-saver
   ```
 * Run a trajectory from file:
 
   ```bash
-  .venv/bin/python -m cli.path_runner
+  path-runner
   ```
 * Calibrate camera (Charuco):
 
   ```bash
-  .venv/bin/python -m cli.charuco_calib
+  charuco-calib
   ```
 * Capture point cloud:
 
   ```bash
-  .venv/bin/python -m cli.pointcloud_capture --output clouds/cloud.ply
+  pointcloud-capture --output clouds/cloud.ply
+  ```
+* Restart robot connection:
+
+  ```bash
+  robot-restart
   ```
 
 ### 4. Build & Install
@@ -104,8 +109,8 @@ uv venv .venv -p 3.12
 uv pip install -e .
 ```
 
-All runtime dependencies live in `pyproject.toml`. If you need a classic
-`requirements.txt` file, generate it with `uv pip freeze > requirements.txt`.
+All dependencies are defined in `pyproject.toml`. To create a traditional
+`requirements.txt` snapshot run `uv pip freeze > requirements.txt`.
 
 ---
 
@@ -116,7 +121,9 @@ All runtime dependencies live in `pyproject.toml`. If you need a classic
 * `robot:` — IP, tool/user frame, velocity, emergency delay
 * `vision:` — RealSense stream parameters, cloud parameters
 * `logging:` — log directory, level, JSON output
-* `cloud:` — point cloud settings (resolution, voxel size, output dir, ...)
+* `cloud:` — point cloud settings (output dir)
+* `cloud_pipeline:` — dataset paths, depth scale, ROI limits
+* `gpt:` — API keys and endpoints for path generation
 * Defaults for paths, robot IP, and Charuco dictionary mapping are defined in `utils/constants.py`
 
 ### Logger (`utils/logger.py`)
@@ -149,22 +156,24 @@ All runtime dependencies live in `pyproject.toml`. If you need a classic
 
 * `pointcloud.py` — Depth to point cloud conversion, save/load (PLY, XYZ, npz), filtering, merging
 * `transform.py` — Rigid transformations between camera/robot/world coordinates (uses calibration, see vision/README.md)
-* CLI: `pointcloud_capture.py`, `pointcloud_transform.py`, `pointcloud_view.py`
+* CLI scripts provided via entry points (`pointcloud-capture`, `pointcloud-transform`, `pointcloud-view`)
 
 **See [vision/README.md](./vision/README.md) for detailed usage, coordinate system details, and all math for 3D transforms.**
 
 **Typical workflow:**
 
-1. Capture depth + color → generate cloud (`cli/pointcloud_capture.py`)
+1. Capture depth + color → generate cloud (`pointcloud-capture`)
 2. (Optional) Filter, merge, or transform clouds (robot <-> camera <-> world)
-3. Save or visualize result (`cli/pointcloud_view.py`)
+3. Save or visualize result (`pointcloud-view`)
 
 ### CLI Tools
 
-* All logic in `cli/` is ready for direct call and piped scripting
-* Consistent logger and error output
+Entry points defined in `pyproject.toml` expose the common workflows:
+`poses-saver`, `path-runner`, `charuco-calib`, etc. The underlying logic lives
+within the respective packages.
 
 ### Extensibility/Testing
+* Run tests with `pytest`.
 
 * Logger, config, robot, camera: all support dependency injection for unit tests or swapping implementations.
 * Add new data savers, control strategies, vision pipelines, or point cloud processors with minimal edits.
