@@ -5,27 +5,19 @@ import os
 import numpy as np
 import open3d as o3d
 import cv2
-from scipy.spatial.transform import Rotation as R
+from utils.geometry import euler_to_matrix
+from utils.io import load_camera_params
 
 
 class PointCloudGenerator:
     """Utility class for creating and handling point clouds."""
 
-    @staticmethod
-    def load_camera_params(xml_path):
-        fs = cv2.FileStorage(xml_path, cv2.FILE_STORAGE_READ)
-        camera_matrix = fs.getNode("camera_matrix").mat()
-        dist_coeffs = fs.getNode("dist_coeffs").mat()
-        fs.release()
-        return camera_matrix, dist_coeffs
 
     @staticmethod
     def pose_to_transform(pose, angles_in_deg=True):
         x, y, z, rx, ry, rz = pose
         x, y, z = x / 1000.0, y / 1000.0, z / 1000.0
-        if angles_in_deg:
-            rx, ry, rz = np.deg2rad([rx, ry, rz])
-        rot = R.from_euler("xyz", [rx, ry, rz]).as_matrix()
+        rot = euler_to_matrix(rx, ry, rz, degrees=angles_in_deg)
         T = np.eye(4)
         T[:3, :3] = rot
         T[:3, 3] = [x, y, z]

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# vision/cloud.py
 """
 Build and aggregate a 3D point cloud from RGB, depth maps, and robot poses,
 using camera and hand-eye calibration. Optionally adds ICP alignment for each frame.
@@ -11,8 +12,9 @@ import json
 import numpy as np
 import open3d as o3d
 import argparse
-from scipy.spatial.transform import Rotation as R
 from utils.logger import Logger
+from utils.io import load_camera_params
+from calibration.pose_loader import JSONPoseLoader
 from vision.pointcloud import PointCloudGenerator
 from vision.transform import TransformUtils
 
@@ -24,14 +26,6 @@ POSES_PATH = "captures/poses.json"
 OUTPUT_PLY_ICP = os.path.join(DATA_DIR, "cloud_aggregated_icp.ply")
 OUTPUT_PLY_NOICP = os.path.join(DATA_DIR, "cloud_aggregated.ply")
 DEPTH_SCALE = 0.001
-
-
-def load_camera_intrinsics(xml_path):
-    fs = cv2.FileStorage(xml_path, cv2.FILE_STORAGE_READ)
-    camera_matrix = fs.getNode("camera_matrix").mat()
-    dist_coeffs = fs.getNode("dist_coeffs").mat()
-    fs.release()
-    return camera_matrix, dist_coeffs
 
 
 def load_handeye_txt(path):
@@ -55,15 +49,6 @@ def load_handeye_txt(path):
     return R, t
 
 
-def load_poses(path):
-    with open(path, "r") as f:
-        data = json.load(f)
-    poses = []
-    for idx in sorted(data.keys()):
-        coords = data[idx]["tcp_coords"]
-        coords[:3] = [v / 1000 for v in coords[:3]]
-        poses.append(coords)
-    return poses
 
 
 def load_depth(depth_path):
@@ -79,11 +64,6 @@ def get_image_pairs(data_dir):
     assert len(rgb_list) == len(depth_list), "RGB and depth image count mismatch."
     return list(zip(rgb_list, depth_list))
 
-
-def rotation_matrix_from_euler(rx, ry, rz):
-    return R.from_euler("xyz", [rx, ry, rz], degrees=True).as_matrix()
-
-
 class PointCloudAggregator:
     def __init__(self, logger=None):
         self.logger = logger or Logger.get_logger("cloud.aggregator")
@@ -91,20 +71,28 @@ class PointCloudAggregator:
         self.transformer = TransformUtils()
 
     def aggregate(
-        self, img_pairs, poses, intrinsics, R_handeye, t_handeye, use_icp=False
+        self,
+        img_pairs,
+        rotations,
+        translations,
+        intrinsics,
+        R_handeye,
+        t_handeye,
+        use_icp=False,
     ):
         all_points, all_colors = [], []
         base_pcd = None
 
-        for idx, ((rgb_path, depth_path), pose) in enumerate(zip(img_pairs, poses)):
+        for idx, ((rgb_path, depth_path), (R_tcp, t_tcp)) in enumerate(
+            zip(img_pairs, zip(rotations, translations))
+        ):
             self.logger.info(f"Processing frame {idx}: {rgb_path}, {depth_path}")
 
             rgb = cv2.cvtColor(cv2.imread(rgb_path), cv2.COLOR_BGR2RGB)
             depth = load_depth(depth_path)
 
-            x, y, z, rx, ry, rz = pose
-            R_base_tcp = rotation_matrix_from_euler(rx, ry, rz)
-            t_base_tcp = np.array([x, y, z])
+            R_base_tcp = R_tcp
+            t_base_tcp = t_tcp
 
             cam_intr = {
                 "fx": intrinsics[0, 0],
@@ -163,18 +151,18 @@ def main():
 
     logger = Logger.get_logger("cloud.pipeline", console_output=True)
 
-    K, _ = load_camera_intrinsics(CAM_CALIB_PATH)
+    K, _ = load_camera_params(CAM_CALIB_PATH)
     logger.info("Camera intrinsics loaded.")
     R_handeye, t_handeye = load_handeye_txt(HANDEYE_PATH)
     logger.info("Hand-eye calibration loaded.")
-    poses = load_poses(POSES_PATH)
-    logger.info(f"{len(poses)} poses loaded.")
+    Rs, ts = JSONPoseLoader.load_poses(POSES_PATH)
+    logger.info(f"{len(Rs)} poses loaded.")
     img_pairs = get_image_pairs(DATA_DIR)
     logger.info(f"Found {len(img_pairs)} RGB/depth image pairs.")
 
     aggregator = PointCloudAggregator(logger)
     points, colors = aggregator.aggregate(
-        img_pairs, poses, K, R_handeye, t_handeye, use_icp=args.icp
+        img_pairs, Rs, ts, K, R_handeye, t_handeye, use_icp=args.icp
     )
     output_path = OUTPUT_PLY_ICP if args.icp else OUTPUT_PLY_NOICP
     aggregator.save_cloud(points, colors, output_path)

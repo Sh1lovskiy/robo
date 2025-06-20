@@ -3,7 +3,7 @@
 
 import json
 import numpy as np
-from scipy.spatial.transform import Rotation as R
+from utils.geometry import euler_to_matrix
 
 
 class JSONPoseLoader:
@@ -21,10 +21,9 @@ class JSONPoseLoader:
         Rs, ts = [], []
         for pose in data.values():
             tcp_pose = pose["tcp_coords"]  # [x, y, z, rx, ry, rz]
-            t = np.array(tcp_pose[:3], dtype=np.float64) / 1000.0  # mm → meters
-            rx, ry, rz = np.deg2rad(tcp_pose[3:])  # если углы в градусах!
-            rot = R.from_euler("xyz", [rx, ry, rz])
-            R_mat = rot.as_matrix()
+            t = np.array(tcp_pose[:3], dtype=np.float64) / 1000.0  # mm → m
+            rx, ry, rz = tcp_pose[3:]
+            R_mat = euler_to_matrix(rx, ry, rz, degrees=True)
             Rs.append(R_mat)
             ts.append(t)
         return Rs, ts
