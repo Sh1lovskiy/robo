@@ -114,8 +114,8 @@ def test_transform_utils():
 
 ---
 
-## 🔬 References
+<!-- ## 🔬 References
 
 * [OpenCV Hand-Eye Calibration](https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#ga34d5c42c2290c1c2137be7fddbc75b5d)
 * [OpenCV Forum: Eye-to-Hand/Hand-Eye conventions](https://forum.opencv.org/t/eye-to-hand-calibration/5690/2)
-* [arXiv: On Hand-Eye Calibration](https://arxiv.org/pdf/2311.12655)
+* [arXiv: On Hand-Eye Calibration](https://arxiv.org/pdf/2311.12655) -->
