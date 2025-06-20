@@ -44,7 +44,7 @@ T_base_cam = T_base_tcp @ T_tcp_tool @ T_tool_cam
 ## 🚀 Typical Workflow
 
 1. Capture depth + color in camera frame
-2. Build point cloud with `vision/pointcloud.py` (Nx3 cloud)
+2. Build point cloud with `vision/cloud/generator.py` (Nx3 cloud)
 3. Transform to TCP or world coordinates using `vision/transform.py`:
 
    * Load hand-eye calibration (`handeye.npz`, R, t)
@@ -78,7 +78,7 @@ T_base_cam = TransformUtils.chain_transforms(T_base_tcp, T_tcp_tool, T_tool_cam)
 ### Transform cloud to world:
 
 ```python
-cloud_cam = ...  # Nx3 from vision.pointcloud
+cloud_cam = ...  # Nx3 from vision.cloud.generator
 cloud_world = TransformUtils().camera_to_world(cloud_cam, T_base_cam)
 ```
 
