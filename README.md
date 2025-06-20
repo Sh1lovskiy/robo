@@ -26,26 +26,26 @@ project-root/
 │   └── README.md               # Package overview
 │
 ├── robot/                # Robot API & workflows
-│   ├── controller.py          # Main control class
-│   ├── workflows.py          # Pose recorder and path runner
-│   ├── marker.py             # Simple marker utilities
-│   ├── Robot.py              # Cython RPC bindings
-│   └── README.md             # Package overview
+│   ├── controller.py           # Main control class
+│   ├── workflows.py            # Pose recorder and path runner
+│   ├── marker.py               # Simple marker utilities
+│   ├── Robot.py                # Cython RPC bindings
+│   └── README.md               # Package overview
 │
 ├── utils/                # Common utilities
-│   ├── config.py         # Config loading/abstraction
-│   ├── logger.py         # Centralized, JSON-capable logger
-│   ├── io.py             # Camera calibration I/O
-│   ├── geometry.py       # Math helpers
-│   └── README.md         # Package overview
+│   ├── config.py               # Config loading/abstraction
+│   ├── logger.py               # Centralized, JSON-capable logger
+│   ├── io.py                   # Camera calibration I/O
+│   ├── geometry.py             # Math helpers
+│   └── README.md               # Package overview
 │
 ├── vision/               # Vision, cloud, and camera utils
-│   ├── opencv_utils.py        # OpenCV helper class
-│   ├── realsense.py           # RealSense camera wrapper
-│   ├── pointcloud.py          # PointCloudGenerator class and utilities
-│   ├── tools.py               # Camera and cloud helper routines
-│   ├── transform.py           # 3D transformation utilities
-│   └── README.md              # Explanation of transform chain
+│   ├── opencv_utils.py         # OpenCV helper class
+│   ├── realsense.py            # RealSense camera wrapper
+│   ├── pointcloud.py           # PointCloudGenerator class and utilities
+│   ├── tools.py                # Camera and cloud helper routines
+│   ├── transform.py            # 3D transformation utilities
+│   └── README.md               # Explanation of transform chain
 │
 ├── config.yaml           # Main configuration file
 ├── pyproject.toml        # Project metadata & dependencies
@@ -56,15 +56,16 @@ project-root/
 
 ## 🚀 Quickstart
 
-### 1. Clone & Install
+### 1. Build & Install
+
+Use `pyproject.toml` together with [uv](https://github.com/astral-sh/uv) for reproducible environments/builds:
 
 ```bash
-git clone ...
-cd project-root
-uv venv .venv -p 3.11
-source .venv/bin/activate
+uv venv .venv -p 3.12
 uv pip install -e .
 ```
+
+All dependencies are defined in `pyproject.toml`.
 
 ### 2. Configure
 
@@ -94,18 +95,6 @@ CLI modules are thin wrappers calling workflow helpers under
   ```bash
   pointcloud-capture --output clouds/cloud.ply
   ```
-
-### 4. Build & Install
-
-Use `pyproject.toml` together with [uv](https://github.com/astral-sh/uv) for reproducible environments/builds:
-
-```bash
-uv venv .venv -p 3.12
-uv pip install -e .
-```
-
-All dependencies are defined in `pyproject.toml`. To create a traditional
-`requirements.txt` snapshot run `uv pip freeze > requirements.txt`.
 
 ---
 
@@ -166,8 +155,6 @@ Entry points defined in `pyproject.toml` expose the common workflows:
 within the respective packages.
 
 ### Extensibility/Testing
-* Run tests with `pytest`.
-
 * Logger, config, robot, camera: all support dependency injection for unit tests or swapping implementations.
 * Add new data savers, control strategies, vision pipelines, or point cloud processors with minimal edits.
 
