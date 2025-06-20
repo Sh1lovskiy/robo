@@ -42,7 +42,10 @@ project-root/
 ├── vision/               # Vision, cloud, and camera utils
 │   ├── opencv_utils.py         # OpenCV helper class
 │   ├── realsense.py            # RealSense camera wrapper
-│   ├── pointcloud.py           # PointCloudGenerator class and utilities
+│   ├── cloud/                  # Point cloud subpackage
+│   │   ├── generator.py            # PointCloudGenerator class
+│   │   ├── aggregator.py           # Multi-frame cloud builder
+│   │   └── pipeline.py             # Filtering/analysis helpers
 │   ├── tools.py                # Camera and cloud helper routines
 │   ├── transform.py            # 3D transformation utilities
 │   └── README.md               # Explanation of transform chain
@@ -136,7 +139,9 @@ CLI modules are thin wrappers calling workflow helpers under
 
 ### 3D Point Cloud Modules
 
-* `pointcloud.py` — Depth to point cloud conversion, save/load (PLY, XYZ, npz), filtering, merging
+* `cloud/generator.py` — Depth to point cloud conversion, save/load (PLY, XYZ, npz)
+* `cloud/aggregator.py` — Multi-frame cloud assembly with optional ICP
+* `cloud/pipeline.py` — Filtering, clustering, and trajectory analysis
 * `transform.py` — Rigid transformations between camera/robot/world coordinates (uses calibration, see vision/README.md)
 * CLI scripts provided via entry points (`pointcloud-capture`, `pointcloud-transform`, `pointcloud-view`)
 
