@@ -16,6 +16,9 @@ A robust, modular set of tools for 3D vision tasks: point cloud generation from 
 * Easy to test and extend in production pipelines
 * `OpenCVUtils.show_depth` for quick depth visualization
 
+The `vision.cloud` subpackage holds the point cloud utilities described in
+[vision/cloud/README.md](cloud/README.md).
+
 ---
 
 ## 📌 Coordinate Systems and Transform Chain
@@ -111,6 +114,8 @@ def test_transform_utils():
     points_c = TransformUtils().world_to_camera(points_w, T)
     assert np.allclose(points_c, points)
 ```
+
+All utilities follow SOLID. Each function or class focuses on a single task so the vision pipeline can be extended without modifying existing code.
 
 ---
 
