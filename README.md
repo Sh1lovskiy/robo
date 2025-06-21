@@ -2,9 +2,11 @@
 
 A modular, production-grade Python toolkit for robotics calibration, vision, 3D point cloud processing, and automated pose/trajectory collection.
 
+This repository groups several focused modules under a single project umbrella. Each individual components remain testable and extensible. The sections below describe the directory layout and how the pieces fit together.
+
 **Supports:**
 
-* Robot high-level API (move, home, state, RPC)
+* Robot high-level API (move, home,  state, RPC)
 * RealSense 3D camera management
 * Automated Charuco and hand-eye calibration (OpenCV)
 * 3D point cloud generation, transformation, and visualization
@@ -54,6 +56,19 @@ project-root/
 ├── pyproject.toml        # Project metadata & dependencies
 └── README.md             # You are here
 ```
+
+---
+
+## Overview
+
+The project is organized into four main packages that mirror typical robotics layers:
+
+* **calibration/** – Charuco board detection and hand‑eye calibration. The mathematical background of the pose estimation and the classical `AX = XB` formulation are explained in [calibration/README.md](calibration/README.md).
+* **robot/** – Robot connection logic and high‑level motion API. Communication is decoupled from workflows so hardware can be replaced without touching the algorithm code (Dependency Inversion Principle).
+* **vision/** – Camera interfaces, point cloud tools, and coordinate transforms. Transform chains and coordinate conventions appear in [vision/README.md](vision/README.md).
+* **utils/** – Shared helpers for configuration, logging and geometry calculations.
+
+Every component keeps a single responsibility and exposes a minimal interface. New robots or cameras can be integrated by implementing the same interfaces without modifying existing modules.
 
 ---
 
@@ -108,7 +123,7 @@ CLI modules are thin wrappers calling workflow helpers under
 * `robot:` — IP, tool/user frame, velocity, emergency delay
 * `vision:` — RealSense stream parameters, cloud parameters
 * `logging:` — log directory, level, JSON output
-* `cloud:` — point cloud settings (resolution, voxel size, output dir, ...)
+* `cloud:` — point cloud setting, (resolution, voxel size, output dir, ...)
 * Defaults for paths, robot IP, and Charuco dictionary mapping are defined in `utils/constants.py`
 
 ### Logger (`utils/logger.py`)
@@ -153,11 +168,26 @@ CLI modules are thin wrappers calling workflow helpers under
 2. (Optional) Filter, merge, or transform clouds (robot <-> camera <-> world)
 3. Save or visualize result (`pointcloud-view`)
 
+## Mathematical Background
+
+Camera calibration uses OpenCV's implementation of Zhang's algorithm.  Given a set of world coordinates \(X_i\) and their observed pixel locations \(x_i\), the intrinsic matrix \(K\) and distortion parameters are solved by minimizing
+
+$$
+\sum_i \left\| x_i - \pi( K [R \; t] X_i ) \right\|^2,
+$$
+
+where $\pi$ is the perspective projection.  Hand‑eye calibration solves the classic $AX = XB$ equation using multiple poses from the robot and the target marker. The unknown transform $X$ (camera with respect to tool) is recovered via methods such as Tsai–Lenz or Daniilidis. Once $X$ is known, point clouds can be transformed to the robot base with
+
+$$
+T_{base \leftarrow cam} = T_{base \leftarrow tcp} \times T_{tcp \leftarrow tool} \times T_{tool \leftarrow cam}.
+$$
+
+Rigid motions are represented as 4×4 matrices in $SE(3)$. Composition uses matrix multiplication and inverse transforms use the transpose for rotation with the negative translated vector.
+
 ### CLI Tools
 
 Entry points defined in `pyproject.toml` expose the common workflows:
-`poses-saver`, `path-runner`, `charuco-calib`, etc. The underlying logic lives
-within the respective packages.
+`poses-saver`, `path-runner`, `charuco-calib`, etc. The underlying logic lives within the respective packages.
 
 ### Extensibility/Testing
 * Logger, config, robot, camera: all support dependency injection for unit tests or swapping implementations.
