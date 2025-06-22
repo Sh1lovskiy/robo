@@ -198,4 +198,3 @@ class RobotController:
             return res[1]
         self.logger.error("GetActualJointPosDegree failed")
         return None
-

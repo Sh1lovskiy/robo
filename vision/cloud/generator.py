@@ -1,18 +1,15 @@
 # vision/cloud/generator.py
-# Point cloud generation utilities
 """Point cloud utilities built around Open3D."""
 
 from __future__ import annotations
 
 import numpy as np
 import open3d as o3d
-import cv2
 from utils.geometry import euler_to_matrix
 
 
 class PointCloudGenerator:
     """Utility class for creating and handling point clouds."""
-
 
     @staticmethod
     def pose_to_transform(
@@ -36,7 +33,7 @@ class PointCloudGenerator:
         h, w = depth.shape
         fx, fy = intr["fx"], intr["fy"]
         cx, cy = intr["ppx"], intr["ppy"]
-        mask = (depth > 0.1) & (depth < 2.0)
+        mask = (depth > 0.1) & (depth < 1.0)
         ys, xs = np.where(mask)
         zs = depth[ys, xs]
         xs_ = (xs - cx) * zs / fx
@@ -115,4 +112,3 @@ class PointCloudGenerator:
     @staticmethod
     def visualize(pcd: o3d.geometry.PointCloud) -> None:
         o3d.visualization.draw_geometries([pcd])
-

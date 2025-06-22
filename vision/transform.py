@@ -9,7 +9,8 @@ from utils.geometry import euler_to_matrix
 
 class TransformUtils:
     """
-    Utilities for 3D rigid transformations between coordinate frames (robot base, TCP, camera, point cloud).
+    Utilities for 3D rigid transformations between coordinate frames
+    (robot base, TCP, camera, point cloud).
     Explicitly handles eye-in-hand/eye-to-hand conventions and tool (TCP) offset.
     """
 
@@ -60,7 +61,9 @@ class TransformUtils:
             T_out = T_out @ T
         return T_out
 
-    def base_to_tcp(self, tcp_pose: np.ndarray | tuple[np.ndarray, np.ndarray]) -> np.ndarray:
+    def base_to_tcp(
+        self, tcp_pose: np.ndarray | tuple[np.ndarray, np.ndarray]
+    ) -> np.ndarray:
         """
         Convert TCP (tool center point) pose to 4x4 base→TCP transform.
         Accepts:
@@ -77,7 +80,8 @@ class TransformUtils:
 
     def tool_to_tcp(self, tcp_offset: np.ndarray | None) -> np.ndarray:
         """
-        Create transform from tool flange to TCP (tool offset, usually from config or robot teach pendant).
+        Create transform from tool flange to TCP (tool offset, usually
+        from config or robot teach pendant).
         tcp_offset: 6dof (x, y, z, rx, ry, rz) in robot tool convention.
         """
         # If no offset, just identity
@@ -113,14 +117,18 @@ class TransformUtils:
         self.logger.info("Computed T_base→camera.")
         return T_base_cam
 
-    def camera_to_world(self, points_cam: np.ndarray, T_base_cam: np.ndarray) -> np.ndarray:
+    def camera_to_world(
+        self, points_cam: np.ndarray, T_base_cam: np.ndarray
+    ) -> np.ndarray:
         """
         Project points from camera to world (base) coordinates.
         """
         self.logger.info("Transforming points: camera → world")
         return self.transform_points(points_cam, T_base_cam)
 
-    def world_to_camera(self, points_world: np.ndarray, T_base_cam: np.ndarray) -> np.ndarray:
+    def world_to_camera(
+        self, points_world: np.ndarray, T_base_cam: np.ndarray
+    ) -> np.ndarray:
         """
         Project points from world (base) to camera coordinates.
         """

@@ -68,7 +68,9 @@ class RealSenseCamera:
             self.pipeline.stop()
             self.started = False
 
-    def get_frames(self, aligned: bool = True) -> tuple[np.ndarray | None, np.ndarray | None]:
+    def get_frames(
+        self, aligned: bool = True
+    ) -> tuple[np.ndarray | None, np.ndarray | None]:
         """
         Returns (color_img, depth_img) as numpy arrays (None if not enabled).
         If aligned=True and both streams enabled, aligns depth to color.

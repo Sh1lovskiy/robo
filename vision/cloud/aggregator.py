@@ -2,6 +2,7 @@
 # vision/cloud/aggregator.py
 
 from __future__ import annotations
+
 """
 Build and aggregate a 3D point cloud from RGB, depth maps, and robot poses,
 using camera and hand-eye calibration. Optionally adds ICP alignment for each frame.
@@ -10,7 +11,6 @@ using camera and hand-eye calibration. Optionally adds ICP alignment for each fr
 import os
 import glob
 import cv2
-import json
 import numpy as np
 import open3d as o3d
 import argparse
@@ -51,8 +51,6 @@ def load_handeye_txt(path: str) -> tuple[np.ndarray, np.ndarray]:
     return R, t
 
 
-
-
 def load_depth(depth_path: str) -> np.ndarray:
     depth = np.load(depth_path)
     if np.issubdtype(depth.dtype, np.integer):
@@ -65,6 +63,7 @@ def get_image_pairs(data_dir: str) -> list[tuple[str, str]]:
     depth_list = sorted(glob.glob(os.path.join(data_dir, "*_depth.*")))
     assert len(rgb_list) == len(depth_list), "RGB and depth image count mismatch."
     return list(zip(rgb_list, depth_list))
+
 
 class PointCloudAggregator:
     def __init__(self, logger: Logger | None = None) -> None:
@@ -129,7 +128,8 @@ class PointCloudAggregator:
                         o3d.pipelines.registration.TransformationEstimationPointToPoint(),
                     )
                     self.logger.info(
-                        f"ICP frame {idx}: RMSE={reg.inlier_rmse:.5f}, iterations={len(reg.correspondence_set)}"
+                        f"ICP frame {idx}: RMSE={reg.inlier_rmse:.5f}, \
+                        iterations={len(reg.correspondence_set)}"
                     )
                     pcd.transform(reg.transformation)
                 base_pcd += pcd

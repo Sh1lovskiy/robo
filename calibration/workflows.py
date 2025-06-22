@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 import cv2
 import numpy as np
@@ -17,7 +16,6 @@ from utils.config import Config
 from utils.io import load_camera_params, save_camera_params_xml, save_camera_params_txt
 from utils.logger import Logger
 
-# Mapping of Charuco dictionary names to OpenCV constants
 CHARUCO_DICT_MAP = {"5X5_50": 8, "5X5_100": 9}
 
 
@@ -45,7 +43,9 @@ class CharucoCalibrationWorkflow:
         if dict_name not in CHARUCO_DICT_MAP:
             raise ValueError(f"Unknown ArUco dictionary: {dict_name}")
         dictionary = cv2.aruco.getPredefinedDictionary(CHARUCO_DICT_MAP[dict_name])
-        board = cv2.aruco.CharucoBoard((squares_x, squares_y), square_length, marker_length, dictionary)
+        board = cv2.aruco.CharucoBoard(
+            (squares_x, squares_y), square_length, marker_length, dictionary
+        )
 
         calibrator = CharucoCalibrator(board, dictionary, self.logger)
 
@@ -70,7 +70,9 @@ class CharucoCalibrationWorkflow:
             return
         result = calibrator.calibrate()
         save_camera_params_xml(xml_file, result["camera_matrix"], result["dist_coeffs"])
-        save_camera_params_txt(txt_file, result["camera_matrix"], result["dist_coeffs"], rms=result["rms"])
+        save_camera_params_txt(
+            txt_file, result["camera_matrix"], result["dist_coeffs"], rms=result["rms"]
+        )
         self.logger.info(f"Calibration RMS: {result['rms']:.6f}")
 
 
@@ -98,12 +100,16 @@ class HandEyeCalibrationWorkflow:
         if dict_name not in CHARUCO_DICT_MAP:
             raise ValueError(f"Unknown ArUco dictionary: {dict_name}")
         dictionary = cv2.aruco.getPredefinedDictionary(CHARUCO_DICT_MAP[dict_name])
-        board = cv2.aruco.CharucoBoard((squares_x, squares_y), square_length, marker_length, dictionary)
+        board = cv2.aruco.CharucoBoard(
+            (squares_x, squares_y), square_length, marker_length, dictionary
+        )
 
         camera_matrix, dist_coeffs = load_camera_params(charuco_xml)
         Rs_g2b, ts_g2b = JSONPoseLoader.load_poses(robot_poses_file)
 
-        Rs_t2c, ts_t2c = self._extract_charuco_poses(images_dir, board, dictionary, camera_matrix, dist_coeffs)
+        Rs_t2c, ts_t2c = self._extract_charuco_poses(
+            images_dir, board, dictionary, camera_matrix, dist_coeffs
+        )
         if not Rs_t2c or len(Rs_t2c) != len(Rs_g2b):
             self.logger.error("Pose data mismatch")
             return
@@ -155,10 +161,14 @@ class HandEyeCalibrationWorkflow:
             corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary)
             if ids is None or len(ids) == 0:
                 continue
-            _, char_corners, char_ids = cv2.aruco.interpolateCornersCharuco(corners, ids, gray, board)
+            _, char_corners, char_ids = cv2.aruco.interpolateCornersCharuco(
+                corners, ids, gray, board
+            )
             if char_ids is None or len(char_ids) < 4:
                 continue
-            retval, rvec, tvec = cv2.aruco.estimatePoseCharucoBoard(char_corners, char_ids, board, camera_matrix, dist_coeffs)
+            retval, rvec, tvec = cv2.aruco.estimatePoseCharucoBoard(
+                char_corners, char_ids, board, camera_matrix, dist_coeffs
+            )
             if retval:
                 R, _ = cv2.Rodrigues(rvec)
                 Rs.append(R)
