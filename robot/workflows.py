@@ -96,7 +96,9 @@ class PoseRecorder:
         cv2.destroyAllWindows()
         self.controller.shutdown()
 
-    def _get_frames(self, cam: RealSenseCamera):
+    def _get_frames(
+        self, cam: RealSenseCamera
+    ) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None]:
         result = cam.get_frames()
         if isinstance(result, tuple) and len(result) == 3:
             return result
@@ -138,7 +140,7 @@ class CameraManager:
 
     def start(self) -> None:
         self.cam.start()
-        for _ in range(10):
+        for _ in Logger.progress(range(10), desc="Warmup"):
             try:
                 self.cam.get_frames()
             except Exception:
@@ -178,7 +180,7 @@ class PathRunner:
     def run(self) -> None:
         path = load_trajectory(self.traj_file)
         self.camera_mgr.start()
-        for idx, pose in enumerate(path):
+        for idx, pose in Logger.progress(list(enumerate(path)), desc="Path"):
             self.logger.info(f"Moving to {pose}")
             if not self.controller.move_linear(pose):
                 self.logger.error(f"Movement failed at {idx}")

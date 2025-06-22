@@ -1,23 +1,27 @@
 # calibration/charuco.py
 """Charuco board calibration utilities."""
 
+from __future__ import annotations
+
 import os
-import cv2
-import numpy as np
 from dataclasses import dataclass, field
 from typing import List
+
+import cv2
+import numpy as np
+
 from utils.logger import Logger
 
 
 class CalibrationSaver:
     """Strategy interface for saving calibration results."""
 
-    def save(self, filename, camera_matrix, dist_coeffs):
+    def save(self, filename: str, camera_matrix: np.ndarray, dist_coeffs: np.ndarray) -> None:
         raise NotImplementedError
 
 
 class OpenCVXmlSaver(CalibrationSaver):
-    def save(self, filename, camera_matrix, dist_coeffs):
+    def save(self, filename: str, camera_matrix: np.ndarray, dist_coeffs: np.ndarray) -> None:
         dir_ = os.path.dirname(filename)
         if dir_ and not os.path.exists(dir_):
             os.makedirs(dir_, exist_ok=True)
@@ -28,7 +32,7 @@ class OpenCVXmlSaver(CalibrationSaver):
 
 
 class TextSaver(CalibrationSaver):
-    def save(self, filename, camera_matrix, dist_coeffs):
+    def save(self, filename: str, camera_matrix: np.ndarray, dist_coeffs: np.ndarray) -> None:
         dir_ = os.path.dirname(filename)
         if dir_ and not os.path.exists(dir_):
             os.makedirs(dir_, exist_ok=True)
@@ -41,14 +45,14 @@ class TextSaver(CalibrationSaver):
 class CharucoCalibrator:
     """Charuco board calibration using OpenCV."""
 
-    board: any
-    dictionary: any
-    logger: any = field(default_factory=lambda: Logger.get_logger("calibration.charuco"))
+    board: cv2.aruco_CharucoBoard
+    dictionary: cv2.aruco_Dictionary
+    logger: Logger = field(default_factory=lambda: Logger.get_logger("calibration.charuco"))
     all_corners: List[np.ndarray] = field(default_factory=list, init=False)
     all_ids: List[np.ndarray] = field(default_factory=list, init=False)
-    img_size: any = field(default=None, init=False)
+    img_size: tuple[int, int] | None = field(default=None, init=False)
 
-    def add_frame(self, img):
+    def add_frame(self, img: np.ndarray) -> bool:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         res = cv2.aruco.detectMarkers(gray, self.dictionary)
         if len(res[0]) > 0:
@@ -68,7 +72,7 @@ class CharucoCalibrator:
         self.logger.warning("No Charuco corners found in frame")
         return False
 
-    def calibrate(self):
+    def calibrate(self) -> dict:
         assert self.img_size is not None, "No frames added."
         ret, camera_matrix, dist_coeffs, rvecs, tvecs = (
             cv2.aruco.calibrateCameraCharuco(
@@ -84,7 +88,13 @@ class CharucoCalibrator:
             tvecs=tvecs,
         )
 
-    def save(self, saver: CalibrationSaver, filename, camera_matrix, dist_coeffs):
+    def save(
+        self,
+        saver: CalibrationSaver,
+        filename: str,
+        camera_matrix: np.ndarray,
+        dist_coeffs: np.ndarray,
+    ) -> None:
         saver.save(filename, camera_matrix, dist_coeffs)
         self.logger.info(
             f"Calibration saved with {saver.__class__.__name__} to {filename}"

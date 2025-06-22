@@ -2,6 +2,8 @@
 # Point cloud generation utilities
 """Point cloud utilities built around Open3D."""
 
+from __future__ import annotations
+
 import numpy as np
 import open3d as o3d
 import cv2
@@ -13,7 +15,10 @@ class PointCloudGenerator:
 
 
     @staticmethod
-    def pose_to_transform(pose, angles_in_deg=True):
+    def pose_to_transform(
+        pose: list[float],
+        angles_in_deg: bool = True,
+    ) -> np.ndarray:
         x, y, z, rx, ry, rz = pose
         x, y, z = x / 1000.0, y / 1000.0, z / 1000.0
         rot = euler_to_matrix(rx, ry, rz, degrees=angles_in_deg)
@@ -23,7 +28,11 @@ class PointCloudGenerator:
         return T
 
     @staticmethod
-    def depth_to_cloud(depth, intr, rgb=None):
+    def depth_to_cloud(
+        depth: np.ndarray,
+        intr: dict,
+        rgb: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, np.ndarray | None]:
         h, w = depth.shape
         fx, fy = intr["fx"], intr["fy"]
         cx, cy = intr["ppx"], intr["ppy"]
@@ -41,7 +50,11 @@ class PointCloudGenerator:
         return points, None
 
     @staticmethod
-    def save_ply(filename, points, colors=None):
+    def save_ply(
+        filename: str,
+        points: np.ndarray,
+        colors: np.ndarray | None = None,
+    ) -> None:
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(points)
         if colors is not None:
@@ -49,18 +62,24 @@ class PointCloudGenerator:
         o3d.io.write_point_cloud(filename, pcd)
 
     @staticmethod
-    def load_ply(filename):
+    def load_ply(filename: str) -> tuple[np.ndarray, np.ndarray | None]:
         pcd = o3d.io.read_point_cloud(filename)
         points = np.asarray(pcd.points)
         colors = np.asarray(pcd.colors) if pcd.has_colors() else None
         return points, colors
 
     @staticmethod
-    def downsample_cloud(pcd, voxel_size=0.005):
+    def downsample_cloud(
+        pcd: o3d.geometry.PointCloud, voxel_size: float = 0.005
+    ) -> o3d.geometry.PointCloud:
         return pcd.voxel_down_sample(voxel_size)
 
     @staticmethod
-    def icp_pairwise_align(source, target, threshold=0.02):
+    def icp_pairwise_align(
+        source: o3d.geometry.PointCloud,
+        target: o3d.geometry.PointCloud,
+        threshold: float = 0.02,
+    ) -> np.ndarray:
         reg = o3d.pipelines.registration.registration_icp(
             source,
             target,
@@ -71,7 +90,10 @@ class PointCloudGenerator:
         return reg.transformation
 
     @staticmethod
-    def merge_clouds(clouds, voxel_size=0.003):
+    def merge_clouds(
+        clouds: list[o3d.geometry.PointCloud],
+        voxel_size: float = 0.003,
+    ) -> o3d.geometry.PointCloud:
         merged = o3d.geometry.PointCloud()
         for pcd in clouds:
             merged += pcd
@@ -80,13 +102,17 @@ class PointCloudGenerator:
         return merged
 
     @staticmethod
-    def filter_cloud(pcd, nb_neighbors=20, std_ratio=2.0):
+    def filter_cloud(
+        pcd: o3d.geometry.PointCloud,
+        nb_neighbors: int = 20,
+        std_ratio: float = 2.0,
+    ) -> o3d.geometry.PointCloud:
         cl, _ = pcd.remove_statistical_outlier(
             nb_neighbors=nb_neighbors, std_ratio=std_ratio
         )
         return cl
 
     @staticmethod
-    def visualize(pcd):
+    def visualize(pcd: o3d.geometry.PointCloud) -> None:
         o3d.visualization.draw_geometries([pcd])
 

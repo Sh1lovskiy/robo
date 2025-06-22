@@ -1,4 +1,7 @@
 """Small utilities for camera debugging."""
+
+from __future__ import annotations
+
 from dataclasses import dataclass
 import cv2
 import numpy as np

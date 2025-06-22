@@ -1,8 +1,13 @@
 # calibration/pose_loader.py
 """Helper to load robot poses from JSON files."""
 
+from __future__ import annotations
+
 import json
+from typing import List, Tuple
+
 import numpy as np
+
 from utils.geometry import euler_to_matrix
 
 
@@ -14,7 +19,7 @@ class JSONPoseLoader:
     """
 
     @staticmethod
-    def load_poses(json_file):
+    def load_poses(json_file: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         with open(json_file, "r") as f:
             data = json.load(f)
 

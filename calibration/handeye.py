@@ -1,6 +1,8 @@
 # calibration/handeye.py
 """Hand-eye calibration helpers using OpenCV."""
 
+from __future__ import annotations
+
 import numpy as np
 import cv2
 from utils.logger import Logger
@@ -9,17 +11,17 @@ from utils.logger import Logger
 class HandEyeSaver:
     """Strategy interface for saving Hand-Eye calibration results."""
 
-    def save(self, filename, R, t):
+    def save(self, filename: str, R: np.ndarray, t: np.ndarray) -> None:
         raise NotImplementedError
 
 
 class NPZHandEyeSaver(HandEyeSaver):
-    def save(self, filename, R, t):
+    def save(self, filename: str, R: np.ndarray, t: np.ndarray) -> None:
         np.savez(filename, R=R, t=t)
 
 
 class TxtHandEyeSaver(HandEyeSaver):
-    def save(self, filename, R, t):
+    def save(self, filename: str, R: np.ndarray, t: np.ndarray) -> None:
         with open(filename, "w") as f:
             f.write("R =\n")
             np.savetxt(f, R, fmt="%.8f")
@@ -39,21 +41,27 @@ class HandEyeCalibrator:
         if name.startswith("CALIB_HAND_EYE_")
     }
 
-    def __init__(self, logger=None):
+    def __init__(self, logger: Logger | None = None):
         self.R_gripper2base = []
         self.t_gripper2base = []
         self.R_target2cam = []
         self.t_target2cam = []
         self.logger = logger or Logger.get_logger("calibration.handeye")
 
-    def add_sample(self, R_gripper, t_gripper, R_target, t_target):
+    def add_sample(
+        self,
+        R_gripper: np.ndarray,
+        t_gripper: np.ndarray,
+        R_target: np.ndarray,
+        t_target: np.ndarray,
+    ) -> None:
         self.R_gripper2base.append(R_gripper)
         self.t_gripper2base.append(t_gripper)
         self.R_target2cam.append(R_target)
         self.t_target2cam.append(t_target)
         self.logger.debug("Added Hand-Eye sample")
 
-    def calibrate(self, method="TSAI"):
+    def calibrate(self, method: str = "TSAI") -> tuple[np.ndarray, np.ndarray]:
         """
         Calibrate using the specified method (case-insensitive).
         """
@@ -73,7 +81,7 @@ class HandEyeCalibrator:
         self.logger.info(f"Hand-Eye calibration ({method}) done")
         return R, t
 
-    def calibrate_all(self):
+    def calibrate_all(self) -> dict[str, tuple[np.ndarray, np.ndarray]]:
         """
         Run calibration with all available methods.
         Returns: dict {method_name: (R, t)}
@@ -94,7 +102,13 @@ class HandEyeCalibrator:
                 self.logger.error(f"Hand-Eye calibration failed for {name}: {e}")
         return results
 
-    def save(self, saver: HandEyeSaver, filename, R, t):
+    def save(
+        self,
+        saver: HandEyeSaver,
+        filename: str,
+        R: np.ndarray,
+        t: np.ndarray,
+    ) -> None:
         saver.save(filename, R, t)
         self.logger.info(
             f"Calibration saved with {saver.__class__.__name__} to {filename}"

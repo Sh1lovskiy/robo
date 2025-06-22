@@ -1,14 +1,13 @@
 # robot/controller.py
 
-"""
-High-level robot control interface using Fairino Robot SDK.
-SOLID principles, dependency injection, robust logging.
-"""
+"""High-level robot control interface using Fairino Robot SDK."""
+
+from __future__ import annotations
 
 from typing import List, Optional, Union
+
 from utils.logger import Logger
 from utils.config import Config
-from utils.constants import DEFAULT_ROBOT_IP
 
 from robot.Robot import RPC
 
@@ -24,7 +23,7 @@ class RobotController:
         rpc: Optional[Union[str, RPC]] = None,
         logger: Optional[Logger] = None,
         config: Optional[Config] = None,
-    ):
+    ) -> None:
         """
         Initialize the robot controller.
 
@@ -34,30 +33,29 @@ class RobotController:
             config (Optional[Config]): Config object.
         """
         self.config = config or Config
-        self.ip_address = self.config.get("robot.ip", default=DEFAULT_ROBOT_IP)
+        self.ip_address = self.config.get("robot.ip", default="192.168.58.2")
         self.tool_id = self.config.get("robot.tool_id", default=0)
         self.user_frame_id = self.config.get("robot.user_frame_id", default=0)
         self.velocity = self.config.get("robot.velocity", default=20.0)
         self.logger = logger or Logger.get_logger("robot.controller", json_format=True)
         self.initial_pose = None
 
-        if rpc is None:
-            self.rpc = RPC(ip=self.ip_address)
-            self.logger.info(
-                f"RobotController initialized with IP {self.ip_address} (default from config)"
-            )
-        elif isinstance(rpc, str):
-            self.rpc = RPC(ip=rpc)
-            self.logger.info(f"RobotController initialized with IP {rpc} (from string)")
-        elif isinstance(rpc, RPC):
-            self.rpc = rpc
-            self.logger.info(
-                f"RobotController initialized with external RPC (IP: {self.ip_address})"
-            )
-        else:
-            raise TypeError(f"Invalid rpc argument: {type(rpc)}")
+        self.rpc = self._init_rpc(rpc)
 
         self.logger.info(f"RobotController initialized with IP {self.ip_address}")
+
+    def _init_rpc(self, rpc: Optional[Union[str, RPC]]) -> RPC:
+        """Resolve RPC connection from input."""
+        if rpc is None:
+            self.logger.info("RPC created from config IP")
+            return RPC(ip=self.ip_address)
+        if isinstance(rpc, str):
+            self.logger.info("RPC created from provided IP")
+            return RPC(ip=rpc)
+        if isinstance(rpc, RPC):
+            self.logger.info("Using existing RPC instance")
+            return rpc
+        raise TypeError(f"Invalid rpc argument: {type(rpc)}")
 
     def connect(self) -> bool:
         """
@@ -127,7 +125,7 @@ class RobotController:
         self.logger.info(f"MoveL success: {pose}")
         return True
 
-    def record_home(self):
+    def record_home(self) -> None:
         """
         Record current pose as 'home'.
         """
@@ -138,7 +136,7 @@ class RobotController:
         self.initial_pose = pose
         self.logger.info(f"Home position recorded: {pose}")
 
-    def return_to_home(self):
+    def return_to_home(self) -> None:
         """
         Move robot to previously recorded 'home' pose.
         """
@@ -148,7 +146,7 @@ class RobotController:
         else:
             self.logger.warning("Home position not recorded")
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """
         Disable and disconnect robot.
         """
@@ -166,8 +164,8 @@ class RobotController:
         self.rpc.RobotEnable(0)
         self.logger.info("Robot disabled")
 
-    # --- Примеры дополнительных методов с SOLID ---
-    def wait_motion_done(self, timeout_sec=20):
+    # --- Additional SOLID helpers ---
+    def wait_motion_done(self, timeout_sec: float = 20) -> bool:
         """
         Wait until robot finishes motion (with timeout).
 
