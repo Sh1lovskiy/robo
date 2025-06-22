@@ -9,6 +9,7 @@ import open3d as o3d
 
 from utils.logger import Logger
 from utils.config import Config
+from utils.cli import Command, CommandDispatcher
 from vision.camera_utils import IntrinsicsPrinter, DepthChecker
 from vision.realsense import RealSenseCamera
 from vision.cloud.generator import PointCloudGenerator
@@ -53,49 +54,111 @@ def view_cloud(input_ply: str) -> None:
 # CLI helpers
 
 
-def main_capture() -> None:
-    parser = argparse.ArgumentParser(description="Capture point cloud")
+def _add_capture_args(parser: argparse.ArgumentParser) -> None:
     Config.load()
     out_dir = Config.get("cloud.output_dir", "clouds")
     parser.add_argument("--output", default=f"{out_dir}/cloud.ply")
-    args = parser.parse_args()
+
+
+def _run_capture(args: argparse.Namespace) -> None:
     capture_cloud(args.output)
 
 
-def main_transform() -> None:
-    parser = argparse.ArgumentParser(description="Transform point cloud")
+def main_capture() -> None:
+    parser = argparse.ArgumentParser(description="Capture point cloud")
+    _add_capture_args(parser)
+    args = parser.parse_args()
+    _run_capture(args)
+
+
+def _add_transform_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--input", required=True)
     parser.add_argument("--calib", required=True)
     Config.load()
     out_dir = Config.get("cloud.output_dir", "clouds")
     parser.add_argument("--output", default=f"{out_dir}/cloud_world.ply")
-    args = parser.parse_args()
+
+
+def _run_transform(args: argparse.Namespace) -> None:
     transform_cloud(args.input, args.calib, args.output)
+
+
+def main_transform() -> None:
+    parser = argparse.ArgumentParser(description="Transform point cloud")
+    _add_transform_args(parser)
+    args = parser.parse_args()
+    _run_transform(args)
+
+
+def _add_view_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--input", required=True)
+
+
+def _run_view(args: argparse.Namespace) -> None:
+    view_cloud(args.input)
 
 
 def main_view() -> None:
     parser = argparse.ArgumentParser(description="View point cloud")
-    parser.add_argument("--input", required=True)
+    _add_view_args(parser)
     args = parser.parse_args()
-    view_cloud(args.input)
+    _run_view(args)
 
 
-def main_intrinsics() -> None:
+def _run_intrinsics(args: argparse.Namespace) -> None:
     IntrinsicsPrinter().run()
 
 
-def main_depth() -> None:
+def main_intrinsics() -> None:
+    _run_intrinsics(argparse.Namespace())
+
+
+def _run_depth(args: argparse.Namespace) -> None:
     DepthChecker().run()
+
+
+def main_depth() -> None:
+    _run_depth(argparse.Namespace())
+
+
+def _add_pipeline_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--input",
+        default="captures/cloud_aggregated.ply",
+        help="Input PLY file",
+    )
+
+
+def _run_pipeline(args: argparse.Namespace) -> None:
+    CloudPipeline().run(args.input)
 
 
 def main_pipeline() -> None:
     parser = argparse.ArgumentParser(
         description="Point cloud denoise/cluster/trajectory pipeline"
     )
-    parser.add_argument(
-        "--input",
-        default="captures/cloud_aggregated.ply",
-        help="Input PLY file",
-    )
+    _add_pipeline_args(parser)
     args = parser.parse_args()
-    CloudPipeline().run(args.input)
+    _run_pipeline(args)
+
+
+def create_cli() -> CommandDispatcher:
+    commands = [
+        Command("capture", _run_capture, _add_capture_args, "Capture point cloud"),
+        Command(
+            "transform", _run_transform, _add_transform_args, "Transform point cloud"
+        ),
+        Command("view", _run_view, _add_view_args, "View point cloud"),
+        Command("intrinsics", _run_intrinsics, help="Print camera intrinsics"),
+        Command("depth", _run_depth, help="Check depth frames"),
+        Command("pipeline", _run_pipeline, _add_pipeline_args, "Run cloud pipeline"),
+    ]
+    return CommandDispatcher("Vision utilities", commands)
+
+
+def main() -> None:
+    create_cli().run()
+
+
+if __name__ == "__main__":
+    main()

@@ -8,6 +8,7 @@ import json
 import time
 from dataclasses import dataclass
 from typing import List, Optional
+import argparse
 
 import cv2
 import numpy as np
@@ -17,6 +18,7 @@ from utils.config import Config
 from utils.logger import Logger
 from vision.realsense import RealSenseCamera
 from vision.opencv_utils import OpenCVUtils
+from utils.cli import Command, CommandDispatcher
 
 
 # --- Pose Recording ---
@@ -201,31 +203,65 @@ class PathRunner:
         self.logger.info("Path execution finished")
 
 
-def main_record_poses() -> None:
-    """CLI entry for pose recording."""
+def _add_record_args(parser: argparse.ArgumentParser) -> None:
     Config.load()
-    captures_dir = Config.get("path_saver.captures_dir", "cloud")
-    ip = Config.get("robot.ip")
-    recorder = PoseRecorder(RobotController(rpc=ip), JsonPoseSaver(), captures_dir)
+    parser.add_argument(
+        "--ip",
+        default=Config.get("robot.ip"),
+        help="Robot IP address",
+    )
+    parser.add_argument(
+        "--captures_dir",
+        default=Config.get("path_saver.captures_dir", "cloud"),
+        help="Directory for saved poses",
+    )
+
+
+def _run_record(args: argparse.Namespace) -> None:
+    recorder = PoseRecorder(
+        RobotController(rpc=args.ip), JsonPoseSaver(), args.captures_dir
+    )
     recorder.run()
 
 
-def main_run_path() -> None:
-    """CLI entry for path execution."""
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Execute robot path and save frames")
-    parser.add_argument("--ip", type=str, help="Robot IP")
-    parser.add_argument("--path_file", type=str, default="captures/poses.json")
-    parser.add_argument("--out_dir", type=str, default="captures")
-    args = parser.parse_args()
-
+def _add_run_args(parser: argparse.ArgumentParser) -> None:
     Config.load()
-    ip = args.ip or Config.get("robot.ip")
+    parser.add_argument("--ip", default=Config.get("robot.ip"), help="Robot IP")
+    parser.add_argument(
+        "--path_file",
+        default="captures/poses.json",
+        help="JSON file with path poses",
+    )
+    parser.add_argument(
+        "--out_dir",
+        default="captures",
+        help="Directory to save captured frames",
+    )
+
+
+def _run_path(args: argparse.Namespace) -> None:
     runner = PathRunner(
-        controller=RobotController(rpc=ip),
+        controller=RobotController(rpc=args.ip),
         camera_mgr=CameraManager(),
         frame_saver=FrameSaver(args.out_dir),
         traj_file=args.path_file,
     )
     runner.run()
+
+
+def create_cli() -> CommandDispatcher:
+    return CommandDispatcher(
+        "Robot workflows",
+        [
+            Command("record", _run_record, _add_record_args, "Record robot poses"),
+            Command("run", _run_path, _add_run_args, "Execute path and capture"),
+        ],
+    )
+
+
+def main() -> None:
+    create_cli().run()
+
+
+if __name__ == "__main__":
+    main()
