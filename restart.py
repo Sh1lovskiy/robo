@@ -8,6 +8,8 @@ from robot.controller import RobotController
 from robot.Robot import RPC
 from utils.logger import Logger
 from utils.config import Config
+from utils.cli import Command, CommandDispatcher
+import argparse
 
 logger = Logger.get_logger("robot_controller")
 
@@ -55,9 +57,28 @@ def restart_robot(ip_address: str | None = None) -> bool:
     return True
 
 
-if __name__ == "__main__":
-    success = restart_robot()
+def _add_restart_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--ip", help="Robot IP address")
+
+
+def _run_restart(args: argparse.Namespace) -> None:
+    success = restart_robot(args.ip)
     if success:
         logger.info("Robot restart completed successfully")
     else:
         logger.error("Failed to restart robot")
+
+
+def create_cli() -> CommandDispatcher:
+    return CommandDispatcher(
+        "Robot restart utility",
+        [Command("restart", _run_restart, _add_restart_args, "Restart robot")],
+    )
+
+
+def main() -> None:
+    create_cli().run()
+
+
+if __name__ == "__main__":
+    main()

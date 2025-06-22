@@ -110,8 +110,8 @@ class CharucoCalibrator:
 
 
 if __name__ == "__main__":
-    board = cv2.aruco.CharucoBoard_create(
-        5, 7, 0.04, 0.02, cv2.aruco.getPredefinedDictionary(0)
+    board = cv2.aruco.CharucoBoard(
+        (5, 7), 0.04, 0.02, cv2.aruco.getPredefinedDictionary(0)
     )
     calib = CharucoCalibrator(board, board.dictionary)
     img = np.full((480, 640, 3), 255, np.uint8)

@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+import argparse
 import cv2
 import numpy as np
 
@@ -15,6 +16,7 @@ from calibration.pose_loader import JSONPoseLoader
 from utils.config import Config
 from utils.io import load_camera_params, save_camera_params_xml, save_camera_params_txt
 from utils.logger import Logger
+from utils.cli import Command, CommandDispatcher
 
 CHARUCO_DICT_MAP = {"5X5_50": 8, "5X5_100": 9}
 
@@ -177,11 +179,43 @@ class HandEyeCalibrationWorkflow:
         return Rs, ts
 
 
-def main_charuco() -> None:
-    """CLI entry for Charuco calibration."""
-    CharucoCalibrationWorkflow().run()
+def _add_charuco_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--no_viz",
+        action="store_true",
+        help="Disable frame visualization",
+    )
 
 
-def main_handeye() -> None:
-    """CLI entry for Hand-Eye calibration."""
+def _run_charuco(args: argparse.Namespace) -> None:
+    CharucoCalibrationWorkflow(not args.no_viz).run()
+
+
+def _add_handeye_args(parser: argparse.ArgumentParser) -> None:
+    pass
+
+
+def _run_handeye(args: argparse.Namespace) -> None:
     HandEyeCalibrationWorkflow().run()
+
+
+def create_cli() -> CommandDispatcher:
+    return CommandDispatcher(
+        "Calibration workflows",
+        [
+            Command(
+                "charuco", _run_charuco, _add_charuco_args, "Run Charuco calibration"
+            ),
+            Command(
+                "handeye", _run_handeye, _add_handeye_args, "Run Hand-Eye calibration"
+            ),
+        ],
+    )
+
+
+def main() -> None:
+    create_cli().run()
+
+
+if __name__ == "__main__":
+    main()
