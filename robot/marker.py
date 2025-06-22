@@ -1,19 +1,26 @@
 # marker_path.py
+from __future__ import annotations
+
 import numpy as np
 from robot.controller import RobotController
 from utils.logger import Logger
 
 
 class MarkerPathRunner:
-    def __init__(self, controller, logger=None):
+    def __init__(self, controller: RobotController, logger: Logger | None = None) -> None:
         self.controller = controller
         self.logger = logger or Logger.get_logger("marker.path_runner")
 
-    def move_linear(self, pos):
+    def move_linear(self, pos: list[float]) -> bool:
         self.logger.info(f"Moving linear to: {pos}")
         return self.controller.move_linear(list(pos))
 
-    def execute_marker_path(self, start, end, approach_dz=50):
+    def execute_marker_path(
+        self,
+        start: list[float],
+        end: list[float],
+        approach_dz: float = 50,
+    ) -> bool:
         # Approach above start
         above_start = list(start[:3])
         above_start[2] += approach_dz

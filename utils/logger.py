@@ -1,26 +1,29 @@
 # utils/logger.py
 
-"""
-Centralized logging system for the robot controller.
-Provides logging utilities with support for console and file output,
-JSON formatting, and function timing. Includes a silent logging decorator
-to suppress function call and return logs.
-"""
+"""Central logging utilities used across the project."""
+
+from __future__ import annotations
 
 import os
 import logging
-import numpy as np
 import sys
 import json
 import functools
 from datetime import datetime
-from typing import Optional, Union, Dict, Any
 from pathlib import Path
-import traceback
-from utils.constants import DEFAULT_LOG_DIR
+from typing import Any, Callable, Dict, Iterable, Optional, TypeVar, Union
 
-LOG_DIR = str(DEFAULT_LOG_DIR)
+T = TypeVar("T")
+import traceback
+
+import numpy as np
+
+LOG_DIR = str(Path(__file__).resolve().parents[1] / "logs")
 from pythonjsonlogger import jsonlogger
+from tqdm.auto import tqdm
+
+# Consistent progress bar style
+PROGRESS_BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]"
 
 
 class Logger:
@@ -173,7 +176,22 @@ class Logger:
         )
 
     @staticmethod
-    def format_value(value):
+    def progress(
+        iterable: Iterable[T],
+        desc: str | None = None,
+        total: int | None = None,
+    ) -> Iterable[T]:
+        """Return a tqdm iterator with unified style."""
+        return tqdm(
+            iterable,
+            desc=desc,
+            total=total,
+            leave=False,
+            bar_format=PROGRESS_BAR_FORMAT,
+        )
+
+    @staticmethod
+    def format_value(value: Any) -> Any:
         """
         Format non-integer values to 3 decimal places.
         Recursively formats lists, tuples, and numpy arrays.
@@ -196,9 +214,9 @@ class Logger:
         logger: logging.Logger,
         level: int,
         message: str,
-        *args,
+        *args: Any,
         extra_fields: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """
         Log data with formatted non-integer values.
 
@@ -233,7 +251,7 @@ class Logger:
             )
 
     @staticmethod
-    def log_json(logger: logging.Logger, level: int, **fields):
+    def log_json(logger: logging.Logger, level: int, **fields: Any) -> None:
         """
         Log data directly as JSON fields.
 
@@ -259,12 +277,12 @@ class Logger:
         getattr(logger, logging.getLevelName(level).lower())(message, extra=extra)
 
     @staticmethod
-    def log_function(logger: logging.Logger, level=logging.INFO):
+    def log_function(logger: logging.Logger, level: int = logging.INFO) -> Callable[[Callable[..., T]], Callable[..., T]]:
         """Decorator that logs function calls, arguments, returns, and exceptions."""
 
-        def decorator(func):
+        def decorator(func: Callable[..., T]) -> Callable[..., T]:
             @functools.wraps(func)
-            def wrapper(*args, **kwargs):
+            def wrapper(*args: Any, **kwargs: Any) -> T:
                 Logger.log_data(
                     logger,
                     level,
@@ -295,12 +313,12 @@ class Logger:
         return decorator
 
     @staticmethod
-    def silent_log_function(logger: logging.Logger, level=logging.INFO):
+    def silent_log_function(logger: logging.Logger, level: int = logging.INFO) -> Callable[[Callable[..., T]], Callable[..., T]]:
         """Decorator that logs only exceptions, suppressing function call and return logs."""
 
-        def decorator(func):
+        def decorator(func: Callable[..., T]) -> Callable[..., T]:
             @functools.wraps(func)
-            def wrapper(*args, **kwargs):
+            def wrapper(*args: Any, **kwargs: Any) -> T:
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
@@ -331,11 +349,11 @@ class Timer:
     start_time: Optional[datetime] = field(default=None, init=False)
     end_time: Optional[datetime] = field(default=None, init=False)
 
-    def __enter__(self):
+    def __enter__(self) -> "Timer":
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Optional[type], exc_val: Optional[BaseException], exc_tb: Optional[object]) -> None:
         self.stop()
 
         if self.logger:
@@ -348,12 +366,12 @@ class Timer:
             else:
                 self.logger.info(f"{self.name} took {elapsed:.4f} seconds")
 
-    def start(self):
+    def start(self) -> "Timer":
         """Start the timer"""
         self.start_time = datetime.now()
         return self
 
-    def stop(self):
+    def stop(self) -> "Timer":
         """Stop the timer"""
         self.end_time = datetime.now()
         return self
@@ -366,7 +384,7 @@ class Timer:
         end = self.end_time or datetime.now()
         return (end - self.start_time).total_seconds()
 
-    def reset(self):
+    def reset(self) -> "Timer":
         """Reset the timer"""
         self.start_time = None
         self.end_time = None
