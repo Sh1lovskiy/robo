@@ -47,4 +47,3 @@ def save_camera_params_txt(
         np.savetxt(f, camera_matrix, fmt="%.10f")
         f.write("dist_coeffs =\n")
         np.savetxt(f, dist_coeffs.reshape(1, -1), fmt="%.10f")
-

@@ -3,10 +3,9 @@ from __future__ import annotations
 import numpy as np
 import open3d as o3d
 from utils.logger import Logger
+
 """Point cloud processing pipeline utilities."""
 
-# Point cloud analysis pipeline
-# ---------------------------------------------------------------------------
 
 ROI_LIMITS = {"x": (-0.3, -0.1), "y": (-0.2, 0.2), "z": (0.02, 0.1)}
 
@@ -29,18 +28,14 @@ class PointCloudDenoiser:
             nb_neighbors=self.nb_neighbors, std_ratio=self.std_ratio
         )
         denoised = pcd.select_by_index(ind)
-        self.logger.info(
-            f"Removed {len(pcd.points) - len(denoised.points)} outliers"
-        )
+        self.logger.info(f"Removed {len(pcd.points) - len(denoised.points)} outliers")
         return denoised
 
 
 class PointCloudCropper:
     """Crop cloud to a region of interest."""
 
-    def __init__(
-        self, limits: dict = ROI_LIMITS, logger: Logger | None = None
-    ) -> None:
+    def __init__(self, limits: dict = ROI_LIMITS, logger: Logger | None = None) -> None:
         self.limits = limits
         self.logger = logger or Logger.get_logger("vision.pipeline.cropper")
 
@@ -163,15 +158,24 @@ class CloudPipeline:
     def run(self, input_ply: str) -> None:
         pcd = o3d.io.read_point_cloud(input_ply)
         self.logger.info(f"Loaded {input_ply}, {len(pcd.points)} points")
-        o3d.visualization.draw_geometries([pcd], window_name="Raw cloud")
+        o3d.visualization.draw_geometries_with_editing([pcd], window_name="Raw cloud")
+
         cropped = self.cropper.crop(pcd)
-        o3d.visualization.draw_geometries([cropped], window_name="Cropped cloud")
+        o3d.visualization.draw_geometries_with_editing(
+            [cropped], window_name="Cropped cloud"
+        )
+
         clean = self.denoiser.denoise(cropped)
-        o3d.visualization.draw_geometries([clean], window_name="Denoised cloud")
+        o3d.visualization.draw_geometries_with_editing(
+            [clean], window_name="Denoised cloud"
+        )
+
         obj = self.clusterer.extract_object(clean)
         o3d.visualization.draw_geometries([obj], window_name="Clustered object")
+
         aabb, _ = self.analyzer.get_bounding_box(obj)
         o3d.visualization.draw_geometries([obj, aabb], window_name="Bounding box")
+
         top_points = self.topfinder.find_top_face(obj)
         if len(top_points) > 0:
             top_pcd = o3d.geometry.PointCloud()
@@ -180,7 +184,9 @@ class CloudPipeline:
             o3d.visualization.draw_geometries(
                 [obj, top_pcd], window_name="Top face points"
             )
-            traj_start, traj_end = self.trajectory_planner.plan_center_trajectory(top_points)
+            traj_start, traj_end = self.trajectory_planner.plan_center_trajectory(
+                top_points
+            )
             traj_line = o3d.geometry.LineSet()
             traj_line.points = o3d.utility.Vector3dVector([traj_start, traj_end])
             traj_line.lines = o3d.utility.Vector2iVector([[0, 1]])
@@ -188,5 +194,3 @@ class CloudPipeline:
             o3d.visualization.draw_geometries(
                 [obj, top_pcd, traj_line], window_name="Marker Trajectory"
             )
-
-

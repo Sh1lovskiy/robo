@@ -1,4 +1,5 @@
 """CLI entry points for camera and point cloud utilities."""
+
 from __future__ import annotations
 
 import argparse
@@ -17,6 +18,7 @@ from vision.transform import TransformUtils
 # ---------------------------------------------------------------------------
 # Basic point cloud helpers
 # ---------------------------------------------------------------------------
+
 
 def capture_cloud(output: str) -> None:
     logger = Logger.get_logger("vision.tools.capture")
@@ -48,7 +50,8 @@ def view_cloud(input_ply: str) -> None:
     o3d.visualization.draw_geometries([pcd])
 
 
-# CLI helpers ---------------------------------------------------------------
+# CLI helpers
+
 
 def main_capture() -> None:
     parser = argparse.ArgumentParser(description="Capture point cloud")

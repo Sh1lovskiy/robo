@@ -15,7 +15,7 @@ class JSONPoseLoader:
     """
     Loads robot poses for hand-eye calibration from a JSON file.
     Expects keys:
-        - "robot_tcp_pose": [x, y, z, rx, ry, rz] (angles in degrees or radians, обсудим ниже)
+        - "robot_tcp_pose": [x, y, z, rx, ry, rz] (angles in degrees or radians)
     """
 
     @staticmethod

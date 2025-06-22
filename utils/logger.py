@@ -277,7 +277,9 @@ class Logger:
         getattr(logger, logging.getLevelName(level).lower())(message, extra=extra)
 
     @staticmethod
-    def log_function(logger: logging.Logger, level: int = logging.INFO) -> Callable[[Callable[..., T]], Callable[..., T]]:
+    def log_function(
+        logger: logging.Logger, level: int = logging.INFO
+    ) -> Callable[[Callable[..., T]], Callable[..., T]]:
         """Decorator that logs function calls, arguments, returns, and exceptions."""
 
         def decorator(func: Callable[..., T]) -> Callable[..., T]:
@@ -313,7 +315,9 @@ class Logger:
         return decorator
 
     @staticmethod
-    def silent_log_function(logger: logging.Logger, level: int = logging.INFO) -> Callable[[Callable[..., T]], Callable[..., T]]:
+    def silent_log_function(
+        logger: logging.Logger, level: int = logging.INFO
+    ) -> Callable[[Callable[..., T]], Callable[..., T]]:
         """Decorator that logs only exceptions, suppressing function call and return logs."""
 
         def decorator(func: Callable[..., T]) -> Callable[..., T]:
@@ -353,7 +357,12 @@ class Timer:
         self.start()
         return self
 
-    def __exit__(self, exc_type: Optional[type], exc_val: Optional[BaseException], exc_tb: Optional[object]) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[object],
+    ) -> None:
         self.stop()
 
         if self.logger:

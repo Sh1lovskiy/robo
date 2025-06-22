@@ -16,4 +16,3 @@ __all__ = [
     "HandEyeCalibrationWorkflow",
     "CHARUCO_DICT_MAP",
 ]
-
