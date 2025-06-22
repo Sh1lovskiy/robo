@@ -14,11 +14,13 @@ import cv2
 import numpy as np
 
 from robot.controller import RobotController
+from utils.cli import Command, CommandDispatcher
 from utils.config import Config
+from utils.error_tracker import CameraError
 from utils.logger import Logger
 from vision.realsense import RealSenseCamera
+from vision.camera_base import Camera
 from vision.opencv_utils import OpenCVUtils
-from utils.cli import Command, CommandDispatcher
 
 
 # --- Pose Recording ---
@@ -69,13 +71,16 @@ class PoseRecorder:
     logger: Logger = Logger.get_logger("robot.workflow.record")
 
     def run(self) -> None:
-        cam = RealSenseCamera()
-        cam.start()
+        camera_mgr = CameraManager()
+        if not camera_mgr.start():
+            self.logger.error("Camera not available. Exiting pose recorder.")
+            return
         ir_saver = IRFrameSaver(self.captures_dir)
         pose_count = 0
         print("Press ENTER to save current pose. Press 'q' to quit.")
         while True:
-            color, depth, ir = self._get_frames(cam)
+            color, depth = camera_mgr.get_frames()
+            ir = None
             if depth is not None:
                 OpenCVUtils.show_depth(depth)
             if color is not None:
@@ -101,18 +106,9 @@ class PoseRecorder:
                     if ir is not None:
                         ir_saver.save(idx, ir_vis)
                     pose_count += 1
-        cam.stop()
+        camera_mgr.stop()
         cv2.destroyAllWindows()
         self.controller.shutdown()
-
-    def _get_frames(
-        self, cam: RealSenseCamera
-    ) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None]:
-        result = cam.get_frames()
-        if isinstance(result, tuple) and len(result) == 3:
-            return result
-        color, depth = result
-        return color, depth, None
 
     def _save_frames(self, idx: str, color: np.ndarray, depth: np.ndarray) -> None:
         rgb_path = os.path.join(self.captures_dir, f"{idx}_rgb.png")
@@ -142,20 +138,25 @@ class FrameSaver:
 
 
 class CameraManager:
-    """Wrap RealSense camera for reliable frame acquisition."""
+    """Wrap a camera instance for reliable frame acquisition."""
 
-    def __init__(self, logger: Optional[Logger] = None):
-        self.cam = RealSenseCamera()
+    def __init__(self, camera: Camera | None = None, logger: Optional[Logger] = None):
+        self.cam = camera or RealSenseCamera()
         self.logger = logger or Logger.get_logger("robot.workflow.camera")
 
-    def start(self) -> None:
-        self.cam.start()
+    def start(self) -> bool:
+        try:
+            self.cam.start()
+        except CameraError as e:
+            self.logger.error(f"Camera start failed: {e}")
+            return False
         for _ in Logger.progress(range(10), desc="Warmup"):
             try:
                 self.cam.get_frames()
             except Exception:
                 pass
             time.sleep(0.05)
+        return True
 
     def stop(self) -> None:
         self.cam.stop()
@@ -189,7 +190,10 @@ class PathRunner:
 
     def run(self) -> None:
         path = load_trajectory(self.traj_file)
-        self.camera_mgr.start()
+        if not self.camera_mgr.start():
+            self.logger.error("Camera not available. Aborting path run.")
+            self.controller.shutdown()
+            return
         for idx, pose in Logger.progress(list(enumerate(path)), desc="Path"):
             self.logger.info(f"Moving to {pose}")
             if not self.controller.move_linear(pose):
@@ -249,18 +253,48 @@ def _run_path(args: argparse.Namespace) -> None:
     runner.run()
 
 
+def _add_restart_args(parser: argparse.ArgumentParser) -> None:
+    Config.load()
+    parser.add_argument("--ip", default=Config.get("robot.ip"), help="Robot IP")
+    parser.add_argument(
+        "--delay", type=float, default=3.0, help="Seconds between reconnects"
+    )
+    parser.add_argument(
+        "--attempts", type=int, default=3, help="Number of reconnect attempts"
+    )
+
+
+def _run_restart(args: argparse.Namespace) -> None:
+    controller = RobotController(rpc=args.ip)
+    ok = controller.restart(
+        ip_address=args.ip, delay=args.delay, attempts=args.attempts
+    )
+    if ok:
+        controller.logger.info("Robot restart completed successfully")
+    else:
+        controller.logger.error("Failed to restart robot")
+    controller.shutdown()
+
+
 def create_cli() -> CommandDispatcher:
     return CommandDispatcher(
         "Robot workflows",
         [
             Command("record", _run_record, _add_record_args, "Record robot poses"),
             Command("run", _run_path, _add_run_args, "Execute path and capture"),
+            Command(
+                "restart",
+                _run_restart,
+                _add_restart_args,
+                "Restart robot connection",
+            ),
         ],
     )
 
 
 def main() -> None:
-    create_cli().run()
+    logger = Logger.get_logger("robot.workflows")
+    create_cli().run(logger=logger)
 
 
 if __name__ == "__main__":

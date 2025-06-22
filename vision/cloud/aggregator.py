@@ -189,7 +189,8 @@ def create_cli() -> CommandDispatcher:
 
 
 def main() -> None:
-    create_cli().run()
+    logger = Logger.get_logger("vision.aggregator")
+    create_cli().run(logger=logger)
 
 
 if __name__ == "__main__":

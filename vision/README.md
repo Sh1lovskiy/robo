@@ -8,6 +8,7 @@ A robust, modular set of tools for 3D vision tasks: point cloud generation from 
 
 * Convert depth/RGB to dense point clouds in camera, TCP (gripper/tool), or world (robot base) coordinates
 * Rigid SE(3) transformation utilities between all frames: camera, TCP, tool offset, world
+* Abstract `Camera` interface with a RealSense implementation
 * Full support for hand-eye calibration (base→cam, TCP→cam, tool→TCP)
 * Handles gripper/tool offset (TCP ≠ flange) for correct scene geometry
 * Build and apply transform chains for any robot/camera mounting
@@ -15,6 +16,8 @@ A robust, modular set of tools for 3D vision tasks: point cloud generation from 
 * All steps and transforms logged via `utils.logger`
 * Easy to test and extend in production pipelines
 * `OpenCVUtils.show_depth` for quick depth visualization
+* `vision.cloud.aggregator` for multi-frame cloud assembly
+* CLI helpers under `vision.tools` for capture, transforms and viewing
 
 The `vision.cloud` subpackage holds the point cloud utilities described in
 [vision/cloud/README.md](cloud/README.md).

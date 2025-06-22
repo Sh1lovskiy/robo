@@ -33,7 +33,14 @@ class Config:
     _logger = Logger.get_logger("utils.config")
 
     @classmethod
-    def load(cls, filename: Path | str = DEFAULT_CONFIG_PATH) -> None:
+    def load(
+        cls, filename: Path | str = DEFAULT_CONFIG_PATH, force_reload: bool = False
+    ) -> None:
+        """Load configuration from ``filename`` unless already loaded."""
+
+        if cls._data is not None and not force_reload:
+            return
+
         try:
             cls._data = cls._loader.load(filename)
             cls._logger.info(f"Config loaded from {filename}")

@@ -10,5 +10,6 @@ $$
 
 - `aggregator.py` – merge multiple frames into a single cloud.  It can optionally run ICP to refine alignment between successive captures.
 - `pipeline.py` – common filters (voxel down‑sample, pass‑through) and simple analysis helpers for trajectories.
+- CLI entry point `cloud-aggregate` for running the aggregator from the command line.
 
 The classes here are small and focus on a single task in accordance with the Single Responsibility Principle. They are orchestrated by higher level workflows in `vision/tools.py`.

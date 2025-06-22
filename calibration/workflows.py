@@ -16,6 +16,7 @@ from calibration.pose_loader import JSONPoseLoader
 from utils.config import Config
 from utils.io import load_camera_params, save_camera_params_xml, save_camera_params_txt
 from utils.logger import Logger
+from utils.error_tracker import ErrorTracker
 from utils.cli import Command, CommandDispatcher
 
 CHARUCO_DICT_MAP = {"5X5_50": 8, "5X5_100": 9}
@@ -29,9 +30,13 @@ class CharucoCalibrationWorkflow:
     logger: Logger = Logger.get_logger("calibration.workflow.charuco")
 
     def run(self) -> None:
-        Config.load()
+        if Config._data is None:
+            Config.load()
         cfg = Config.get("charuco")
         folder = cfg.get("images_dir", "cloud")
+        if not os.path.isdir(folder):
+            self.logger.error(f"Images directory '{folder}' not found")
+            return
         out_dir = cfg.get("calib_output_dir", "calibration/results")
         os.makedirs(out_dir, exist_ok=True)
         xml_file = os.path.join(out_dir, cfg.get("xml_file", "charuco_cam.xml"))
@@ -85,7 +90,8 @@ class HandEyeCalibrationWorkflow:
     logger: Logger = Logger.get_logger("calibration.workflow.handeye")
 
     def run(self) -> None:
-        Config.load()
+        if Config._data is None:
+            Config.load()
         cfg = Config.get("handeye")
         out_dir = cfg.get("calib_output_dir", "calibration/results")
         os.makedirs(out_dir, exist_ok=True)
@@ -93,6 +99,16 @@ class HandEyeCalibrationWorkflow:
         robot_poses_file = cfg.get("robot_poses_file", "cloud/poses.json")
         method = cfg.get("method", "ALL").upper()
         images_dir = cfg.get("images_dir", "cloud")
+
+        if not os.path.isfile(charuco_xml):
+            self.logger.error(f"Charuco file '{charuco_xml}' not found")
+            return
+        if not os.path.isfile(robot_poses_file):
+            self.logger.error(f"Robot poses file '{robot_poses_file}' not found")
+            return
+        if not os.path.isdir(images_dir):
+            self.logger.error(f"Images directory '{images_dir}' not found")
+            return
 
         squares_x = cfg.get("squares_x", 5)
         squares_y = cfg.get("squares_y", 7)
@@ -192,10 +208,38 @@ def _run_charuco(args: argparse.Namespace) -> None:
 
 
 def _add_handeye_args(parser: argparse.ArgumentParser) -> None:
-    pass
+    Config.load()
+    cfg = Config.get("handeye")
+    out_dir = cfg.get("calib_output_dir", "calibration/results")
+    parser.add_argument(
+        "--images_dir",
+        default=cfg.get("images_dir", "cloud"),
+        help="Directory with Charuco images",
+    )
+    parser.add_argument(
+        "--charuco_xml",
+        default=cfg.get("charuco_xml", os.path.join(out_dir, "charuco_cam.xml")),
+        help="Camera calibration XML file",
+    )
+    parser.add_argument(
+        "--robot_poses_file",
+        default=cfg.get("robot_poses_file", "cloud/poses.json"),
+        help="JSON file with robot poses",
+    )
+    parser.add_argument(
+        "--method",
+        default=cfg.get("method", "ALL"),
+        help="Calibration method or ALL",
+    )
 
 
 def _run_handeye(args: argparse.Namespace) -> None:
+    Config.load()
+    cfg = Config.get("handeye")
+    cfg["images_dir"] = args.images_dir
+    cfg["charuco_xml"] = args.charuco_xml
+    cfg["robot_poses_file"] = args.robot_poses_file
+    cfg["method"] = args.method
     HandEyeCalibrationWorkflow().run()
 
 
@@ -214,7 +258,8 @@ def create_cli() -> CommandDispatcher:
 
 
 def main() -> None:
-    create_cli().run()
+    logger = Logger.get_logger("calibration.workflows")
+    create_cli().run(logger=logger)
 
 
 if __name__ == "__main__":
