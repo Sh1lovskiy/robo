@@ -5,10 +5,12 @@ from __future__ import annotations
 import cv2
 import numpy as np
 import pyrealsense2 as rs
+from utils.error_tracker import CameraConnectionError, ErrorTracker
 from utils.logger import Logger
+from .camera_base import Camera
 
 
-class RealSenseCamera:
+class RealSenseCamera(Camera):
     """
     Unified interface for Intel RealSense camera.
     Provides methods for streaming, frame alignment, and getting intrinsics.
@@ -56,9 +58,10 @@ class RealSenseCamera:
             if self.align_to_color:
                 self.align = rs.align(rs.stream.color)
             self.started = True
+            ErrorTracker.register_cleanup(self.stop)
         except Exception as e:
             self.logger.error(f"Failed to start RealSense pipeline: {e}")
-            raise
+            raise CameraConnectionError(str(e)) from e
 
     def stop(self) -> None:
         """

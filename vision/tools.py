@@ -7,13 +7,14 @@ import argparse
 import numpy as np
 import open3d as o3d
 
-from utils.logger import Logger
-from utils.config import Config
 from utils.cli import Command, CommandDispatcher
-from vision.camera_utils import IntrinsicsPrinter, DepthChecker
-from vision.realsense import RealSenseCamera
+from utils.config import Config
+from utils.error_tracker import CameraConnectionError
+from utils.logger import Logger
+from vision.camera_utils import DepthChecker, IntrinsicsPrinter
 from vision.cloud.generator import PointCloudGenerator
 from vision.cloud.pipeline import CloudPipeline
+from vision.realsense import RealSenseCamera
 from vision.transform import TransformUtils
 
 # ---------------------------------------------------------------------------
@@ -24,20 +25,32 @@ from vision.transform import TransformUtils
 def capture_cloud(output: str) -> None:
     logger = Logger.get_logger("vision.tools.capture")
     cam = RealSenseCamera()
-    cam.start()
-    color, depth = cam.get_frames()
-    intr = cam.get_intrinsics()
-    points, colors = PointCloudGenerator.depth_to_cloud(depth, intr, rgb=color)
-    PointCloudGenerator.save_ply(output, points, colors)
-    logger.info(f"Saved cloud to {output}")
-    cam.stop()
+    try:
+        cam.start()
+    except CameraConnectionError as e:
+        logger.error(f"Camera connection failed: {e}")
+        return
+
+    try:
+        color, depth = cam.get_frames()
+        intr = cam.get_intrinsics()
+        points, colors = PointCloudGenerator.depth_to_cloud(depth, intr, rgb=color)
+        PointCloudGenerator.save_ply(output, points, colors)
+        logger.info(f"Saved cloud to {output}")
+    finally:
+        cam.stop()
 
 
 def transform_cloud(input_ply: str, calib_npz: str, output: str) -> None:
     logger = Logger.get_logger("vision.tools.transform")
     cloud_gen = PointCloudGenerator()
-    points, colors = cloud_gen.load_ply(input_ply)
-    calib = np.load(calib_npz)
+    try:
+        points, colors = cloud_gen.load_ply(input_ply)
+        calib = np.load(calib_npz)
+    except Exception as e:
+        logger.error(f"Failed to load input files: {e}")
+        return
+
     R, t = calib["R"], calib["t"]
     points_t = TransformUtils.apply_transform(points, R, t)
     cloud_gen.save_ply(output, points_t, colors)
@@ -46,7 +59,12 @@ def transform_cloud(input_ply: str, calib_npz: str, output: str) -> None:
 
 def view_cloud(input_ply: str) -> None:
     logger = Logger.get_logger("vision.tools.view")
-    pcd = o3d.io.read_point_cloud(input_ply)
+    try:
+        pcd = o3d.io.read_point_cloud(input_ply)
+    except Exception as e:
+        logger.error(f"Failed to load point cloud {input_ply}: {e}")
+        return
+
     logger.info(f"Loaded point cloud {input_ply}")
     o3d.visualization.draw_geometries([pcd])
 
@@ -157,7 +175,8 @@ def create_cli() -> CommandDispatcher:
 
 
 def main() -> None:
-    create_cli().run()
+    logger = Logger.get_logger("vision.tools")
+    create_cli().run(logger=logger)
 
 
 if __name__ == "__main__":
