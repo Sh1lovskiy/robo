@@ -8,6 +8,7 @@ from typing import List, Optional, Union
 
 from utils.logger import Logger
 from utils.config import Config
+from utils.error_tracker import ErrorTracker
 
 from robot.Robot import RPC
 
@@ -41,6 +42,8 @@ class RobotController:
         self.initial_pose = None
 
         self.rpc = self._init_rpc(rpc)
+
+        ErrorTracker.register_cleanup(self.shutdown)
 
         self.logger.info(f"RobotController initialized with IP {self.ip_address}")
 
@@ -198,3 +201,61 @@ class RobotController:
             return res[1]
         self.logger.error("GetActualJointPosDegree failed")
         return None
+
+    def restart(
+        self,
+        ip_address: str | None = None,
+        *,
+        delay: float | None = None,
+        attempts: int = 3,
+    ) -> bool:
+        """Restart the controller.
+
+        Disable motors, close RPC, and attempt to reconnect ``attempts`` times
+        (waiting ``delay`` seconds between tries). ``ip_address`` overrides the
+        configured IP.
+
+        Returns ``True`` on success.
+        """
+
+        import time
+
+        delay = (
+            delay
+            if delay is not None
+            else self.config.get("robot.restart_delay", default=3.0)
+        )
+        ip = ip_address or self.ip_address
+        self.logger.info(
+            f"Restarting robot at {ip} with delay {delay}s and {attempts} attempts"
+        )
+
+        if self.rpc.RobotEnable(0) != 0:
+            self.logger.error("Disable failed")
+            return False
+        self.logger.info("Robot disabled")
+
+        self.rpc.CloseRPC()
+        self.logger.debug("RPC connection closed")
+
+        for attempt in range(attempts):
+            time.sleep(delay)
+            self.logger.info(f"Reconnect attempt {attempt + 1} of {attempts}")
+            self.rpc = self._init_rpc(ip)
+            if not self.connect():
+                self.logger.warning("Reconnect failed")
+                continue
+            if self.rpc.RobotEnable(1) != 0:
+                self.logger.error("Enable failed")
+                return False
+            safety_code = self.rpc.GetSafetyCode()
+            if safety_code != 0:
+                self.logger.error(
+                    f"Safety state prevents operation: {safety_code}"
+                )
+                return False
+            self.logger.info("Robot restart successful")
+            return True
+
+        self.logger.error("All reconnect attempts failed")
+        return False

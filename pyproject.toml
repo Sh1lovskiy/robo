@@ -35,7 +35,7 @@ vision-cli = "vision.tools:main"
 cloud-aggregate = "vision.cloud.aggregator:main"
 robot-cli = "robot.workflows:main"
 calibration-cli = "calibration.workflows:main"
-restart-cli = "restart:main"
+restart-cli = "robot.workflows:main"
 
 [tool.setuptools.package-data]
 robot = ["*.py", "*.pyx"]

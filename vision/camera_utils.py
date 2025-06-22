@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+
 import cv2
 import numpy as np
+
+from utils.error_tracker import CameraError
 from utils.logger import Logger
 from vision.realsense import RealSenseCamera
 
@@ -17,12 +20,19 @@ class IntrinsicsPrinter:
     logger: Logger = Logger.get_logger("vision.tools.intrinsics")
 
     def run(self) -> None:
-        self.camera.start()
-        intr = self.camera.get_intrinsics()
-        self.logger.info(f"Intrinsics: {intr}")
-        for k, v in intr.items():
-            print(f"{k}: {v}")
-        self.camera.stop()
+        try:
+            self.camera.start()
+        except CameraError as e:
+            self.logger.error(f"Failed to start camera: {e}")
+            return
+
+        try:
+            intr = self.camera.get_intrinsics()
+            self.logger.info(f"Intrinsics: {intr}")
+            for k, v in intr.items():
+                print(f"{k}: {v}")
+        finally:
+            self.camera.stop()
 
 
 @dataclass
@@ -33,7 +43,12 @@ class DepthChecker:
     logger: Logger = Logger.get_logger("vision.tools.depth")
 
     def run(self) -> None:
-        self.camera.start()
+        try:
+            self.camera.start()
+        except CameraError as e:
+            self.logger.error(f"Failed to start camera: {e}")
+            return
+
         depth_scale = self.camera.get_depth_scale()
         self.logger.info(f"Depth scale: {depth_scale:.6f} m")
         try:

@@ -8,7 +8,7 @@ from utils.geometry import euler_to_matrix
 
 
 class TransformUtils:
-    """                 
+    """
     Utilities for 3D rigid transformations between coordinate frames
     (robot base, TCP, camera, point cloud).
     Explicitly handles eye-in-hand/eye-to-hand conventions and tool (TCP) offset.

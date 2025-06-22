@@ -6,12 +6,12 @@ This repository groups several focused modules under a single project umbrella. 
 
 **Supports:**
 
-* Robot high-level API (move, home,  state, RPC)
-* RealSense 3D camera management
+* Robot high-level API (move, home, restart, state, RPC)
+* Pluggable camera interface with a RealSense implementation
 * Automated Charuco and hand-eye calibration (OpenCV)
-* 3D point cloud generation, transformation, and visualization
-* CLI tools for pose recording, trajectory execution, calibration, camera debug, and cloud ops
-* Flexible, extensible logger with JSON/file support
+* 3D point cloud capture, filtering and visualization
+* CLI tools built with a `CommandDispatcher` for calibration, robot control and cloud ops
+* Centralized logger and `ErrorTracker` with optional JSON output
 
 ---
 
@@ -24,7 +24,7 @@ project-root/
 │   ├── charuco.py              # Charuco board calibration helpers
 │   ├── handeye.py              # Hand-eye calibration helpers
 │   ├── pose_loader.py          # Load robot poses from JSON
-│   ├── workflows.py            # High-level calibration routines
+│   ├── workflows.py            # High-level calibration routines & CLI
 │   └── README.md               # Package overview
 │
 ├── robot/                # Robot API & workflows
@@ -37,18 +37,23 @@ project-root/
 ├── utils/                # Common utilities
 │   ├── config.py               # Config loading/abstraction
 │   ├── logger.py               # Centralized, JSON-capable logger
+│   ├── error_tracker.py        # Global exception and signal handling
+│   ├── cli.py                  # CommandDispatcher helper
+│   ├── keyboard.py             # Global hotkey listener
 │   ├── io.py                   # Camera calibration I/O
 │   ├── geometry.py             # Math helpers
 │   └── README.md               # Package overview
 │
 ├── vision/               # Vision, cloud, and camera utils
+│   ├── camera_base.py          # Abstract camera interface
+│   ├── realsense.py            # RealSense camera implementation
+│   ├── camera_utils.py         # Depth/intrinsic debug helpers
 │   ├── opencv_utils.py         # OpenCV helper class
-│   ├── realsense.py            # RealSense camera wrapper
 │   ├── cloud/                  # Point cloud subpackage
 │   │   ├── generator.py            # PointCloudGenerator class
 │   │   ├── aggregator.py           # Multi-frame cloud builder
 │   │   └── pipeline.py             # Filtering/analysis helpers
-│   ├── tools.py                # Camera and cloud helper routines
+│   ├── tools.py                # Camera and cloud helper CLI
 │   ├── transform.py            # 3D transformation utilities
 │   └── README.md               # Explanation of transform chain
 │
@@ -69,6 +74,14 @@ The project is organized into four main packages that mirror typical robotics la
 * **utils/** – Shared helpers for configuration, logging and geometry calculations.
 
 Every component keeps a single responsibility and exposes a minimal interface. New robots or cameras can be integrated by implementing the same interfaces without modifying existing modules.
+
+### Design Principles
+
+* **Single Responsibility** – each module focuses on one task only.
+* **Open/Closed** – functionality is extended via abstractions (e.g. `Camera` base class).
+* **Liskov Substitution** – alternate controllers or cameras can drop in without breaking workflows.
+* **Interface Segregation** – small APIs are preferred for ease of testing.
+* **Dependency Inversion** – high level workflows depend on abstract interfaces, not implementations.
 
 ---
 
@@ -128,8 +141,9 @@ CLI modules are thin wrappers calling workflow helpers under
 
 ### Logger (`utils/logger.py`)
 
-* Central logger: file/console, JSON/text, auto-timestamped logs
+* Central logger: file/console, JSON/text, progress bars
 * Decorators for function/exception logging
+* Integrated `ErrorTracker` for uncaught exceptions
 * Use in all modules:
 
   ```python
@@ -137,10 +151,16 @@ CLI modules are thin wrappers calling workflow helpers under
   logger = Logger.get_logger("my.module", json_format=True)
   ```
 
+### Error Tracker (`utils/error_tracker.py`)
+
+* Global exception and signal handler
+* Executes registered cleanup functions on failures
+* Optional hotkeys via `utils.keyboard`
+
 ### Robot API (`robot/controller.py`)
 
-* `RobotController` — High-level API: connect, move, record, return home, shutdown
-* Uses config + logger
+* `RobotController` — High-level API: connect, move, restart, record, return home, shutdown
+* Uses `Config` and `Logger` instances
 
 ### Calibration Modules
 
@@ -149,7 +169,9 @@ CLI modules are thin wrappers calling workflow helpers under
 
 ### Vision
 
+* `Camera` base class — abstract interface for camera drivers
 * `RealSenseCamera` — Start/stop, get frames, intrinsics, depth scale
+* `camera_utils.py` — intrinsics printer and depth checker
 * `opencv_utils.py` — draw\_text, normalize\_depth, apply\_colormap
 
 ### 3D Point Cloud Modules
@@ -158,7 +180,7 @@ CLI modules are thin wrappers calling workflow helpers under
 * `cloud/aggregator.py` — Multi-frame cloud assembly with optional ICP
 * `cloud/pipeline.py` — Filtering, clustering, and trajectory analysis
 * `transform.py` — Rigid transformations between camera/robot/world coordinates (uses calibration, see vision/README.md)
-* CLI scripts provided via entry points (`pointcloud-capture`, `pointcloud-transform`, `pointcloud-view`)
+* CLI scripts provided via entry points (`pointcloud-capture`, `pointcloud-transform`, `pointcloud-view`) and built with `utils.cli.CommandDispatcher`
 
 **See [vision/README.md](./vision/README.md) for detailed usage, coordinate system details, and all math for 3D transforms.**
 

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Iterable, Optional
+from typing import Callable, Iterable, Optional
+
+from utils.error_tracker import ErrorTracker
+from utils.logger import Logger
 
 
 @dataclass
@@ -34,9 +37,36 @@ class CommandDispatcher:
             sp.set_defaults(func=cmd.handler)
         return parser
 
-    def run(self, args: Optional[list[str]] = None) -> None:
+    def run(
+        self,
+        args: Optional[list[str]] = None,
+        *,
+        logger: Optional[Logger] = None,
+        track_exceptions: bool = True,
+    ) -> None:
+        """Parse arguments and dispatch the selected command.
+
+        Any ``SystemExit`` raised by ``argparse`` is logged before re-raising so
+        callers can track CLI usage issues across the project. Optionally
+        installs the global :class:`ErrorTracker` for uncaught exceptions.
+        """
+
+        if logger is None:
+            logger = Logger.get_logger("utils.cli")
+
+        if track_exceptions:
+            ErrorTracker.install_excepthook()
+            ErrorTracker.install_signal_handlers()
+            ErrorTracker.install_keyboard_listener()
+
         parser = self._build_parser()
-        ns = parser.parse_args(args)
+
+        try:
+            ns = parser.parse_args(args)
+        except SystemExit as exc:  # argparse calls sys.exit() on error
+            logger.error("Argument parsing failed: %s", exc)
+            raise
+
         if hasattr(ns, "func"):
             ns.func(ns)
         else:
