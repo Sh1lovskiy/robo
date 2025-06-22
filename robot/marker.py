@@ -7,7 +7,9 @@ from utils.logger import Logger
 
 
 class MarkerPathRunner:
-    def __init__(self, controller: RobotController, logger: Logger | None = None) -> None:
+    def __init__(
+        self, controller: RobotController, logger: Logger | None = None
+    ) -> None:
         self.controller = controller
         self.logger = logger or Logger.get_logger("marker.path_runner")
 
@@ -21,7 +23,6 @@ class MarkerPathRunner:
         end: list[float],
         approach_dz: float = 50,
     ) -> bool:
-        # Approach above start
         above_start = list(start[:3])
         above_start[2] += approach_dz
         above_pose = above_start + list(start[3:])

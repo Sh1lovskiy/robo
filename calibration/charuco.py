@@ -16,12 +16,16 @@ from utils.logger import Logger
 class CalibrationSaver:
     """Strategy interface for saving calibration results."""
 
-    def save(self, filename: str, camera_matrix: np.ndarray, dist_coeffs: np.ndarray) -> None:
+    def save(
+        self, filename: str, camera_matrix: np.ndarray, dist_coeffs: np.ndarray
+    ) -> None:
         raise NotImplementedError
 
 
 class OpenCVXmlSaver(CalibrationSaver):
-    def save(self, filename: str, camera_matrix: np.ndarray, dist_coeffs: np.ndarray) -> None:
+    def save(
+        self, filename: str, camera_matrix: np.ndarray, dist_coeffs: np.ndarray
+    ) -> None:
         dir_ = os.path.dirname(filename)
         if dir_ and not os.path.exists(dir_):
             os.makedirs(dir_, exist_ok=True)
@@ -32,7 +36,9 @@ class OpenCVXmlSaver(CalibrationSaver):
 
 
 class TextSaver(CalibrationSaver):
-    def save(self, filename: str, camera_matrix: np.ndarray, dist_coeffs: np.ndarray) -> None:
+    def save(
+        self, filename: str, camera_matrix: np.ndarray, dist_coeffs: np.ndarray
+    ) -> None:
         dir_ = os.path.dirname(filename)
         if dir_ and not os.path.exists(dir_):
             os.makedirs(dir_, exist_ok=True)
@@ -47,7 +53,9 @@ class CharucoCalibrator:
 
     board: cv2.aruco_CharucoBoard
     dictionary: cv2.aruco_Dictionary
-    logger: Logger = field(default_factory=lambda: Logger.get_logger("calibration.charuco"))
+    logger: Logger = field(
+        default_factory=lambda: Logger.get_logger("calibration.charuco")
+    )
     all_corners: List[np.ndarray] = field(default_factory=list, init=False)
     all_ids: List[np.ndarray] = field(default_factory=list, init=False)
     img_size: tuple[int, int] | None = field(default=None, init=False)

@@ -7,7 +7,9 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 
-def euler_to_matrix(rx: float, ry: float, rz: float, degrees: bool = True) -> np.ndarray:
+def euler_to_matrix(
+    rx: float, ry: float, rz: float, degrees: bool = True
+) -> np.ndarray:
     """Convert Euler angles to rotation matrix."""
     if degrees:
         angles = np.deg2rad([rx, ry, rz])

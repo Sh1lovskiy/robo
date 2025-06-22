@@ -19,7 +19,8 @@ from vision.realsense import RealSenseCamera
 from vision.opencv_utils import OpenCVUtils
 
 
-# --- Pose Recording ---------------------------------------------------------
+# --- Pose Recording ---
+
 
 class PoseSaver:
     """Strategy interface for saving poses."""
@@ -78,7 +79,11 @@ class PoseRecorder:
             if color is not None:
                 cv2.imshow("RGB", color)
             if ir is not None:
-                ir_vis = ir if ir.dtype == np.uint8 else cv2.convertScaleAbs(ir, alpha=255.0 / np.max(ir))
+                ir_vis = (
+                    ir
+                    if ir.dtype == np.uint8
+                    else cv2.convertScaleAbs(ir, alpha=255.0 / np.max(ir))
+                )
                 cv2.imshow("IR", ir_vis)
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
@@ -87,7 +92,9 @@ class PoseRecorder:
                 pose = self.controller.get_tcp_pose()
                 if pose:
                     idx = f"{pose_count:03d}"
-                    self.saver.save(os.path.join(self.captures_dir, "poses.json"), idx, pose)
+                    self.saver.save(
+                        os.path.join(self.captures_dir, "poses.json"), idx, pose
+                    )
                     self._save_frames(idx, color, depth)
                     if ir is not None:
                         ir_saver.save(idx, ir_vis)
@@ -113,7 +120,8 @@ class PoseRecorder:
         self.logger.info(f"Saved frames for {idx}")
 
 
-# --- Path Execution --------------------------------------------------------
+# --- Path Execution ---
+
 
 @dataclass
 class FrameSaver:
@@ -221,4 +229,3 @@ def main_run_path() -> None:
         traj_file=args.path_file,
     )
     runner.run()
-
