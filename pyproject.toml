@@ -21,16 +21,21 @@ dependencies = [
 ]
 
 [project.scripts]
-poses-saver = "robot.workflows:main_record_poses"
-path-runner = "robot.workflows:main_run_path"
-charuco-calib = "calibration.workflows:main_charuco"
-handeye-calib = "calibration.workflows:main_handeye"
+poses-saver = "robot.workflows:main"
+path-runner = "robot.workflows:main"
+charuco-calib = "calibration.workflows:main"
+handeye-calib = "calibration.workflows:main"
 get-intrinsics = "vision.tools:main_intrinsics"
 depth-check = "vision.tools:main_depth"
 pointcloud-capture = "vision.tools:main_capture"
 pointcloud-transform = "vision.tools:main_transform"
 pointcloud-view = "vision.tools:main_view"
 vis-pointcloud = "vision.tools:main_pipeline"
+vision-cli = "vision.tools:main"
+cloud-aggregate = "vision.cloud.aggregator:main"
+robot-cli = "robot.workflows:main"
+calibration-cli = "calibration.workflows:main"
+restart-cli = "restart:main"
 
 [tool.setuptools.package-data]
 robot = ["*.py", "*.pyx"]

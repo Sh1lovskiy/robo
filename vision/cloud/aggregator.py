@@ -16,6 +16,7 @@ import open3d as o3d
 import argparse
 from utils.logger import Logger
 from utils.io import load_camera_params
+from utils.cli import Command, CommandDispatcher
 from calibration.pose_loader import JSONPoseLoader
 from vision.cloud.generator import PointCloudGenerator
 from vision.transform import TransformUtils
@@ -146,15 +147,16 @@ class PointCloudAggregator:
         self.logger.info(f"Aggregated cloud saved: {out_path}")
 
 
-def main():
-    parser = argparse.ArgumentParser()
+def _add_aggregate_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "--icp", action="store_true", help="Enable ICP alignment between frames"
+        "--icp",
+        action="store_true",
+        help="Enable ICP alignment between frames",
     )
-    args = parser.parse_args()
 
+
+def _run_aggregate(args: argparse.Namespace) -> None:
     logger = Logger.get_logger("cloud.pipeline", console_output=True)
-
     K, _ = load_camera_params(CAM_CALIB_PATH)
     logger.info("Camera intrinsics loaded.")
     R_handeye, t_handeye = load_handeye_txt(HANDEYE_PATH)
@@ -163,15 +165,31 @@ def main():
     logger.info(f"{len(Rs)} poses loaded.")
     img_pairs = get_image_pairs(DATA_DIR)
     logger.info(f"Found {len(img_pairs)} RGB/depth image pairs.")
-
     aggregator = PointCloudAggregator(logger)
     points, colors = aggregator.aggregate(
         img_pairs, Rs, ts, K, R_handeye, t_handeye, use_icp=args.icp
     )
     output_path = OUTPUT_PLY_ICP if args.icp else OUTPUT_PLY_NOICP
     aggregator.save_cloud(points, colors, output_path)
-
     logger.info("Point cloud aggregation completed. ICP: %s", args.icp)
+
+
+def create_cli() -> CommandDispatcher:
+    return CommandDispatcher(
+        "Point cloud aggregation utilities",
+        [
+            Command(
+                "aggregate",
+                _run_aggregate,
+                _add_aggregate_args,
+                "Aggregate captured clouds",
+            )
+        ],
+    )
+
+
+def main() -> None:
+    create_cli().run()
 
 
 if __name__ == "__main__":
