@@ -1,8 +1,10 @@
 # utils/geometry.py
 """Helper math utilities used across modules."""
 
-from scipy.spatial.transform import Rotation as R
+from __future__ import annotations
+
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 
 def euler_to_matrix(rx: float, ry: float, rz: float, degrees: bool = True) -> np.ndarray:

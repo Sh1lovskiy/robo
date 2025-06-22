@@ -1,12 +1,16 @@
 # utils/io.py
 """I/O helpers for calibration files."""
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Tuple
+
 import cv2
 import numpy as np
 
 
-def load_camera_params(filename: str):
+def load_camera_params(filename: str) -> Tuple[np.ndarray, np.ndarray]:
     """Load camera matrix and distortion coefficients from OpenCV XML/YAML."""
     fs = cv2.FileStorage(str(filename), cv2.FILE_STORAGE_READ)
     camera_matrix = fs.getNode("camera_matrix").mat()
@@ -15,7 +19,11 @@ def load_camera_params(filename: str):
     return camera_matrix, dist_coeffs
 
 
-def save_camera_params_xml(filename: str, camera_matrix: np.ndarray, dist_coeffs: np.ndarray) -> None:
+def save_camera_params_xml(
+    filename: str,
+    camera_matrix: np.ndarray,
+    dist_coeffs: np.ndarray,
+) -> None:
     """Save camera calibration to an OpenCV XML/YAML file."""
     Path(filename).parent.mkdir(parents=True, exist_ok=True)
     fs = cv2.FileStorage(str(filename), cv2.FILE_STORAGE_WRITE)

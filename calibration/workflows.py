@@ -14,9 +14,11 @@ from calibration.charuco import CharucoCalibrator
 from calibration.handeye import HandEyeCalibrator, NPZHandEyeSaver, TxtHandEyeSaver
 from calibration.pose_loader import JSONPoseLoader
 from utils.config import Config
-from utils.constants import CHARUCO_DICT_MAP
 from utils.io import load_camera_params, save_camera_params_xml, save_camera_params_txt
 from utils.logger import Logger
+
+# Mapping of Charuco dictionary names to OpenCV constants
+CHARUCO_DICT_MAP = {"5X5_50": 8, "5X5_100": 9}
 
 
 @dataclass
@@ -53,7 +55,7 @@ class CharucoCalibrationWorkflow:
             if f.lower().endswith((".png", ".jpg", ".jpeg"))
         ]
         self.logger.info(f"Found {len(images)} images in {folder}")
-        for img_path in images:
+        for img_path in Logger.progress(images, desc="Charuco frames"):
             img = cv2.imread(img_path)
             if img is None:
                 self.logger.warning(f"Cannot read {img_path}")
@@ -107,12 +109,17 @@ class HandEyeCalibrationWorkflow:
             return
 
         calibrator = HandEyeCalibrator(self.logger)
-        for Rg, tg, Rc, tc in zip(Rs_g2b, ts_g2b, Rs_t2c, ts_t2c):
+        for Rg, tg, Rc, tc in Logger.progress(
+            list(zip(Rs_g2b, ts_g2b, Rs_t2c, ts_t2c)),
+            desc="HandEye samples",
+        ):
             calibrator.add_sample(Rg, tg, Rc, tc)
 
         if method == "ALL":
             results = calibrator.calibrate_all()
-            for name, (R, t) in results.items():
+            for name, (R, t) in Logger.progress(
+                results.items(), desc="Saving results", total=len(results)
+            ):
                 npz_file = os.path.join(out_dir, f"handeye_{name}.npz")
                 txt_file = os.path.join(out_dir, f"handeye_{name}.txt")
                 calibrator.save(NPZHandEyeSaver(), npz_file, R, t)
@@ -129,18 +136,18 @@ class HandEyeCalibrationWorkflow:
     def _extract_charuco_poses(
         self,
         images_dir: str,
-        board,
-        dictionary,
+        board: cv2.aruco_CharucoBoard,
+        dictionary: cv2.aruco_Dictionary,
         camera_matrix: np.ndarray,
         dist_coeffs: np.ndarray,
-    ):
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         images = [
             os.path.join(images_dir, f)
             for f in os.listdir(images_dir)
             if f.lower().endswith((".png", ".jpg", ".jpeg"))
         ]
         Rs, ts = [], []
-        for img_path in images:
+        for img_path in Logger.progress(images, desc="Extract poses"):
             img = cv2.imread(img_path)
             if img is None:
                 continue

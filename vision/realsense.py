@@ -1,5 +1,7 @@
 # vision/realsense.py
 
+from __future__ import annotations
+
 import cv2
 import numpy as np
 import pyrealsense2 as rs
@@ -14,14 +16,14 @@ class RealSenseCamera:
 
     def __init__(
         self,
-        width=640,
-        height=480,
-        fps=30,
-        enable_color=True,
-        enable_depth=True,
-        align_to_color=True,
-        logger=None,
-    ):
+        width: int = 640,
+        height: int = 480,
+        fps: int = 30,
+        enable_color: bool = True,
+        enable_depth: bool = True,
+        align_to_color: bool = True,
+        logger: Logger | None = None,
+    ) -> None:
         self.pipeline = rs.pipeline()
         self.config = rs.config()
         self.enable_color = enable_color
@@ -41,7 +43,7 @@ class RealSenseCamera:
         self.align = None
         self.started = False
 
-    def start(self):
+    def start(self) -> None:
         """
         Start streaming from the camera.
         """
@@ -58,7 +60,7 @@ class RealSenseCamera:
             self.logger.error(f"Failed to start RealSense pipeline: {e}")
             raise
 
-    def stop(self):
+    def stop(self) -> None:
         """
         Stop streaming and release resources.
         """
@@ -66,7 +68,7 @@ class RealSenseCamera:
             self.pipeline.stop()
             self.started = False
 
-    def get_frames(self, aligned=True):
+    def get_frames(self, aligned: bool = True) -> tuple[np.ndarray | None, np.ndarray | None]:
         """
         Returns (color_img, depth_img) as numpy arrays (None if not enabled).
         If aligned=True and both streams enabled, aligns depth to color.
@@ -81,7 +83,7 @@ class RealSenseCamera:
         depth_img = np.asanyarray(depth_frame.get_data()) if depth_frame else None
         return color_img, depth_img
 
-    def get_intrinsics(self):
+    def get_intrinsics(self) -> dict:
         """
         Get depth camera intrinsics as a dictionary.
         """
@@ -101,7 +103,7 @@ class RealSenseCamera:
             "coeffs": list(intr.coeffs),
         }
 
-    def get_depth_scale(self):
+    def get_depth_scale(self) -> float:
         """
         Get depth scale in meters per unit.
         """

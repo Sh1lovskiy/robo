@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # vision/cloud/aggregator.py
+
+from __future__ import annotations
 """
 Build and aggregate a 3D point cloud from RGB, depth maps, and robot poses,
 using camera and hand-eye calibration. Optionally adds ICP alignment for each frame.
@@ -28,7 +30,7 @@ OUTPUT_PLY_NOICP = os.path.join(DATA_DIR, "cloud_aggregated.ply")
 DEPTH_SCALE = 0.001
 
 
-def load_handeye_txt(path):
+def load_handeye_txt(path: str) -> tuple[np.ndarray, np.ndarray]:
     with open(path, "r") as f:
         lines = f.readlines()
     R = []
@@ -51,35 +53,35 @@ def load_handeye_txt(path):
 
 
 
-def load_depth(depth_path):
+def load_depth(depth_path: str) -> np.ndarray:
     depth = np.load(depth_path)
     if np.issubdtype(depth.dtype, np.integer):
         depth = depth.astype(np.float32) * DEPTH_SCALE
     return depth
 
 
-def get_image_pairs(data_dir):
+def get_image_pairs(data_dir: str) -> list[tuple[str, str]]:
     rgb_list = sorted(glob.glob(os.path.join(data_dir, "*_rgb.*")))
     depth_list = sorted(glob.glob(os.path.join(data_dir, "*_depth.*")))
     assert len(rgb_list) == len(depth_list), "RGB and depth image count mismatch."
     return list(zip(rgb_list, depth_list))
 
 class PointCloudAggregator:
-    def __init__(self, logger=None):
+    def __init__(self, logger: Logger | None = None) -> None:
         self.logger = logger or Logger.get_logger("cloud.aggregator")
         self.cloud_gen = PointCloudGenerator()
         self.transformer = TransformUtils()
 
     def aggregate(
         self,
-        img_pairs,
-        rotations,
-        translations,
-        intrinsics,
-        R_handeye,
-        t_handeye,
-        use_icp=False,
-    ):
+        img_pairs: list[tuple[str, str]],
+        rotations: list[np.ndarray],
+        translations: list[np.ndarray],
+        intrinsics: np.ndarray,
+        R_handeye: np.ndarray,
+        t_handeye: np.ndarray,
+        use_icp: bool = False,
+    ) -> tuple[np.ndarray, np.ndarray | None]:
         all_points, all_colors = [], []
         base_pcd = None
 
@@ -137,7 +139,9 @@ class PointCloudAggregator:
         all_colors = np.asarray(base_pcd.colors) if base_pcd.has_colors() else None
         return all_points, all_colors
 
-    def save_cloud(self, points, colors, out_path):
+    def save_cloud(
+        self, points: np.ndarray, colors: np.ndarray | None, out_path: str
+    ) -> None:
         self.cloud_gen.save_ply(out_path, points, colors)
         self.logger.info(f"Aggregated cloud saved: {out_path}")
 

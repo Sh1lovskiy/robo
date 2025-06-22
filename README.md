@@ -124,7 +124,7 @@ CLI modules are thin wrappers calling workflow helpers under
 * `vision:` — RealSense stream parameters, cloud parameters
 * `logging:` — log directory, level, JSON output
 * `cloud:` — point cloud setting, (resolution, voxel size, output dir, ...)
-* Defaults for paths, robot IP, and Charuco dictionary mapping are defined in `utils/constants.py`
+* Default paths, robot IP and Charuco dictionary mapping live in `config.yaml`
 
 ### Logger (`utils/logger.py`)
 

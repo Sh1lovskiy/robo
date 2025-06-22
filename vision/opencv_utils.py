@@ -1,5 +1,7 @@
 # vision/opencv_utils.py
 
+from __future__ import annotations
+
 import cv2
 import numpy as np
 from utils.io import load_camera_params
@@ -9,7 +11,14 @@ class OpenCVUtils:
     """Collection of OpenCV helper functions."""
 
     @staticmethod
-    def draw_text(img, text, pos=(10, 30), color=(0, 255, 0), font_scale=0.8, thickness=2):
+    def draw_text(
+        img: np.ndarray,
+        text: str,
+        pos: tuple[int, int] = (10, 30),
+        color: tuple[int, int, int] = (0, 255, 0),
+        font_scale: float = 0.8,
+        thickness: int = 2,
+    ) -> None:
         """Draw text on the image at the specified position."""
         cv2.putText(
             img,
@@ -41,6 +50,8 @@ class OpenCVUtils:
         cv2.imshow(window, depth_color)
 
     @staticmethod
-    def load_camera_calib_from_xml(filename):
+    def load_camera_calib_from_xml(
+        filename: str,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Load camera matrix and distortion coefficients from file."""
         return load_camera_params(filename)

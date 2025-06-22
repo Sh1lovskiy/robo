@@ -1,5 +1,7 @@
 # vision/transform.py
 
+from __future__ import annotations
+
 import numpy as np
 from utils.logger import Logger
 from utils.geometry import euler_to_matrix
@@ -11,7 +13,7 @@ class TransformUtils:
     Explicitly handles eye-in-hand/eye-to-hand conventions and tool (TCP) offset.
     """
 
-    def __init__(self, logger=None):
+    def __init__(self, logger: Logger | None = None) -> None:
         self.logger = logger or Logger.get_logger("vision.transform")
 
     @staticmethod
@@ -32,7 +34,7 @@ class TransformUtils:
         return (T @ points_h.T).T[:, :3]
 
     @staticmethod
-    def decompose_transform(T: np.ndarray):
+    def decompose_transform(T: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Decompose 4x4 transform into (R, t).
         """
@@ -49,7 +51,7 @@ class TransformUtils:
         out = (T @ points_h.T).T[:, :3]
         return out
 
-    def chain_transforms(self, *Ts):
+    def chain_transforms(self, *Ts: np.ndarray) -> np.ndarray:
         """
         Multiply (chain) an arbitrary number of 4x4 transforms.
         """
@@ -58,7 +60,7 @@ class TransformUtils:
             T_out = T_out @ T
         return T_out
 
-    def base_to_tcp(self, tcp_pose):
+    def base_to_tcp(self, tcp_pose: np.ndarray | tuple[np.ndarray, np.ndarray]) -> np.ndarray:
         """
         Convert TCP (tool center point) pose to 4x4 base→TCP transform.
         Accepts:
@@ -73,7 +75,7 @@ class TransformUtils:
         else:
             raise ValueError("tcp_pose must be SE(3) 4x4 or (R, t)")
 
-    def tool_to_tcp(self, tcp_offset: np.ndarray):
+    def tool_to_tcp(self, tcp_offset: np.ndarray | None) -> np.ndarray:
         """
         Create transform from tool flange to TCP (tool offset, usually from config or robot teach pendant).
         tcp_offset: 6dof (x, y, z, rx, ry, rz) in robot tool convention.
@@ -87,13 +89,19 @@ class TransformUtils:
         rot = euler_to_matrix(rx, ry, rz, degrees=True)
         return self.build_transform(rot, np.array([x, y, z]))
 
-    def tcp_to_camera(self, R_handeye: np.ndarray, t_handeye: np.ndarray):
+    def tcp_to_camera(self, R_handeye: np.ndarray, t_handeye: np.ndarray) -> np.ndarray:
         """
         Transform from TCP to camera (hand-eye calibration result).
         """
         return self.build_transform(R_handeye, t_handeye)
 
-    def get_base_to_camera(self, tcp_pose, tcp_offset, R_handeye, t_handeye):
+    def get_base_to_camera(
+        self,
+        tcp_pose: np.ndarray | tuple[np.ndarray, np.ndarray],
+        tcp_offset: np.ndarray | None,
+        R_handeye: np.ndarray,
+        t_handeye: np.ndarray,
+    ) -> np.ndarray:
         """
         Compute SE(3) from robot base to camera using all links:
         base→TCP→(tool offset)→camera
@@ -105,28 +113,32 @@ class TransformUtils:
         self.logger.info("Computed T_base→camera.")
         return T_base_cam
 
-    def camera_to_world(self, points_cam, T_base_cam):
+    def camera_to_world(self, points_cam: np.ndarray, T_base_cam: np.ndarray) -> np.ndarray:
         """
         Project points from camera to world (base) coordinates.
         """
         self.logger.info("Transforming points: camera → world")
         return self.transform_points(points_cam, T_base_cam)
 
-    def world_to_camera(self, points_world, T_base_cam):
+    def world_to_camera(self, points_world: np.ndarray, T_base_cam: np.ndarray) -> np.ndarray:
         """
         Project points from world (base) to camera coordinates.
         """
         self.logger.info("Transforming points: world → camera")
         return self.transform_points(points_world, np.linalg.inv(T_base_cam))
 
-    def camera_to_tcp(self, points_cam, R_handeye, t_handeye):
+    def camera_to_tcp(
+        self, points_cam: np.ndarray, R_handeye: np.ndarray, t_handeye: np.ndarray
+    ) -> np.ndarray:
         """
         Camera frame to TCP frame.
         """
         T = self.tcp_to_camera(R_handeye, t_handeye)
         return self.transform_points(points_cam, np.linalg.inv(T))
 
-    def tcp_to_camera_points(self, points_tcp, R_handeye, t_handeye):
+    def tcp_to_camera_points(
+        self, points_tcp: np.ndarray, R_handeye: np.ndarray, t_handeye: np.ndarray
+    ) -> np.ndarray:
         """
         TCP frame to camera frame.
         """
