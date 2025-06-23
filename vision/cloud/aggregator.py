@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-# vision/cloud/aggregator.py
+"""Point cloud aggregation utilities."""
 
 from __future__ import annotations
 
-"""
-Build and aggregate a 3D point cloud from RGB, depth maps, and robot poses,
-using camera and hand-eye calibration. Optionally adds ICP alignment for each frame.
-"""
+# vision/cloud/aggregator.py
 
 import os
 import glob
@@ -14,7 +11,7 @@ import cv2
 import numpy as np
 import open3d as o3d
 import argparse
-from utils.logger import Logger
+from utils.logger import Logger, LoggerType
 from utils.io import load_camera_params
 from utils.cli import Command, CommandDispatcher
 from calibration.pose_loader import JSONPoseLoader
@@ -34,8 +31,8 @@ DEPTH_SCALE = 0.001
 def load_handeye_txt(path: str) -> tuple[np.ndarray, np.ndarray]:
     with open(path, "r") as f:
         lines = f.readlines()
-    R = []
-    t = []
+    R: list[list[float]] = []
+    t: np.ndarray = np.empty(3)
     for line in lines:
         if line.startswith("R"):
             continue
@@ -67,7 +64,7 @@ def get_image_pairs(data_dir: str) -> list[tuple[str, str]]:
 
 
 class PointCloudAggregator:
-    def __init__(self, logger: Logger | None = None) -> None:
+    def __init__(self, logger: LoggerType | None = None) -> None:
         self.logger = logger or Logger.get_logger("cloud.aggregator")
         self.cloud_gen = PointCloudGenerator()
         self.transformer = TransformUtils()
@@ -82,8 +79,7 @@ class PointCloudAggregator:
         t_handeye: np.ndarray,
         use_icp: bool = False,
     ) -> tuple[np.ndarray, np.ndarray | None]:
-        all_points, all_colors = [], []
-        base_pcd = None
+        base_pcd: o3d.geometry.PointCloud | None = None
 
         for idx, ((rgb_path, depth_path), (R_tcp, t_tcp)) in enumerate(
             zip(img_pairs, zip(rotations, translations))
@@ -136,8 +132,11 @@ class PointCloudAggregator:
                 base_pcd += pcd
                 base_pcd = base_pcd.voxel_down_sample(voxel_size=0.003)
 
+        assert base_pcd is not None
         all_points = np.asarray(base_pcd.points)
-        all_colors = np.asarray(base_pcd.colors) if base_pcd.has_colors() else None
+        all_colors = (
+            np.asarray(base_pcd.colors) if base_pcd.has_colors() else None
+        )
         return all_points, all_colors
 
     def save_cloud(
@@ -156,7 +155,7 @@ def _add_aggregate_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _run_aggregate(args: argparse.Namespace) -> None:
-    logger = Logger.get_logger("cloud.pipeline", console_output=True)
+    logger = Logger.get_logger("cloud.pipeline")
     K, _ = load_camera_params(CAM_CALIB_PATH)
     logger.info("Camera intrinsics loaded.")
     R_handeye, t_handeye = load_handeye_txt(HANDEYE_PATH)

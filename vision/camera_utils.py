@@ -9,15 +9,16 @@ import numpy as np
 
 from utils.error_tracker import CameraError
 from utils.logger import Logger
-from vision.realsense import RealSenseCamera
+from utils.logger import Logger, LoggerType
+from vision.realsense import RealSenseCamera, RealSenseConfig
 
 
 @dataclass
 class IntrinsicsPrinter:
     """Print camera intrinsics to stdout."""
 
-    camera: RealSenseCamera = RealSenseCamera()
-    logger: Logger = Logger.get_logger("vision.tools.intrinsics")
+    camera: RealSenseCamera = RealSenseCamera(RealSenseConfig())
+    logger: LoggerType = Logger.get_logger("vision.tools.intrinsics")
 
     def run(self) -> None:
         try:
@@ -39,8 +40,8 @@ class IntrinsicsPrinter:
 class DepthChecker:
     """Display live depth map with distance overlay."""
 
-    camera: RealSenseCamera = RealSenseCamera()
-    logger: Logger = Logger.get_logger("vision.tools.depth")
+    camera: RealSenseCamera = RealSenseCamera(RealSenseConfig())
+    logger: LoggerType = Logger.get_logger("vision.tools.depth")
 
     def run(self) -> None:
         try:
@@ -54,6 +55,7 @@ class DepthChecker:
         try:
             while True:
                 color, depth = self.camera.get_frames()
+                assert depth is not None
                 h, w = depth.shape
                 x, y = w // 2, h // 2
                 dist_mm = int(depth[y, x] * depth_scale * 1000)

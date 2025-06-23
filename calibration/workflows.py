@@ -15,8 +15,7 @@ from calibration.handeye import HandEyeCalibrator, NPZHandEyeSaver, TxtHandEyeSa
 from calibration.pose_loader import JSONPoseLoader
 from utils.config import Config
 from utils.io import load_camera_params, save_camera_params_xml, save_camera_params_txt
-from utils.logger import Logger
-from utils.error_tracker import ErrorTracker
+from utils.logger import Logger, LoggerType
 from utils.cli import Command, CommandDispatcher
 
 CHARUCO_DICT_MAP = {"5X5_50": 8, "5X5_100": 9}
@@ -27,7 +26,7 @@ class CharucoCalibrationWorkflow:
     """Run Charuco calibration on a folder of images."""
 
     visualize: bool = True
-    logger: Logger = Logger.get_logger("calibration.workflow.charuco")
+    logger: LoggerType = Logger.get_logger("calibration.workflow.charuco")
 
     def run(self) -> None:
         if Config._data is None:
@@ -87,7 +86,7 @@ class CharucoCalibrationWorkflow:
 class HandEyeCalibrationWorkflow:
     """Run hand-eye calibration using saved poses and Charuco frames."""
 
-    logger: Logger = Logger.get_logger("calibration.workflow.handeye")
+    logger: LoggerType = Logger.get_logger("calibration.workflow.handeye")
 
     def run(self) -> None:
         if Config._data is None:

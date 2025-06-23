@@ -1,4 +1,7 @@
-"""CLI entry points for camera and point cloud utilities."""
+"""CLI entry points for camera and point cloud utilities.
+
+TODO: add CI badges for build and coverage.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +17,7 @@ from utils.logger import Logger
 from vision.camera_utils import DepthChecker, IntrinsicsPrinter
 from vision.cloud.generator import PointCloudGenerator
 from vision.cloud.pipeline import CloudPipeline
-from vision.realsense import RealSenseCamera
+from vision.realsense import RealSenseCamera, RealSenseConfig
 from vision.transform import TransformUtils
 
 # ---------------------------------------------------------------------------
@@ -24,7 +27,7 @@ from vision.transform import TransformUtils
 
 def capture_cloud(output: str) -> None:
     logger = Logger.get_logger("vision.tools.capture")
-    cam = RealSenseCamera()
+    cam = RealSenseCamera(RealSenseConfig())
     try:
         cam.start()
     except CameraConnectionError as e:
@@ -75,7 +78,11 @@ def view_cloud(input_ply: str) -> None:
 def _add_capture_args(parser: argparse.ArgumentParser) -> None:
     Config.load()
     out_dir = Config.get("cloud.output_dir", "clouds")
-    parser.add_argument("--output", default=f"{out_dir}/cloud.ply")
+    parser.add_argument(
+        "--output",
+        default=f"{out_dir}/cloud.ply",
+        help="Output PLY file path",
+    )
 
 
 def _run_capture(args: argparse.Namespace) -> None:
@@ -90,11 +97,15 @@ def main_capture() -> None:
 
 
 def _add_transform_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--input", required=True)
-    parser.add_argument("--calib", required=True)
+    parser.add_argument("--input", required=True, help="Input PLY file")
+    parser.add_argument("--calib", required=True, help="Calibration npz file")
     Config.load()
     out_dir = Config.get("cloud.output_dir", "clouds")
-    parser.add_argument("--output", default=f"{out_dir}/cloud_world.ply")
+    parser.add_argument(
+        "--output",
+        default=f"{out_dir}/cloud_world.ply",
+        help="Transformed output file",
+    )
 
 
 def _run_transform(args: argparse.Namespace) -> None:
@@ -109,7 +120,7 @@ def main_transform() -> None:
 
 
 def _add_view_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--input", required=True)
+    parser.add_argument("--input", required=True, help="PLY file to view")
 
 
 def _run_view(args: argparse.Namespace) -> None:

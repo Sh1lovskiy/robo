@@ -6,10 +6,13 @@ import os
 import signal
 import sys
 import traceback
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional
 
 from utils.logger import Logger
-from utils.keyboard import GlobalKeyListener, TerminalEchoSuppressor
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover - optional runtime dependency
+    from utils.keyboard import GlobalKeyListener, TerminalEchoSuppressor
 
 
 class CameraError(Exception):
@@ -27,8 +30,8 @@ class ErrorTracker:
     _installed = False
     _orig_hook: Optional[Callable[..., None]] = None
     _cleanup_funcs: List[Callable[[], None]] = []
-    _keyboard_listener: GlobalKeyListener | None = None
-    _terminal_echo: TerminalEchoSuppressor | None = None
+    _keyboard_listener: Any = None
+    _terminal_echo: Any = None
 
     @classmethod
     def register_cleanup(cls, func: Callable[[], None]) -> None:
@@ -86,6 +89,8 @@ class ErrorTracker:
             cls.logger.info("Stop key '%s' pressed", stop_key)
             cls._run_cleanup()
             os._exit(1)
+
+        from utils.keyboard import GlobalKeyListener, TerminalEchoSuppressor
 
         hotkeys = {f"<{stop_key}>": _on_stop, "<ctrl>+c": _on_stop}
         cls._keyboard_listener = GlobalKeyListener(hotkeys)

@@ -3,14 +3,15 @@
 """High-level robot control interface using Fairino Robot SDK."""
 
 from __future__ import annotations
+import time
 
-from typing import List, Optional, Union
+from typing import List, Optional, Union, cast
 
-from utils.logger import Logger
-from utils.config import Config
+from utils.logger import Logger, LoggerType
 from utils.error_tracker import ErrorTracker
 
 from robot.Robot import RPC
+from robot.config import RobotConfig
 
 
 class RobotController:
@@ -21,25 +22,19 @@ class RobotController:
 
     def __init__(
         self,
+        cfg: RobotConfig = RobotConfig(),
         rpc: Optional[Union[str, RPC]] = None,
-        logger: Optional[Logger] = None,
-        config: Optional[Config] = None,
+        logger: Optional[LoggerType] = None,
     ) -> None:
-        """
-        Initialize the robot controller.
+        """Initialize the robot controller."""
 
-        Args:
-            rpc (Optional[Union[str, RPC]]): RPC object or IP address as string.
-            logger (Optional[Logger]): Logger instance.
-            config (Optional[Config]): Config object.
-        """
-        self.config = config or Config
-        self.ip_address = self.config.get("robot.ip", default="192.168.58.2")
-        self.tool_id = self.config.get("robot.tool_id", default=0)
-        self.user_frame_id = self.config.get("robot.user_frame_id", default=0)
-        self.velocity = self.config.get("robot.velocity", default=20.0)
-        self.logger = logger or Logger.get_logger("robot.controller", json_format=True)
-        self.initial_pose = None
+        self.cfg = cfg
+        self.ip_address = cfg.ip
+        self.tool_id = cfg.tool_id
+        self.user_frame_id = cfg.user_frame_id
+        self.velocity = cfg.velocity
+        self.logger = logger or Logger.get_logger("robot.controller")
+        self.initial_pose: List[float] | None = None
 
         self.rpc = self._init_rpc(rpc)
 
@@ -82,8 +77,9 @@ class RobotController:
         """
         res = self.rpc.GetActualTCPPose()
         if res[0] == 0:
-            self.logger.debug(f"Current pose: {res[1]}")
-            return res[1]
+            pose = cast(List[float], res[1])
+            self.logger.debug(f"Current pose: {pose}")
+            return pose
         self.logger.error(f"GetActualTCPPose failed with code {res[0]}")
         return None
 
@@ -178,7 +174,6 @@ class RobotController:
         Returns:
             bool: True if motion finished, False if timeout.
         """
-        import time
 
         start = time.time()
         while time.time() - start < timeout_sec:
@@ -198,7 +193,7 @@ class RobotController:
         """
         res = self.rpc.GetActualJointPosDegree()
         if res[0] == 0:
-            return res[1]
+            return cast(List[float], res[1])
         self.logger.error("GetActualJointPosDegree failed")
         return None
 
@@ -218,13 +213,7 @@ class RobotController:
         Returns ``True`` on success.
         """
 
-        import time
-
-        delay = (
-            delay
-            if delay is not None
-            else self.config.get("robot.restart_delay", default=3.0)
-        )
+        delay = delay if delay is not None else self.cfg.restart_delay
         ip = ip_address or self.ip_address
         self.logger.info(
             f"Restarting robot at {ip} with delay {delay}s and {attempts} attempts"
@@ -250,9 +239,7 @@ class RobotController:
                 return False
             safety_code = self.rpc.GetSafetyCode()
             if safety_code != 0:
-                self.logger.error(
-                    f"Safety state prevents operation: {safety_code}"
-                )
+                self.logger.error(f"Safety state prevents operation: {safety_code}")
                 return False
             self.logger.info("Robot restart successful")
             return True

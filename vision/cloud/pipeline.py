@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import open3d as o3d
-from utils.logger import Logger
+from utils.logger import Logger, LoggerType
 
 """Point cloud processing pipeline utilities."""
 
@@ -17,7 +17,7 @@ class PointCloudDenoiser:
         self,
         nb_neighbors: int = 30,
         std_ratio: float = 5.0,
-        logger: Logger | None = None,
+        logger: LoggerType | None = None,
     ) -> None:
         self.nb_neighbors = nb_neighbors
         self.std_ratio = std_ratio
@@ -35,7 +35,11 @@ class PointCloudDenoiser:
 class PointCloudCropper:
     """Crop cloud to a region of interest."""
 
-    def __init__(self, limits: dict = ROI_LIMITS, logger: Logger | None = None) -> None:
+    def __init__(
+        self,
+        limits: dict[str, tuple[float, float]] = ROI_LIMITS,
+        logger: LoggerType | None = None,
+    ) -> None:
         self.limits = limits
         self.logger = logger or Logger.get_logger("vision.pipeline.cropper")
 
@@ -63,7 +67,7 @@ class PointCloudClusterer:
         self,
         eps: float = 0.05,
         min_points: int = 100,
-        logger: Logger | None = None,
+        logger: LoggerType | None = None,
     ) -> None:
         self.eps = eps
         self.min_points = min_points
@@ -87,7 +91,7 @@ class PointCloudClusterer:
 class ObjectSurfaceAnalyzer:
     """Compute bounding box of the object."""
 
-    def __init__(self, logger: Logger | None = None) -> None:
+    def __init__(self, logger: LoggerType | None = None) -> None:
         self.logger = logger or Logger.get_logger("vision.pipeline.analyzer")
 
     def get_bounding_box(
@@ -101,7 +105,7 @@ class ObjectSurfaceAnalyzer:
 class TopFaceFinder:
     """Find points belonging to the top face."""
 
-    def __init__(self, z_tol: float = 0.01, logger: Logger | None = None) -> None:
+    def __init__(self, z_tol: float = 0.01, logger: LoggerType | None = None) -> None:
         self.z_tol = z_tol
         self.logger = logger or Logger.get_logger("vision.pipeline.topface")
 
@@ -118,7 +122,7 @@ class TopFaceTrajectoryPlanner:
     """Plan trajectory along the top face center line."""
 
     def __init__(
-        self, marker_length_mm: float = 210, logger: Logger | None = None
+        self, marker_length_mm: float = 210, logger: LoggerType | None = None
     ) -> None:
         self.marker_length = marker_length_mm / 1000.0
         self.logger = logger or Logger.get_logger("vision.pipeline.traj")
@@ -146,7 +150,7 @@ class TopFaceTrajectoryPlanner:
 class CloudPipeline:
     """Full visualization and analysis pipeline."""
 
-    def __init__(self, logger: Logger | None = None) -> None:
+    def __init__(self, logger: LoggerType | None = None) -> None:
         self.logger = logger or Logger.get_logger("vision.pipeline")
         self.denoiser = PointCloudDenoiser(logger=self.logger)
         self.cropper = PointCloudCropper(logger=self.logger)
