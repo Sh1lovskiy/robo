@@ -7,8 +7,8 @@ robot:
   emergency_delay: 0.5
 
 path_saver:
-  captures_dir: cloud
-  path_file: cloud/poses.json
+  captures_dir: captures
+  path_file: captures/poses.json
 
 vision:
   realsense_width: 640
@@ -26,18 +26,34 @@ cloud:
 charuco:
   squares_x: 5
   squares_y: 7
-  square_length: 0.035
-  marker_length: 0.026
-  aruco_dict: 5X5_100
-  calib_output_dir: calibration/results2
-  xml_file: charuco_cam.xml
+  square_length: 0.033
+  marker_length: 0.025
+  aruco_dict: 4X4_100
+  calib_output_dir: calibration/results1
+  xml_file: calibration/results/charuco_cam.xml
   txt_file: charuco_cam.txt
-  images_dir: cloud
+  images_dir: captures
 
 handeye:
   # images_dir: calibration/handeye_data
-  images_dir: cloud
+  images_dir: captures
   calib_output_dir: calibration/results
   npz_file: handeye.npz
   txt_file: handeye.txt
   method: all
+
+sample_selector:
+  enabled: false
+  min_samples: 5
+  max_iterations: 5
+  trans_thresh: 0.01
+  rot_thresh_deg: 5.0
+  visualize: false
+validation:
+  results_dir: validation/results
+  aruco_dict: 4X4_100
+  squares_x: 5
+  squares_y: 7
+  square_length: 0.033
+  marker_length: 0.025
+  pixel_threshold: 1.0

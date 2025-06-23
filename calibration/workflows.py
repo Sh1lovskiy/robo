@@ -1,14 +1,12 @@
-# calibration/workflows.py
 """High-level calibration routines for Charuco and hand-eye workflows."""
 
 from __future__ import annotations
-
 import os
 from dataclasses import dataclass
-
 import argparse
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 
 from calibration.charuco import CharucoCalibrator
 from calibration.handeye import HandEyeCalibrator, NPZHandEyeSaver, TxtHandEyeSaver
@@ -18,7 +16,139 @@ from utils.io import load_camera_params, save_camera_params_xml, save_camera_par
 from utils.logger import Logger, LoggerType
 from utils.cli import Command, CommandDispatcher
 
-CHARUCO_DICT_MAP = {"5X5_50": 8, "5X5_100": 9}
+CHARUCO_DICT_MAP = {"4X4_100": 1, "5X5_50": 4, "5X5_100": 5}
+
+
+def extract_charuco_poses(
+    images_dir,
+    board,
+    dictionary,
+    camera_matrix,
+    dist_coeffs,
+    logger=None,
+    min_corners=4,
+    visualize=False,
+    debug=False,
+    analyze_corners=False,
+    outlier_std=2.0,
+):
+    """
+    Extracts Charuco board poses from images.
+    If analyze_corners is True, computes stats for left-top and right-bottom board corners (meters),
+    visualizes their distribution, and excludes outlier frames (>outlier_std*std from mean).
+    Returns: (Rs, ts, valid_img_paths, all_img_paths), (stats, outlier_indices)
+    """
+    image_paths = sorted(
+        [
+            os.path.join(images_dir, f)
+            for f in os.listdir(images_dir)
+            if f.lower().endswith((".png", ".jpg", ".jpeg"))
+        ]
+    )
+    Rs, ts, valid_paths = [], [], []
+    all_lt, all_rb, all_indices = [], [], []
+
+    for idx, img_path in enumerate(image_paths):
+        img = cv2.imread(img_path)
+        if img is None:
+            if logger:
+                logger.warning(f"Cannot read image: {img_path}")
+            continue
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary)
+        if ids is None or len(ids) < min_corners:
+            continue
+        _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
+            corners, ids, gray, board
+        )
+        if (
+            charuco_corners is None
+            or charuco_ids is None
+            or len(charuco_ids) < min_corners
+        ):
+            continue
+        rvec_init = np.zeros((3, 1), dtype=np.float64)
+        tvec_init = np.zeros((3, 1), dtype=np.float64)
+        try:
+            retval, rvec, tvec = cv2.aruco.estimatePoseCharucoBoard(
+                charuco_corners,
+                charuco_ids,
+                board,
+                camera_matrix,
+                dist_coeffs,
+                rvec_init,
+                tvec_init,
+            )
+        except Exception as e:
+            if logger:
+                logger.error(f"estimatePoseCharucoBoard error on {img_path}: {repr(e)}")
+            continue
+        if not retval:
+            continue
+        R, _ = cv2.Rodrigues(rvec)
+        Rs.append(R)
+        ts.append(tvec.flatten())
+        valid_paths.append(img_path)
+        obj_pts = board.getChessboardCorners()
+        pos_lt = R @ obj_pts[0].reshape(3, 1) + tvec
+        pos_rb = R @ obj_pts[-1].reshape(3, 1) + tvec
+        all_lt.append(pos_lt.flatten())
+        all_rb.append(pos_rb.flatten())
+        all_indices.append(idx)
+        if visualize:
+            vis = img.copy()
+            cv2.aruco.drawDetectedMarkers(vis, corners, ids)
+            cv2.aruco.drawDetectedCornersCharuco(vis, charuco_corners, charuco_ids)
+            cv2.drawFrameAxes(vis, camera_matrix, dist_coeffs, rvec, tvec, 0.05)
+            cv2.imshow("charuco pose", vis)
+            cv2.waitKey(100)
+    if visualize:
+        cv2.destroyAllWindows()
+
+    corners_stats, outlier_indices = {}, []
+    mask_good = np.ones(len(Rs), dtype=bool)
+
+    if analyze_corners and all_lt and all_rb:
+        lt = np.stack(all_lt)
+        rb = np.stack(all_rb)
+        for name, arr in [("lt", lt), ("rb", rb)]:
+            corners_stats[name] = {"mean": arr.mean(axis=0), "std": arr.std(axis=0)}
+            if logger:
+                logger.info(
+                    f"{name.upper()} mean [m]: {corners_stats[name]['mean'].round(4)}, std: {corners_stats[name]['std'].round(4)}"
+                )
+        for arr, stats in [(lt, corners_stats["lt"]), (rb, corners_stats["rb"])]:
+            mask_good &= np.all(
+                np.abs(arr - stats["mean"]) <= outlier_std * stats["std"], axis=1
+            )
+        outlier_indices = [
+            all_indices[i] for i, good in enumerate(mask_good) if not good
+        ]
+        if logger and outlier_indices:
+            logger.warning(
+                f"Frames excluded as outliers: {[os.path.basename(image_paths[i]) for i in outlier_indices]}"
+            )
+        Rs = [R for i, R in enumerate(Rs) if mask_good[i]]
+        ts = [t for i, t in enumerate(ts) if mask_good[i]]
+        valid_paths = [p for i, p in enumerate(valid_paths) if mask_good[i]]
+        lt = lt[mask_good]
+        rb = rb[mask_good]
+        plt.figure(figsize=(8, 6))
+        plt.scatter(lt[:, 0], lt[:, 1], c="blue", label="Left Top [0]", alpha=0.7)
+        plt.scatter(rb[:, 0], rb[:, 1], c="red", label="Right Bottom [-1]", alpha=0.7)
+        plt.xlabel("X [m]")
+        plt.ylabel("Y [m]")
+        plt.title("Charuco Board Corner Positions (Camera frame)")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig("charuco_corners_distribution.png")
+        if visualize:
+            plt.show()
+        plt.close()
+    if logger:
+        logger.info(f"Extracted {len(Rs)} Charuco poses after outlier removal")
+    return (Rs, ts, valid_paths, image_paths), (corners_stats, outlier_indices)
 
 
 @dataclass
@@ -40,11 +170,10 @@ class CharucoCalibrationWorkflow:
         os.makedirs(out_dir, exist_ok=True)
         xml_file = os.path.join(out_dir, cfg.get("xml_file", "charuco_cam.xml"))
         txt_file = os.path.join(out_dir, cfg.get("txt_file", "charuco_cam.txt"))
-
         squares_x = cfg.get("squares_x", 5)
         squares_y = cfg.get("squares_y", 7)
-        square_length = cfg.get("square_length", 0.035)
-        marker_length = cfg.get("marker_length", 0.026)
+        square_length = cfg.get("square_length", 0.033)
+        marker_length = cfg.get("marker_length", 0.025)
         dict_name = cfg.get("aruco_dict", "5X5_100")
         if dict_name not in CHARUCO_DICT_MAP:
             raise ValueError(f"Unknown ArUco dictionary: {dict_name}")
@@ -52,9 +181,7 @@ class CharucoCalibrationWorkflow:
         board = cv2.aruco.CharucoBoard(
             (squares_x, squares_y), square_length, marker_length, dictionary
         )
-
         calibrator = CharucoCalibrator(board, dictionary, self.logger)
-
         images = [
             os.path.join(folder, f)
             for f in sorted(os.listdir(folder))
@@ -70,7 +197,6 @@ class CharucoCalibrationWorkflow:
                 cv2.imshow("detected", img)
                 cv2.waitKey(50)
         cv2.destroyAllWindows()
-
         if not calibrator.all_corners:
             self.logger.error("No valid frames for calibration")
             return
@@ -111,8 +237,8 @@ class HandEyeCalibrationWorkflow:
 
         squares_x = cfg.get("squares_x", 5)
         squares_y = cfg.get("squares_y", 7)
-        square_length = cfg.get("square_length", 0.035)
-        marker_length = cfg.get("marker_length", 0.026)
+        square_length = cfg.get("square_length", 0.033)
+        marker_length = cfg.get("marker_length", 0.025)
         dict_name = cfg.get("aruco_dict", "5X5_100")
         if dict_name not in CHARUCO_DICT_MAP:
             raise ValueError(f"Unknown ArUco dictionary: {dict_name}")
@@ -124,20 +250,34 @@ class HandEyeCalibrationWorkflow:
         camera_matrix, dist_coeffs = load_camera_params(charuco_xml)
         Rs_g2b, ts_g2b = JSONPoseLoader.load_poses(robot_poses_file)
 
-        Rs_t2c, ts_t2c = self._extract_charuco_poses(
-            images_dir, board, dictionary, camera_matrix, dist_coeffs
+        (Rs_t2c, ts_t2c, valid_img_paths, all_img_paths), (stats, outliers) = (
+            extract_charuco_poses(
+                images_dir,
+                board,
+                dictionary,
+                camera_matrix,
+                dist_coeffs,
+                logger=self.logger,
+                analyze_corners=True,
+            )
         )
-        if not Rs_t2c or len(Rs_t2c) != len(Rs_g2b):
-            self.logger.error("Pose data mismatch")
+
+        # Filter robot poses to only those images that passed outlier rejection
+        name2idx = {os.path.basename(p): i for i, p in enumerate(all_img_paths)}
+        indices = [name2idx[os.path.basename(p)] for p in valid_img_paths]
+        Rs_g2b_f = [Rs_g2b[i] for i in indices]
+        ts_g2b_f = [ts_g2b[i] for i in indices]
+
+        if not Rs_t2c or len(Rs_t2c) != len(Rs_g2b_f):
+            self.logger.error("Pose data mismatch after filtering")
             return
 
         calibrator = HandEyeCalibrator(self.logger)
         for Rg, tg, Rc, tc in Logger.progress(
-            list(zip(Rs_g2b, ts_g2b, Rs_t2c, ts_t2c)),
+            list(zip(Rs_g2b_f, ts_g2b_f, Rs_t2c, ts_t2c)),
             desc="HandEye samples",
         ):
             calibrator.add_sample(Rg, tg, Rc, tc)
-
         if method == "ALL":
             results = calibrator.calibrate_all()
             for name, (R, t) in Logger.progress(
@@ -155,43 +295,6 @@ class HandEyeCalibrationWorkflow:
             calibrator.save(NPZHandEyeSaver(), npz_file, R, t)
             calibrator.save(TxtHandEyeSaver(), txt_file, R, t)
             self.logger.info(f"Calibration saved to {npz_file}")
-
-    def _extract_charuco_poses(
-        self,
-        images_dir: str,
-        board: cv2.aruco_CharucoBoard,
-        dictionary: cv2.aruco_Dictionary,
-        camera_matrix: np.ndarray,
-        dist_coeffs: np.ndarray,
-    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
-        images = [
-            os.path.join(images_dir, f)
-            for f in os.listdir(images_dir)
-            if f.lower().endswith((".png", ".jpg", ".jpeg"))
-        ]
-        Rs, ts = [], []
-        for img_path in Logger.progress(images, desc="Extract poses"):
-            img = cv2.imread(img_path)
-            if img is None:
-                continue
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary)
-            if ids is None or len(ids) == 0:
-                continue
-            _, char_corners, char_ids = cv2.aruco.interpolateCornersCharuco(
-                corners, ids, gray, board
-            )
-            if char_ids is None or len(char_ids) < 4:
-                continue
-            retval, rvec, tvec = cv2.aruco.estimatePoseCharucoBoard(
-                char_corners, char_ids, board, camera_matrix, dist_coeffs
-            )
-            if retval:
-                R, _ = cv2.Rodrigues(rvec)
-                Rs.append(R)
-                ts.append(tvec.flatten())
-        self.logger.info(f"Extracted {len(Rs)} Charuco poses")
-        return Rs, ts
 
 
 def _add_charuco_args(parser: argparse.ArgumentParser) -> None:
@@ -212,7 +315,7 @@ def _add_handeye_args(parser: argparse.ArgumentParser) -> None:
     out_dir = cfg.get("calib_output_dir", "calibration/results")
     parser.add_argument(
         "--images_dir",
-        default=cfg.get("images_dir", "cloud"),
+        default=cfg.get("images_dir", "captures"),
         help="Directory with Charuco images",
     )
     parser.add_argument(
@@ -222,13 +325,18 @@ def _add_handeye_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--robot_poses_file",
-        default=cfg.get("robot_poses_file", "cloud/poses.json"),
+        default=cfg.get("robot_poses_file", "captures/poses.json"),
         help="JSON file with robot poses",
     )
     parser.add_argument(
         "--method",
         default=cfg.get("method", "ALL"),
         help="Calibration method or ALL",
+    )
+    parser.add_argument(
+        "--analyze-charuco",
+        action="store_true",
+        help="Analyze Charuco board positions and reject outlier images",
     )
 
 
