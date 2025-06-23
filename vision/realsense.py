@@ -1,48 +1,65 @@
 # vision/realsense.py
 
+"""RealSense camera wrapper.
+
+TODO: add CI badges for build and coverage.
+"""
+
 from __future__ import annotations
 
 import cv2
 import numpy as np
 import pyrealsense2 as rs
+from dataclasses import dataclass
+from typing import cast
 from utils.error_tracker import CameraConnectionError, ErrorTracker
-from utils.logger import Logger
+from utils.logger import Logger, LoggerType
 from .camera_base import Camera
 
 
-class RealSenseCamera(Camera):
+@dataclass
+class RealSenseConfig:
+    width: int = 640
+    height: int = 480
+    fps: int = 30
+    enable_color: bool = True
+    enable_depth: bool = True
+    align_to_color: bool = True
+
+
+class RealSenseCamera(Camera):  # type: ignore[misc]
     """
     Unified interface for Intel RealSense camera.
     Provides methods for streaming, frame alignment, and getting intrinsics.
     """
 
-    def __init__(
-        self,
-        width: int = 640,
-        height: int = 480,
-        fps: int = 30,
-        enable_color: bool = True,
-        enable_depth: bool = True,
-        align_to_color: bool = True,
-        logger: Logger | None = None,
-    ) -> None:
+    def __init__(self, cfg: RealSenseConfig, logger: LoggerType | None = None) -> None:
+        self.cfg = cfg
         self.pipeline = rs.pipeline()
         self.config = rs.config()
-        self.enable_color = enable_color
-        self.enable_depth = enable_depth
-        self.align_to_color = align_to_color
         self.logger = logger or Logger.get_logger("vision.realsense")
-        if enable_depth:
+        if cfg.enable_depth:
             self.config.enable_stream(
-                rs.stream.depth, width, height, rs.format.z16, fps
+                rs.stream.depth,
+                cfg.width,
+                cfg.height,
+                rs.format.z16,
+                cfg.fps,
             )
-        if enable_color:
+        if cfg.enable_color:
             self.config.enable_stream(
-                rs.stream.color, width, height, rs.format.bgr8, fps
+                rs.stream.color,
+                cfg.width,
+                cfg.height,
+                rs.format.bgr8,
+                cfg.fps,
             )
-        self.profile = None
-        self.depth_scale = None
-        self.align = None
+        self.enable_color = cfg.enable_color
+        self.enable_depth = cfg.enable_depth
+        self.align_to_color = cfg.align_to_color
+        self.profile: rs.pipeline_profile | None = None
+        self.depth_scale: float | None = None
+        self.align: rs.align | None = None
         self.started = False
 
     def start(self) -> None:
@@ -81,6 +98,7 @@ class RealSenseCamera(Camera):
         assert self.started, "Camera must be started before getting frames."
         frames = self.pipeline.wait_for_frames()
         if self.align_to_color and aligned and self.enable_color and self.enable_depth:
+            assert self.align is not None
             frames = self.align.process(frames)
         color_frame = frames.get_color_frame() if self.enable_color else None
         depth_frame = frames.get_depth_frame() if self.enable_depth else None
@@ -88,11 +106,12 @@ class RealSenseCamera(Camera):
         depth_img = np.asanyarray(depth_frame.get_data()) if depth_frame else None
         return color_img, depth_img
 
-    def get_intrinsics(self) -> dict:
+    def get_intrinsics(self) -> dict[str, float | list[float] | str]:
         """
         Get depth camera intrinsics as a dictionary.
         """
         assert self.started, "Camera must be started before getting intrinsics."
+        assert self.profile is not None
         depth_stream = self.profile.get_stream(
             rs.stream.depth
         ).as_video_stream_profile()
@@ -117,11 +136,12 @@ class RealSenseCamera(Camera):
 
 
 if __name__ == "__main__":
-    cam = RealSenseCamera()
+    cam = RealSenseCamera(RealSenseConfig())
     cam.start()
     intr = cam.get_intrinsics()
     print("Intrinsics:", intr)
-    assert "width" in intr and intr["width"] > 0
+    width = cast(float, intr["width"])
+    assert width > 0
 
     for _ in range(10):
         color, depth = cam.get_frames()

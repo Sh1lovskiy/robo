@@ -16,6 +16,8 @@ dependencies = [
     "pynput",
     "python-json-logger",
     "pyyaml",
+    "hydra-core",
+    "loguru",
     "scipy",
     "tqdm",
 ]

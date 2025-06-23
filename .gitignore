@@ -3,6 +3,7 @@
 # ---------------------------
 .venv/
 venv/
+uv.lock
 
 # -----------------
 # Python artifacts
@@ -51,6 +52,7 @@ Thumbs.db
 # -----------------
 *.log
 logs/
+outputs/
 
 # -----------------
 # Calibration and data artifacts
