@@ -34,17 +34,18 @@ class Logger:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         _log_file = _log_dir / f"{timestamp}.log.json"
         LOG_FORMAT = (
-            "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> "
-            "[<level>{level: <5}</level>] "
-            "[<cyan>{name}</cyan>:<cyan>{line}</cyan>]"
-            "[PID:{process}] - <level>{message}</level>"
+            "<green>{time:YYYY-MM-DD HH:mm:ss}</green>"
+            "[<level>{level}</level>]"
+            "[<cyan>{file}</cyan>:<cyan>{line}</cyan>]"
+            # "[PID:{process}] - <level>{message}</level>"
+            "<level>{message}</level>"
         )
         _logger.add(sys.stdout, level=level, serialize=False, format=LOG_FORMAT)
         _logger.add(
             _log_file,
             level=level,
             serialize=json_format,
-            format="{time:YYYY-MM-DD HH:mm:ss.SSS} [{level}] [{name}:{line}][PID:{process}] - {message}",
+            format="{time:YYYY-MM-DD HH:mm:ss}[{level}][{file}:{line}]{message}",
         )
         _is_configured = True
 

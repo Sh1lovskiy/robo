@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import json
+import re
 import time
 from dataclasses import dataclass
 from typing import List
@@ -20,7 +21,9 @@ from robot.controller import RobotController
 from utils.cli import Command, CommandDispatcher
 from utils.config import Config
 from utils.error_tracker import CameraError
+from utils.keyboard import GlobalKeyListener
 from utils.logger import Logger, LoggerType
+from utils.io import load_camera_params
 from vision.realsense import RealSenseCamera, RealSenseConfig
 from vision.camera_base import Camera
 from vision.opencv_utils import OpenCVUtils
@@ -71,51 +74,143 @@ class PoseRecorder:
     controller: RobotController
     saver: PoseSaver
     captures_dir: str
+    drag: bool = False
     logger: LoggerType = Logger.get_logger("robot.workflow.record")
 
     def run(self) -> None:
         camera_mgr = CameraManager()
+        try:
+            self.controller.enable()
+        except Exception as e:
+            self.logger.error(f"Failed to enable robot: {e}")
+            return
+
         if not camera_mgr.start():
             self.logger.error("Camera not available. Exiting pose recorder.")
             return
+        Config.load()
+        char_cfg = Config.get("charuco")
+        squares_x = char_cfg.get("squares_x", 5)
+        squares_y = char_cfg.get("squares_y", 7)
+        square_length = char_cfg.get("square_length", 0.035)
+        marker_length = char_cfg.get("marker_length", 0.026)
+        dict_name = char_cfg.get("aruco_dict", "4X4_100")
+        dict_attr = f"DICT_{dict_name}"
+        aruco_id = getattr(cv2.aruco, dict_attr, cv2.aruco.DICT_4X4_100)
+        dictionary = cv2.aruco.getPredefinedDictionary(aruco_id)
+        board = cv2.aruco.CharucoBoard(
+            (squares_x, squares_y), square_length, marker_length, dictionary
+        )
+
+        xml_path = os.path.join(
+            char_cfg.get("calib_output_dir", "calibration/results"),
+            char_cfg.get("xml_file", "charuco_cam.xml"),
+        )
+        camera_matrix = None
+        dist_coeffs = None
+        if os.path.isfile(xml_path):
+            camera_matrix, dist_coeffs = load_camera_params(xml_path)
+
+        os.makedirs(self.captures_dir, exist_ok=True)
+        if self.drag:
+            self.controller.enable()
+            try:
+                self.controller.rpc.DragTeachSwitch(1)
+            except Exception as e:
+                self.logger.error(f"Failed to enter drag mode: {e}")
+                camera_mgr.stop()
+                return
         ir_saver = IRFrameSaver(self.captures_dir)
-        pose_count = 0
+        poses_path = os.path.join(self.captures_dir, "poses.json")
+        if os.path.exists(poses_path):
+            with open(poses_path, "r") as f:
+                poses_data = json.load(f)
+            existing_ids = [
+                int(k) for k in poses_data.keys() if re.fullmatch(r"\d+", k)
+            ]
+            pose_count = max(existing_ids) + 1 if existing_ids else 0
+        else:
+            pose_count = 0
         print("Press ENTER to save current pose. Press 'q' to quit.")
-        while True:
+
+        should_exit = [False]
+
+        def on_save():
+            nonlocal pose_count
             color, depth = camera_mgr.get_frames()
-            ir = None
+            pose = self.controller.get_tcp_pose()
+            if pose:
+                idx = f"{pose_count:03d}"
+                self.saver.save(poses_path, idx, pose)
+                self._save_frames(idx, color, depth)
+                print(f"Saved pose {idx}")
+                pose_count += 1
+
+        def on_exit():
+            should_exit[0] = True
+            print("Exit requested by hotkey!")
+
+        hotkeys = {
+            "<enter>": on_save,
+            "<ctrl>+s": on_save,
+            "q": on_exit,
+            "<ctrl>+q": on_exit,
+        }
+
+        listener = GlobalKeyListener(hotkeys)
+        listener.start()
+
+        while not should_exit[0]:
+            color, depth = camera_mgr.get_frames()
             if depth is not None:
                 OpenCVUtils.show_depth(depth)
             if color is not None:
-                cv2.imshow("RGB", color)
-            if ir is not None:
-                ir_vis = (
-                    ir
-                    if ir.dtype == np.uint8
-                    else cv2.convertScaleAbs(ir, alpha=255.0 / np.max(ir))
-                )
-                cv2.imshow("IR", ir_vis)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord("q"):
-                break
-            if key in (13, 10):
-                pose = self.controller.get_tcp_pose()
-                if pose:
-                    idx = f"{pose_count:03d}"
-                    self.saver.save(
-                        os.path.join(self.captures_dir, "poses.json"), idx, pose
+                gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
+                corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary)
+                if ids is not None and len(ids) > 0:
+                    cv2.aruco.drawDetectedMarkers(color, corners, ids)
+                    ret, char_corners, char_ids = cv2.aruco.interpolateCornersCharuco(
+                        corners, ids, gray, board
                     )
-                    self._save_frames(idx, color, depth)
-                    if ir is not None:
-                        ir_saver.save(idx, ir_vis)
-                    pose_count += 1
+                    if (
+                        camera_matrix is not None
+                        and dist_coeffs is not None
+                        and char_ids is not None
+                        and len(char_ids) >= 4
+                    ):
+                        ok, rvec, tvec = cv2.aruco.estimatePoseCharucoBoard(
+                            char_corners,
+                            char_ids,
+                            board,
+                            camera_matrix,
+                            dist_coeffs,
+                        )
+                        if ok:
+                            cv2.drawFrameAxes(
+                                color, camera_matrix, dist_coeffs, rvec, tvec, 0.05
+                            )
+                            tx, ty, tz = tvec.flatten()
+                            OpenCVUtils.draw_text(
+                                color,
+                                f"Charuco t: {tx:.3f}, {ty:.3f}, {tz:.3f}",
+                                (10, 30),
+                            )
+                cv2.imshow("RGB", color)
+            if cv2.waitKey(50) == 27:
+                break
+        listener.stop()
         camera_mgr.stop()
         cv2.destroyAllWindows()
-        self.controller.shutdown()
+        if self.drag:
+            try:
+                self.controller.rpc.DragTeachSwitch(0)
+            except Exception as e:
+                self.logger.error(f"Failed to exit drag mode: {e}")
 
     def _save_frames(self, idx: str, color: np.ndarray, depth: np.ndarray) -> None:
         rgb_path = os.path.join(self.captures_dir, f"{idx}_rgb.png")
         depth_path = os.path.join(self.captures_dir, f"{idx}_depth.npy")
+        os.makedirs(self.captures_dir, exist_ok=True)
         cv2.imwrite(rgb_path, color)
         np.save(depth_path, depth)
         self.logger.info(f"Saved frames for {idx}")
@@ -193,6 +288,11 @@ class PathRunner:
 
     def run(self) -> None:
         path = load_trajectory(self.traj_file)
+        try:
+            self.controller.enable()
+        except Exception as e:
+            self.logger.error(f"Failed to enable robot: {e}")
+            return
         if not self.camera_mgr.start():
             self.logger.error("Camera not available. Aborting path run.")
             self.controller.shutdown()
@@ -219,14 +319,19 @@ def _add_record_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--captures_dir",
-        default=Config.get("path_saver.captures_dir", "cloud"),
+        default=Config.get("path_saver.captures_dir", "captures"),
         help="Directory for saved poses",
+    )
+    parser.add_argument(
+        "--drag",
+        action="store_true",
+        help="Enable drag teaching mode while recording",
     )
 
 
 def _run_record(args: argparse.Namespace) -> None:
     recorder = PoseRecorder(
-        RobotController(rpc=args.ip), JsonPoseSaver(), args.captures_dir
+        RobotController(rpc=args.ip), JsonPoseSaver(), args.captures_dir, drag=args.drag
     )
     recorder.run()
 
@@ -276,7 +381,6 @@ def _run_restart(args: argparse.Namespace) -> None:
         controller.logger.info("Robot restart completed successfully")
     else:
         controller.logger.error("Failed to restart robot")
-    controller.shutdown()
 
 
 def create_cli() -> CommandDispatcher:

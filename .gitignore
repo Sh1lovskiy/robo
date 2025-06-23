@@ -57,12 +57,7 @@ outputs/
 # -----------------
 # Calibration and data artifacts
 # -----------------
-calibration/handeye_data/
-calibration/handeye_data1/
-calibration/calib_hand16_06_1/
-calibration/calib_hand17_06_1/
-calibration/calib_hand17_06_2/
-calibration/calib_hand17_06_3/
+calibration/iterations/
 captures/
 
 # -----------------

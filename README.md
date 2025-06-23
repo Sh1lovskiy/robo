@@ -194,6 +194,15 @@ CLI modules are thin wrappers calling workflow helpers under
 2. (Optional) Filter, merge, or transform clouds (robot <-> camera <-> world)
 3. Save or visualize result (`pointcloud-view`)
 
+### Hand-Eye Validation
+
+Run `validation-cli` to compute projection errors and analyze datasets. Example:
+
+```bash
+validation-cli validate-pose
+validation-cli analyze-dataset
+```
+
 ## Mathematical Background
 
 Camera calibration uses OpenCV's implementation of Zhang's algorithm.  Given a set of world coordinates \(X_i\) and their observed pixel locations \(x_i\), the intrinsic matrix \(K\) and distortion parameters are solved by minimizing

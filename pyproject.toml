@@ -35,10 +35,11 @@ cloud-aggregate = "vision.cloud.aggregator:main"
 robot-cli = "robot.workflows:main"
 calibration-cli = "calibration.workflows:main"
 restart-cli = "robot.workflows:main"
+validation-cli = "validation.workflows:main"
 
 [tool.setuptools.package-data]
 robot = ["*.py", "*.pyx"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["robot*", "utils*", "vision*", "calibration*"]
+include = ["robot*", "utils*", "vision*", "calibration*", "validation*"]
