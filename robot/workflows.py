@@ -1,5 +1,8 @@
 # robot/workflows.py
-"""Robot-related workflows: pose recording and path execution."""
+"""Robot-related workflows: pose recording and path execution.
+
+TODO: add CI badges for build and coverage.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +10,7 @@ import os
 import json
 import time
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 import argparse
 
 import cv2
@@ -17,8 +20,8 @@ from robot.controller import RobotController
 from utils.cli import Command, CommandDispatcher
 from utils.config import Config
 from utils.error_tracker import CameraError
-from utils.logger import Logger
-from vision.realsense import RealSenseCamera
+from utils.logger import Logger, LoggerType
+from vision.realsense import RealSenseCamera, RealSenseConfig
 from vision.camera_base import Camera
 from vision.opencv_utils import OpenCVUtils
 
@@ -53,7 +56,7 @@ class IRFrameSaver:
     """Save infrared frames to disk."""
 
     out_dir: str
-    logger: Logger = Logger.get_logger("robot.workflow.ir")
+    logger: LoggerType = Logger.get_logger("robot.workflow.ir")
 
     def save(self, idx: str, ir_img: np.ndarray) -> None:
         os.makedirs(self.out_dir, exist_ok=True)
@@ -68,7 +71,7 @@ class PoseRecorder:
     controller: RobotController
     saver: PoseSaver
     captures_dir: str
-    logger: Logger = Logger.get_logger("robot.workflow.record")
+    logger: LoggerType = Logger.get_logger("robot.workflow.record")
 
     def run(self) -> None:
         camera_mgr = CameraManager()
@@ -126,7 +129,7 @@ class FrameSaver:
     """Save RGB and depth frames to disk."""
 
     out_dir: str
-    logger: Logger = Logger.get_logger("robot.workflow.frames")
+    logger: LoggerType = Logger.get_logger("robot.workflow.frames")
 
     def save(self, idx: int, color: np.ndarray, depth: np.ndarray) -> None:
         os.makedirs(self.out_dir, exist_ok=True)
@@ -140,8 +143,8 @@ class FrameSaver:
 class CameraManager:
     """Wrap a camera instance for reliable frame acquisition."""
 
-    def __init__(self, camera: Camera | None = None, logger: Optional[Logger] = None):
-        self.cam = camera or RealSenseCamera()
+    def __init__(self, camera: Camera | None = None, logger: LoggerType | None = None):
+        self.cam = camera or RealSenseCamera(RealSenseConfig())
         self.logger = logger or Logger.get_logger("robot.workflow.camera")
 
     def start(self) -> bool:
@@ -186,7 +189,7 @@ class PathRunner:
     camera_mgr: CameraManager
     frame_saver: FrameSaver
     traj_file: str
-    logger: Logger = Logger.get_logger("robot.workflow.path")
+    logger: LoggerType = Logger.get_logger("robot.workflow.path")
 
     def run(self) -> None:
         path = load_trajectory(self.traj_file)

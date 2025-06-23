@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import numpy as np
 import cv2
-from utils.logger import Logger
+from utils.logger import Logger, LoggerType
 
 
 class HandEyeSaver:
@@ -41,11 +41,11 @@ class HandEyeCalibrator:
         if name.startswith("CALIB_HAND_EYE_")
     }
 
-    def __init__(self, logger: Logger | None = None):
-        self.R_gripper2base = []
-        self.t_gripper2base = []
-        self.R_target2cam = []
-        self.t_target2cam = []
+    def __init__(self, logger: LoggerType | None = None):
+        self.R_gripper2base: list[np.ndarray] = []
+        self.t_gripper2base: list[np.ndarray] = []
+        self.R_target2cam: list[np.ndarray] = []
+        self.t_target2cam: list[np.ndarray] = []
         self.logger = logger or Logger.get_logger("calibration.handeye")
 
     def add_sample(
@@ -115,7 +115,7 @@ class HandEyeCalibrator:
         )
 
 
-def simple_handeye_test():
+def simple_handeye_test() -> None:
     R_g2b = []
     t_g2b = []
     R_t2c = []

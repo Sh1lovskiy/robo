@@ -10,7 +10,7 @@ from typing import List
 import cv2
 import numpy as np
 
-from utils.logger import Logger
+from utils.logger import Logger, LoggerType
 
 
 class CalibrationSaver:
@@ -53,7 +53,7 @@ class CharucoCalibrator:
 
     board: cv2.aruco_CharucoBoard
     dictionary: cv2.aruco_Dictionary
-    logger: Logger = field(
+    logger: LoggerType = field(
         default_factory=lambda: Logger.get_logger("calibration.charuco")
     )
     all_corners: List[np.ndarray] = field(default_factory=list, init=False)
@@ -80,7 +80,7 @@ class CharucoCalibrator:
         self.logger.warning("No Charuco corners found in frame")
         return False
 
-    def calibrate(self) -> dict:
+    def calibrate(self) -> dict[str, np.ndarray | float]:
         assert self.img_size is not None, "No frames added."
         ret, camera_matrix, dist_coeffs, rvecs, tvecs = (
             cv2.aruco.calibrateCameraCharuco(
