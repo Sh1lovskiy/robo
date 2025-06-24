@@ -9,47 +9,17 @@ from pathlib import Path
 from typing import Iterable
 
 from robot.config import RobotConfig as RobotConfigBase
-
+import pyrealsense2 as rs
 import numpy as np
 import open3d as o3d  # type: ignore
-from loguru import logger
-from omegaconf import DictConfig, OmegaConf
+from utils.logger import Logger
+from utils.config import Config
 import yaml  # type: ignore
 from scipy.spatial import ConvexHull  # type: ignore
 import sys
 from typing import Any, TYPE_CHECKING, cast
 
-try:
-    import pyrealsense2 as rs  # type: ignore
-except Exception:  # pragma: no cover - optional dependency
-    rs = None
-
-import hydra
-
-DEFAULT_YAML = """
-camera:
-  width: 640
-  height: 480
-  decimation: 2
-  filter_sigma: 1.0
-robot:
-  ip: "192.168.58.2"
-  velocity: 20.0
-edge:
-  hull_alpha: 0.03
-  sample_resolution: 0.0001
-  speed: 0.03
-  transform_path: "handeye.yaml"
-  force_limit: 2.0
-logging:
-  level: INFO
-"""
-
-CONF_DIR = Path(__file__).with_name("conf")
-CONF_PATH = CONF_DIR / "default.yaml"
-if not CONF_PATH.exists():
-    CONF_DIR.mkdir(exist_ok=True)
-    CONF_PATH.write_text(DEFAULT_YAML)
+logger = Logger.get_logger(__name__)
 
 
 class EdgeDetectionError(Exception):
@@ -289,8 +259,7 @@ def save_preview(pcd: o3d.geometry.PointCloud, edge: np.ndarray, out: Path) -> N
 
 def run(cfg: AppConfig, *, dry_run: bool = False) -> None:
 
-    logger.remove()
-    logger.add(sys.stdout, level=cfg.logging.get("level", "INFO"))
+    Logger.configure(level=cfg.logging.get("level", "INFO"))
 
     camera: CameraInterface = StubCamera() if dry_run else RealSenseCamera(cfg.camera)
     robot: RobotInterface = StubRobot() if dry_run else FR3Robot()
@@ -315,9 +284,10 @@ def run(cfg: AppConfig, *, dry_run: bool = False) -> None:
     robot.stream_line(traj, cfg.edge.speed)
 
 
-@hydra.main(version_base=None, config_path=str(CONF_DIR), config_name="default")
-def main(cfg: DictConfig) -> None:
-    cfg_dict = cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True))
+def main() -> None:
+    """Entry point for :mod:`edge_drawer` CLI."""
+    Config.load()
+    cfg_dict = cast(dict[str, Any], Config.get("edge_drawer", {}))
     app_cfg = AppConfig.from_dict(cfg_dict)
     run(app_cfg)
 

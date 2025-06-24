@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-from calibration.charuco import CharucoCalibrator
+from calibration.charuco import CharucoCalibrator, CHARUCO_DICT_MAP
 from calibration.handeye import HandEyeCalibrator
 from calibration.pose_loader import JSONPoseLoader
 from utils.config import Config
@@ -16,7 +16,6 @@ from utils.io import load_camera_params
 from utils.logger import Logger, LoggerType
 from utils.cli import Command, CommandDispatcher
 
-CHARUCO_DICT_MAP = {"4X4_100": 1, "5X5_50": 4, "5X5_100": 5}
 BOARD_LT_BASE = np.array([-0.165, -0.365, 0.0])
 BOARD_RB_BASE = np.array([-0.4, -0.53, 0.0])
 

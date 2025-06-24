@@ -1,7 +1,7 @@
 """Common utility exports."""
 
 from .config import Config
-from .logger import Logger
+from .logger import Logger, LoggerType
 from .error_tracker import ErrorTracker
 from .geometry import euler_to_matrix
 from .io import (
