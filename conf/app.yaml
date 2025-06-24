@@ -1,4 +1,3 @@
-# config.yaml
 robot:
   ip: "192.168.58.2"
   tool_id: 0
@@ -6,53 +5,28 @@ robot:
   velocity: 20.0
   emergency_delay: 0.5
 
-path_saver:
-  captures_dir: captures
-  path_file: captures/poses.json
-
 vision:
   realsense_width: 640
   realsense_height: 480
   realsense_fps: 30
 
 logging:
-  log_dir: "./logs"
   level: "INFO"
   json: true
-
-cloud:
-  output_dir: clouds
-
-aggregator:
-  data_dir: captures
-  charuco_xml: calibration/results/charuco_cam.xml
-  handeye_txt: calibration/results/handeye_PARK.txt
-  poses_file: captures/poses.json
-  ply_icp: captures/cloud_aggregated_icp.ply
-  ply_noicp: captures/cloud_aggregated.ply
 
 charuco:
   squares_x: 5
   squares_y: 7
   square_length: 0.033
   marker_length: 0.025
-  aruco_dict: 4X4_100
-  calib_output_dir: calibration/results1
-  xml_file: calibration/results/charuco_cam.xml
-  txt_file: charuco_cam.txt
-  images_dir: captures
+  aruco_dict: "4X4_100"
   min_corners: 4
   outlier_std: 2.0
   analyze_corners: false
   visualize: false
 
 handeye:
-  # images_dir: calibration/handeye_data
-  images_dir: captures
-  calib_output_dir: calibration/results
-  npz_file: handeye.npz
-  txt_file: handeye.txt
-  method: all
+  method: "all"
   min_corners: 4
   outlier_std: 2.0
   visualize: false
@@ -66,8 +40,7 @@ sample_selector:
   visualize: false
 
 validation:
-  results_dir: validation/results
-  aruco_dict: 4X4_100
+  aruco_dict: "4X4_100"
   squares_x: 5
   squares_y: 7
   square_length: 0.033
@@ -90,4 +63,4 @@ edge_drawer:
     transform_path: "handeye.yaml"
     force_limit: 2.0
   logging:
-    level: INFO
+    level: "INFO"

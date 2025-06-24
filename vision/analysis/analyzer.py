@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import argparse
 import numpy as np
 import open3d as o3d
+from utils.cli import Command, CommandDispatcher
 from utils.logger import Logger, LoggerType
 
 """Point cloud processing pipeline utilities."""
 
 
-ROI_LIMITS = {"x": (-0.3, -0.1), "y": (-0.2, 0.2), "z": (0.02, 0.1)}
+ROI_LIMITS = {"x": (-0.3, -0.1), "y": (-0.2, 0.2), "z": (0.001, 0.1)}
 
 
 class PointCloudDenoiser:
@@ -147,7 +149,7 @@ class TopFaceTrajectoryPlanner:
         return traj_start, traj_end
 
 
-class CloudPipeline:
+class CloudAnalyzer:
     """Full visualization and analysis pipeline."""
 
     def __init__(self, logger: LoggerType | None = None) -> None:
@@ -198,3 +200,26 @@ class CloudPipeline:
             o3d.visualization.draw_geometries(
                 [obj, top_pcd, traj_line], window_name="Marker Trajectory"
             )
+
+
+def _add_cloud_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--input_ply",
+        default="clouds/captures_6/cloud_aggregated.ply",
+        help="Path to input PLY point cloud file",
+    )
+
+
+def _run_cloud(args: argparse.Namespace) -> None:
+    pipeline = CloudAnalyzer()
+    pipeline.run(args.input_ply)
+
+
+if __name__ == "__main__":
+    dispatcher = CommandDispatcher(
+        description="Point cloud processing pipeline",
+        commands=[
+            Command("cloud", _run_cloud, _add_cloud_args, "Run Point Cloud pipeline"),
+        ],
+    )
+    dispatcher.run()

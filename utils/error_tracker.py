@@ -8,11 +8,9 @@ import sys
 import traceback
 from typing import Any, Callable, List, Optional
 
+from utils.keyboard import GlobalKeyListener, TerminalEchoSuppressor
 from utils.logger import Logger
 from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:  # pragma: no cover - optional runtime dependency
-    from utils.keyboard import GlobalKeyListener, TerminalEchoSuppressor
 
 
 class CameraError(Exception):
@@ -89,8 +87,6 @@ class ErrorTracker:
             cls.logger.info("Stop key '%s' pressed", stop_key)
             cls._run_cleanup()
             os._exit(1)
-
-        from utils.keyboard import GlobalKeyListener, TerminalEchoSuppressor
 
         hotkeys = {f"<{stop_key}>": _on_stop, "<ctrl>+c": _on_stop}
         cls._keyboard_listener = GlobalKeyListener(hotkeys)

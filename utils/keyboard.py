@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import termios
 from typing import Callable, Dict, List, Optional
 
 from pynput import keyboard
@@ -45,8 +46,6 @@ class TerminalEchoSuppressor:
         if self.enabled or not sys.stdin.isatty():
             return
         try:
-            import termios
-
             self._orig_attrs = termios.tcgetattr(self.fd)
             new_attrs = termios.tcgetattr(self.fd)
             new_attrs[3] &= ~(termios.ECHO | termios.ICANON)
@@ -61,8 +60,6 @@ class TerminalEchoSuppressor:
         if not self.enabled or self._orig_attrs is None:
             return
         try:
-            import termios
-
             termios.tcsetattr(self.fd, termios.TCSADRAIN, self._orig_attrs)
         finally:
             self.enabled = False

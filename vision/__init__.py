@@ -1,18 +1,18 @@
 """Vision utilities."""
 
-try:  # pragma: no cover - optional dependency
+try:
     from .realsense import RealSenseCamera
-except Exception:  # noqa: BLE001
+except Exception:
     RealSenseCamera = None
 from .transform import TransformUtils
-from .cloud.generator import PointCloudGenerator
-from .cloud.aggregator import PointCloudAggregator
-from .cloud.pipeline import CloudPipeline
+from .analysis.generator import PointCloudGenerator
+from .analysis.aggregator import RGBDAggregator
+from .analysis.analyzer import CloudAnalyzer
 
 __all__ = [
     "RealSenseCamera",
     "TransformUtils",
     "PointCloudGenerator",
-    "PointCloudAggregator",
-    "CloudPipeline",
+    "RGBDAggregator",
+    "CloudAnalyzer",
 ]

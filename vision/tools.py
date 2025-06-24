@@ -15,8 +15,8 @@ from utils.config import Config
 from utils.error_tracker import CameraConnectionError
 from utils.logger import Logger
 from vision.camera_utils import DepthChecker, IntrinsicsPrinter
-from vision.cloud.generator import PointCloudGenerator
-from vision.cloud.pipeline import CloudPipeline
+from vision.analysis.generator import PointCloudGenerator
+from vision.analysis.analyzer import CloudAnalyzer
 from vision.realsense import RealSenseCamera, RealSenseConfig
 from vision.transform import TransformUtils
 
@@ -159,7 +159,7 @@ def _add_pipeline_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _run_pipeline(args: argparse.Namespace) -> None:
-    CloudPipeline().run(args.input)
+    CloudAnalyzer().run(args.input)
 
 
 def main_pipeline() -> None:

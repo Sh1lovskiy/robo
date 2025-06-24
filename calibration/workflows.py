@@ -7,16 +7,9 @@ import os
 from dataclasses import dataclass
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 
-from calibration.charuco import CharucoCalibrator
-from calibration.charuco import (
-    CHARUCO_DICT_MAP,
-    CharucoCalibrator,
-    extract_charuco_poses,
-    load_board,
-)
+from calibration.charuco import CharucoCalibrator, load_board
 from calibration.handeye import HandEyeCalibrator, NPZHandEyeSaver, TxtHandEyeSaver
 from calibration.pose_loader import JSONPoseLoader
 from calibration.pose_extractor import extract_charuco_poses, ExtractionParams
@@ -33,44 +26,74 @@ class CharucoCalibrationWorkflow:
     visualize: bool = True
     logger: LoggerType = Logger.get_logger("calibration.workflow.charuco")
 
-    def run(self) -> None:
+    def _load_config(
+        self,
+    ) -> tuple[
+        dict, str, str, str, list[str], cv2.aruco_CharucoBoard, cv2.aruco_Dictionary
+    ]:
         if Config._data is None:
             Config.load()
         cfg = Config.get("charuco")
-        folder = cfg.get("images_dir", "cloud")
+        folder = cfg.get("images_dir", "captures")
         if not os.path.isdir(folder):
-            self.logger.error(f"Images directory '{folder}' not found")
-            return
+            self.logger.error("Images directory '%s' not found", folder)
+            raise FileNotFoundError(folder)
         out_dir = cfg.get("calib_output_dir", "calibration/results")
         os.makedirs(out_dir, exist_ok=True)
         xml_file = os.path.join(out_dir, cfg.get("xml_file", "charuco_cam.xml"))
         txt_file = os.path.join(out_dir, cfg.get("txt_file", "charuco_cam.txt"))
         board, dictionary = load_board(cfg)
-        calibrator = CharucoCalibrator(board, dictionary, self.logger)
         images = [
             os.path.join(folder, f)
             for f in sorted(os.listdir(folder))
             if f.lower().endswith((".png", ".jpg", ".jpeg"))
         ]
         self.logger.info(f"Found {len(images)} images in {folder}")
+        return cfg, out_dir, xml_file, txt_file, images, board, dictionary
+
+    def _process_images(self, calibrator: CharucoCalibrator, images: list[str]) -> None:
         for img_path in Logger.progress(images, desc="Charuco frames"):
             img = cv2.imread(img_path)
             if img is None:
-                self.logger.warning(f"Cannot read {img_path}")
+                self.logger.warning("Cannot read %s", img_path)
                 continue
             if calibrator.add_frame(img) and self.visualize:
                 cv2.imshow("detected", img)
                 cv2.waitKey(50)
         cv2.destroyAllWindows()
+        if self.visualize:
+            cv2.destroyAllWindows()
+
+    def _save_results(
+        self,
+        xml_file: str,
+        txt_file: str,
+        result: dict[str, np.ndarray | float],
+    ) -> None:
+        save_camera_params_xml(xml_file, result["camera_matrix"], result["dist_coeffs"])
+        save_camera_params_txt(
+            txt_file,
+            result["camera_matrix"],
+            result["dist_coeffs"],
+            rms=result.get("rms"),
+        )
+        self.logger.info("Calibration RMS: %.6f", float(result["rms"]))
+
+    def run(self) -> None:
+        try:
+            cfg, out_dir, xml_file, txt_file, images, board, dictionary = (
+                self._load_config()
+            )
+        except FileNotFoundError:
+            return
+        calibrator = CharucoCalibrator(board, dictionary, self.logger)
+        self.logger.info("Found %d images in %s", len(images), cfg.get("images_dir"))
+        self._process_images(calibrator, images)
         if not calibrator.all_corners:
             self.logger.error("No valid frames for calibration")
             return
         result = calibrator.calibrate()
-        save_camera_params_xml(xml_file, result["camera_matrix"], result["dist_coeffs"])
-        save_camera_params_txt(
-            txt_file, result["camera_matrix"], result["dist_coeffs"], rms=result["rms"]
-        )
-        self.logger.info(f"Calibration RMS: {result['rms']:.6f}")
+        self._save_results(xml_file, txt_file, result)
 
 
 @dataclass
@@ -157,19 +180,25 @@ class HandEyeCalibrationWorkflow:
         camera_matrix, dist_coeffs = load_camera_params(charuco_xml)
         Rs_g2b, ts_g2b = JSONPoseLoader.load_poses(robot_file)
 
-        poses, _ = extract_charuco_poses(
+        params = ExtractionParams(
+            min_corners=cfg.get("min_corners", 4),
+            visualize=cfg.get("visualize", False),
+            analyze_corners=True,
+            outlier_std=float(cfg.get("outlier_std", 2.0)),
+        )
+        extraction = extract_charuco_poses(
             images_dir,
             board,
             dictionary,
             camera_matrix,
             dist_coeffs,
-            min_corners=cfg.get("min_corners", 4),
-            visualize=cfg.get("visualize", False),
-            analyze_corners=True,
-            outlier_std=cfg.get("outlier_std", 2.0),
             logger=self.logger,
+            params=params,
         )
-        Rs_t2c, ts_t2c, valid_paths, all_paths = poses
+        Rs_t2c = extraction.rotations
+        ts_t2c = extraction.translations
+        valid_paths = extraction.valid_paths
+        all_paths = extraction.all_paths
         Rs_g2b_f, ts_g2b_f = self._filter_robot_poses(
             Rs_g2b, ts_g2b, valid_paths, all_paths
         )
