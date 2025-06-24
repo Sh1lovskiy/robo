@@ -11,12 +11,11 @@ from typing import Iterable
 from robot.config import RobotConfig as RobotConfigBase
 import pyrealsense2 as rs
 import numpy as np
-import open3d as o3d  # type: ignore
+import open3d as o3d
 from utils.logger import Logger
 from utils.config import Config
-import yaml  # type: ignore
-from scipy.spatial import ConvexHull  # type: ignore
-import sys
+import yaml
+from scipy.spatial import ConvexHull
 from typing import Any, TYPE_CHECKING, cast
 
 logger = Logger.get_logger(__name__)
