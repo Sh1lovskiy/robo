@@ -7,24 +7,22 @@ from __future__ import annotations
 
 import os
 import glob
+import argparse
+from typing import Any
+
 import cv2
 import numpy as np
 import open3d as o3d
-import argparse
+
 from utils.logger import Logger, LoggerType
 from utils.io import load_camera_params
 from utils.cli import Command, CommandDispatcher
+from utils.config import Config
 from calibration.pose_loader import JSONPoseLoader
 from vision.cloud.generator import PointCloudGenerator
 from vision.transform import TransformUtils
 
 # DATA_DIR = "cloud"
-DATA_DIR = "captures"
-CAM_CALIB_PATH = "calibration/results/charuco_cam.xml"
-HANDEYE_PATH = "calibration/results/handeye_PARK.txt"
-POSES_PATH = "captures/poses.json"
-OUTPUT_PLY_ICP = os.path.join(DATA_DIR, "cloud_aggregated_icp.ply")
-OUTPUT_PLY_NOICP = os.path.join(DATA_DIR, "cloud_aggregated.ply")
 DEPTH_SCALE = 0.001
 
 
@@ -134,9 +132,7 @@ class PointCloudAggregator:
 
         assert base_pcd is not None
         all_points = np.asarray(base_pcd.points)
-        all_colors = (
-            np.asarray(base_pcd.colors) if base_pcd.has_colors() else None
-        )
+        all_colors = np.asarray(base_pcd.colors) if base_pcd.has_colors() else None
         return all_points, all_colors
 
     def save_cloud(
@@ -147,6 +143,9 @@ class PointCloudAggregator:
 
 
 def _add_aggregate_args(parser: argparse.ArgumentParser) -> None:
+    Config.load()
+    cfg = Config.get("aggregator")
+    parser.add_argument("--data_dir", default=cfg.get("data_dir", "captures"))
     parser.add_argument(
         "--icp",
         action="store_true",
@@ -156,19 +155,22 @@ def _add_aggregate_args(parser: argparse.ArgumentParser) -> None:
 
 def _run_aggregate(args: argparse.Namespace) -> None:
     logger = Logger.get_logger("cloud.pipeline")
-    K, _ = load_camera_params(CAM_CALIB_PATH)
+    Config.load()
+    cfg = Config.get("aggregator")
+    data_dir = args.data_dir
+    K, _ = load_camera_params(cfg.get("charuco_xml"))
     logger.info("Camera intrinsics loaded.")
-    R_handeye, t_handeye = load_handeye_txt(HANDEYE_PATH)
+    R_handeye, t_handeye = load_handeye_txt(cfg.get("handeye_txt"))
     logger.info("Hand-eye calibration loaded.")
-    Rs, ts = JSONPoseLoader.load_poses(POSES_PATH)
+    Rs, ts = JSONPoseLoader.load_poses(cfg.get("poses_file"))
     logger.info(f"{len(Rs)} poses loaded.")
-    img_pairs = get_image_pairs(DATA_DIR)
+    img_pairs = get_image_pairs(data_dir)
     logger.info(f"Found {len(img_pairs)} RGB/depth image pairs.")
     aggregator = PointCloudAggregator(logger)
     points, colors = aggregator.aggregate(
         img_pairs, Rs, ts, K, R_handeye, t_handeye, use_icp=args.icp
     )
-    output_path = OUTPUT_PLY_ICP if args.icp else OUTPUT_PLY_NOICP
+    output_path = cfg.get("ply_icp") if args.icp else cfg.get("ply_noicp")
     aggregator.save_cloud(points, colors, output_path)
     logger.info("Point cloud aggregation completed. ICP: %s", args.icp)
 
