@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-# vision/cloud/aggregator.py
-
 import os
 import glob
 import argparse
@@ -19,7 +17,7 @@ from utils.io import load_camera_params
 from utils.cli import Command, CommandDispatcher
 from utils.config import Config
 from calibration.pose_loader import JSONPoseLoader
-from vision.cloud.generator import PointCloudGenerator
+from vision.analysis.generator import PointCloudGenerator
 from vision.transform import TransformUtils
 
 # DATA_DIR = "cloud"
@@ -61,7 +59,7 @@ def get_image_pairs(data_dir: str) -> list[tuple[str, str]]:
     return list(zip(rgb_list, depth_list))
 
 
-class PointCloudAggregator:
+class RGBDAggregator:
     def __init__(self, logger: LoggerType | None = None) -> None:
         self.logger = logger or Logger.get_logger("cloud.aggregator")
         self.cloud_gen = PointCloudGenerator()
@@ -166,7 +164,7 @@ def _run_aggregate(args: argparse.Namespace) -> None:
     logger.info(f"{len(Rs)} poses loaded.")
     img_pairs = get_image_pairs(data_dir)
     logger.info(f"Found {len(img_pairs)} RGB/depth image pairs.")
-    aggregator = PointCloudAggregator(logger)
+    aggregator = RGBDAggregator(logger)
     points, colors = aggregator.aggregate(
         img_pairs, Rs, ts, K, R_handeye, t_handeye, use_icp=args.icp
     )
