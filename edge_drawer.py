@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Iterable
 
 from robot.config import RobotConfig as RobotConfigBase
-import pyrealsense2 as rs
+
+try:
+    import pyrealsense2 as rs
+except Exception:
+    rs = None
 import numpy as np
 import open3d as o3d
 from utils.logger import Logger

@@ -17,6 +17,7 @@ from utils.config import Config
 from utils.io import load_camera_params, save_camera_params_xml, save_camera_params_txt
 from utils.logger import Logger, LoggerType
 from utils.cli import Command, CommandDispatcher
+from utils.settings import paths
 
 
 @dataclass
@@ -34,14 +35,20 @@ class CharucoCalibrationWorkflow:
         if Config._data is None:
             Config.load()
         cfg = Config.get("charuco")
-        folder = cfg.get("images_dir", "captures")
+        folder = cfg.get("images_dir", "captures") or str(paths.CAPTURES_DIR)
         if not os.path.isdir(folder):
             self.logger.error("Images directory '%s' not found", folder)
             raise FileNotFoundError(folder)
-        out_dir = cfg.get("calib_output_dir", "calibration/results")
+        out_dir = cfg.get("calib_output_dir", "calibration/results") or str(
+            paths.RESULTS_DIR
+        )
         os.makedirs(out_dir, exist_ok=True)
-        xml_file = os.path.join(out_dir, cfg.get("xml_file", "charuco_cam.xml"))
-        txt_file = os.path.join(out_dir, cfg.get("txt_file", "charuco_cam.txt"))
+        xml_file = os.path.join(out_dir, cfg.get("xml_file", "charuco_cam.xml")) or str(
+            paths.RESULTS_DIR / "charuco_cam.xml"
+        )
+        txt_file = os.path.join(out_dir, cfg.get("txt_file", "charuco_cam.txt")) or str(
+            paths.RESULTS_DIR / "charuco_cam.txt"
+        )
         board, dictionary = load_board(cfg)
         images = [
             os.path.join(folder, f)
@@ -117,11 +124,17 @@ class HandEyeCalibrationWorkflow:
         if Config._data is None:
             Config.load()
         cfg = Config.get("handeye")
-        out_dir = cfg.get("calib_output_dir", "calibration/results")
+        out_dir = cfg.get("calib_output_dir", "calibration/results") or str(
+            paths.RESULTS_DIR
+        )
         os.makedirs(out_dir, exist_ok=True)
-        charuco_xml = cfg.get("charuco_xml", os.path.join(out_dir, "charuco_cam.xml"))
-        robot_file = cfg.get("robot_poses_file", "cloud/poses.json")
-        images_dir = cfg.get("images_dir", "cloud")
+        charuco_xml = cfg.get(
+            "charuco_xml", os.path.join(out_dir, "charuco_cam.xml")
+        ) or str(paths.RESULTS_DIR / "charuco_cam.xml")
+        robot_file = cfg.get("robot_poses_file", "cloud/poses.json") or str(
+            paths.CAPTURES_DIR / "poses.json"
+        )
+        images_dir = cfg.get("images_dir", "cloud") or str(paths.CAPTURES_DIR)
         method = cfg.get("method", "ALL").upper()
         board, dictionary = load_board(cfg)
         return (
@@ -142,8 +155,17 @@ class HandEyeCalibrationWorkflow:
         valid_paths: list[str],
         all_paths: list[str],
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
-        name2idx = {os.path.basename(p): i for i, p in enumerate(all_paths)}
-        indices = [name2idx[os.path.basename(p)] for p in valid_paths]
+        def extract_index(fname):
+            return os.path.splitext(os.path.basename(fname))[0].split("_")[0]
+
+        idx_map = {extract_index(p): i for i, p in enumerate(all_paths)}
+        indices = []
+        for p in valid_paths:
+            idx = extract_index(p)
+            if idx in idx_map:
+                indices.append(idx_map[idx])
+            else:
+                self.logger.warning(f"No robot pose for image {p} (index {idx})")
         return [Rs[i] for i in indices], [ts[i] for i in indices]
 
     def _save(
@@ -161,7 +183,7 @@ class HandEyeCalibrationWorkflow:
             txt_file = os.path.join(out_dir, f"handeye_{name}.txt")
             calibrator.save(NPZHandEyeSaver(), npz_file, R, t)
             calibrator.save(TxtHandEyeSaver(), txt_file, R, t)
-            self.logger.info("Saved %s calibration to %s", name, npz_file)
+            self.logger.info(f"Saved {name} calibration to {npz_file}")
 
     def run(self) -> None:
         cfg, out_dir, charuco_xml, robot_file, images_dir, method, board, dictionary = (
@@ -195,15 +217,29 @@ class HandEyeCalibrationWorkflow:
             logger=self.logger,
             params=params,
         )
+        self.logger.info(f"len(extraction.rotations): {len(extraction.rotations)}")
+        self.logger.info(f"len(extraction.valid_paths): {len(extraction.valid_paths)}")
+        for p in extraction.valid_paths:
+            self.logger.info(f"Valid: {p}")
         Rs_t2c = extraction.rotations
         ts_t2c = extraction.translations
-        valid_paths = extraction.valid_paths
+        valid_paths = extraction.valid_paths[: len(Rs_t2c)]
         all_paths = extraction.all_paths
+        self.logger.info(f"Total camera poses: {len(Rs_t2c)}")
+        self.logger.info(f"Total robot poses: {len(Rs_g2b)}")
+        self.logger.info(f"Valid image paths: {valid_paths}")
+        self.logger.info(f"All image paths: {all_paths}")
         Rs_g2b_f, ts_g2b_f = self._filter_robot_poses(
             Rs_g2b, ts_g2b, valid_paths, all_paths
         )
+        self.logger.info(
+            f"After robot pose filtering: {len(Rs_g2b_f)} robot poses for {len(valid_paths)} valid paths"
+        )
+        self.logger.info(f"len(Rs_t2c): {len(Rs_t2c)}")
         if not Rs_t2c or len(Rs_t2c) != len(Rs_g2b_f):
-            self.logger.error("Pose data mismatch after filtering")
+            self.logger.error(
+                f"Pose data mismatch after filtering: {len(Rs_t2c)} camera poses, {len(Rs_g2b_f)} robot poses"
+            )
             return
 
         calibrator = HandEyeCalibrator(self.logger)

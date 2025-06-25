@@ -106,10 +106,7 @@ def _collect_corner_stats(
     for name, stat in stats.items():
         if logger:
             logger.info(
-                "%s mean [m]: %s std: %s",
-                name.upper(),
-                stat["mean"].round(4),
-                stat["std"].round(4),
+                f"{name.upper()} mean: {stat['mean'].round(4)} std: {stat['std'].round(4)}"
             )
     mask = np.ones(len(Rs), dtype=bool)
     for arr, stat in [(lt_arr, stats["lt"]), (rb_arr, stats["rb"])]:

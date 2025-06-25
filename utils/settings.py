@@ -7,11 +7,11 @@ BASE_DIR = Path(__file__).parent.resolve()
 @dataclass(frozen=True)
 class Paths:
     CAPTURES_DIR: Path = BASE_DIR / "captures"
-    RESULTS_DIR: Path = BASE_DIR / "calibration" / "results"
+    RESULTS_DIR: Path = BASE_DIR / "calibration" / "results2"
     CLOUD_DIR: Path = BASE_DIR / "clouds" / "captures_3"
 
     LOG_DIR: Path = BASE_DIR / "logs"
-    VALIDATION_RESULTS_DIR: Path = BASE_DIR / "validation" / "results"
+    VALIDATION_RESULTS_DIR: Path = BASE_DIR / "calibration" / "results2"
 
     # Aggregator-specific paths
     AGGREGATOR_DATA_DIR: Path = BASE_DIR / "clouds" / "captures_6"

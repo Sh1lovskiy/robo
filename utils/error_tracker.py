@@ -8,7 +8,6 @@ import sys
 import traceback
 from typing import Any, Callable, List, Optional
 
-from utils.keyboard import GlobalKeyListener, TerminalEchoSuppressor
 from utils.logger import Logger
 from typing import TYPE_CHECKING
 
@@ -81,6 +80,11 @@ class ErrorTracker:
         """Start a background listener that exits on ``stop_key`` or ``Ctrl+C``."""
 
         if cls._keyboard_listener is not None:
+            return
+        try:
+            from utils.keyboard import GlobalKeyListener, TerminalEchoSuppressor
+        except Exception as e:
+            cls.logger.warning("Keyboard listener unavailable: %s", e)
             return
 
         def _on_stop() -> None:
