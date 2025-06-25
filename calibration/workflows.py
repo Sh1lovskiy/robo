@@ -158,15 +158,18 @@ class HandEyeCalibrationWorkflow:
         def extract_index(fname):
             return os.path.splitext(os.path.basename(fname))[0].split("_")[0]
 
-        idx_map = {extract_index(p): i for i, p in enumerate(all_paths)}
-        indices = []
+        # Build a mapping from index to pose
+        pose_map = {extract_index(p): (R, t) for p, R, t in zip(all_paths, Rs, ts)}
+        filtered_Rs, filtered_ts = [], []
         for p in valid_paths:
             idx = extract_index(p)
-            if idx in idx_map:
-                indices.append(idx_map[idx])
+            if idx in pose_map:
+                R, t = pose_map[idx]
+                filtered_Rs.append(R)
+                filtered_ts.append(t)
             else:
                 self.logger.warning(f"No robot pose for image {p} (index {idx})")
-        return [Rs[i] for i in indices], [ts[i] for i in indices]
+        return filtered_Rs, filtered_ts
 
     def _save(
         self,
