@@ -96,6 +96,67 @@ def load_image_paths(images_dir):
     )
 
 
+def validate_charuco_projection(
+    img_path, board, dictionary, camera_matrix, dist_coeffs, rvec, tvec, logger=None
+):
+    """
+    Project board 3D corners using calibration, overlay them with detected Charuco corners.
+    Saves overlay to file and logs mean reprojection error.
+    """
+    img = cv2.imread(img_path)
+    if img is None:
+        if logger:
+            logger.error(f"Image not found: {img_path}")
+        return None
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary)
+    if ids is None or len(ids) < 4:
+        if logger:
+            logger.warning(f"Not enough ArUco markers for {img_path}")
+        return None
+
+    _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
+        corners, ids, gray, board
+    )
+    if charuco_corners is None or charuco_ids is None or len(charuco_ids) < 4:
+        if logger:
+            logger.warning(f"No Charuco corners found: {img_path}")
+        return None
+
+    # Project board corners to image
+    obj_points = board.getChessboardCorners()  # (N, 3)
+    img_points, _ = cv2.projectPoints(
+        obj_points, rvec, tvec, camera_matrix, dist_coeffs
+    )
+
+    out = img.copy()
+    # Draw projected corners (green)
+    for pt in img_points:
+        cv2.circle(out, tuple(pt.ravel().astype(int)), 5, (0, 255, 0), -1)
+    # Draw detected Charuco corners (red)
+    for pt in charuco_corners:
+        cv2.circle(out, tuple(pt.ravel().astype(int)), 5, (0, 0, 255), -1)
+
+    # Calculate reprojection error
+    if len(charuco_corners) == len(img_points):
+        error = np.linalg.norm(charuco_corners.squeeze() - img_points.squeeze(), axis=1)
+        mean_error = error.mean()
+        if logger:
+            logger.info(
+                f"{os.path.basename(img_path)}: mean reprojection error = {mean_error:.3f} px"
+            )
+    else:
+        mean_error = None
+        if logger:
+            logger.warning("Mismatch between detected and projected corner count.")
+
+    # Save overlay image
+    fname = os.path.splitext(os.path.basename(img_path))[0] + "_overlay.png"
+    cv2.imwrite(fname, out)
+    return mean_error
+
+
 def detect_board_corners(
     img_path, board, dictionary, camera_matrix, dist_coeffs, min_corners=4
 ):
@@ -159,8 +220,8 @@ def filter_by_percentile(
     errors, img_paths, percentile=80, logger=None, title="Filter by percentile"
 ):
     threshold = np.percentile(errors, percentile)
-    keep_idx = [i for i, e in enumerate(errors) if e <= threshold]
-    drop_idx = [i for i, e in enumerate(errors) if e > threshold]
+    keep_idx = [i for i, e in enumerate(errors) if e > threshold]
+    drop_idx = [i for i, e in enumerate(errors) if e <= threshold]
     keep_paths = [img_paths[i] for i in keep_idx]
     drop_paths = [img_paths[i] for i in drop_idx]
     if logger:
@@ -286,7 +347,7 @@ def show_charuco_overlay(img_path, board, dictionary, camera_matrix, dist_coeffs
     else:
         print(f"No ArUco markers found for {img_path}")
     cv2.imshow(f"Charuco overlay: {img_path}", out)
-    cv2.waitKey(500)
+    cv2.waitKey(1)
     cv2.destroyWindow(f"Charuco overlay: {img_path}")
 
 
@@ -303,16 +364,162 @@ def plot_errors(errs1, errs2, label1, label2, fname):
     plt.close()
 
 
+def validate_charuco_projection(
+    img_path, board, dictionary, camera_matrix, dist_coeffs, rvec, tvec, logger=None
+):
+    """
+    Project board 3D corners using calibration, overlay them with detected Charuco corners.
+    Saves overlay to file and logs mean reprojection error.
+    """
+    img = cv2.imread(img_path)
+    if img is None:
+        if logger:
+            logger.error(f"Image not found: {img_path}")
+        return None
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary)
+    if ids is None or len(ids) < 4:
+        if logger:
+            logger.warning(f"Not enough ArUco markers for {img_path}")
+        return None
+
+    _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
+        corners, ids, gray, board
+    )
+    if charuco_corners is None or charuco_ids is None or len(charuco_ids) < 4:
+        if logger:
+            logger.warning(f"No Charuco corners found: {img_path}")
+        return None
+
+    # Project board corners to image
+    obj_points = board.getChessboardCorners()  # (N, 3)
+    img_points, _ = cv2.projectPoints(
+        obj_points, rvec, tvec, camera_matrix, dist_coeffs
+    )
+
+    out = img.copy()
+    # Draw projected corners (green)
+    for pt in img_points:
+        cv2.circle(out, tuple(pt.ravel().astype(int)), 5, (0, 255, 0), -1)
+    # Draw detected Charuco corners (red)
+    for pt in charuco_corners:
+        cv2.circle(out, tuple(pt.ravel().astype(int)), 5, (0, 0, 255), -1)
+
+    # Calculate reprojection error
+    if len(charuco_corners) == len(img_points):
+        error = np.linalg.norm(charuco_corners.squeeze() - img_points.squeeze(), axis=1)
+        mean_error = error.mean()
+        if logger:
+            logger.info(
+                f"{os.path.basename(img_path)}: mean reprojection error = {mean_error:.3f} px"
+            )
+    else:
+        mean_error = None
+        if logger:
+            logger.warning("Mismatch between detected and projected corner count.")
+
+    # Save overlay image
+    fname = os.path.splitext(os.path.basename(img_path))[0] + "_overlay.png"
+    cv2.imwrite(fname, out)
+    return mean_error
+
+
+def project_board_via_handeye(
+    board_pts_base, R_base2cam, t_base2cam, camera_matrix, dist_coeffs
+):
+    """
+    Project board's 3D corners from robot base frame to camera frame using hand-eye calibration.
+
+    board_pts_base -- board corners in base coordinates (Nx3)
+    R_base2cam -- rotation matrix from robot base to camera
+    t_base2cam -- translation vector from robot base to camera
+    camera_matrix -- intrinsic camera matrix
+    dist_coeffs -- camera distortion coefficients
+
+    Returns projected points in image coordinates.
+    """
+    pts_cam = (R_base2cam.T @ (board_pts_base.T - t_base2cam[:, None])).T
+    img_points, _ = cv2.projectPoints(
+        pts_cam, np.zeros((3, 1)), np.zeros((3, 1)), camera_matrix, dist_coeffs
+    )
+    return img_points
+
+
+def analyze_handeye_residuals(cam_corners, R_cam2base, t_cam2base):
+    lt_base_pred, rb_base_pred = [], []
+    for lt_cam, rb_cam in cam_corners:
+        lt_base = R_cam2base @ lt_cam + t_cam2base
+        rb_base = R_cam2base @ rb_cam + t_cam2base
+        lt_base_pred.append(lt_base)
+        rb_base_pred.append(rb_base)
+    return np.stack(lt_base_pred), np.stack(rb_base_pred)
+
+
 def contribution_table(errors, img_paths, logger, title="Frame contribution"):
     sorted_idx = np.argsort(errors)[::-1]
     logger.info(f"{title}:")
-    logger.info(f"{'Frame':>20} | {'Error [m]':>10} | {'Percent of Total':>15}")
+    logger.info(f"{'Frame':>20} | {'Error':>10} | {'Percent of Total':>15}")
     total = errors.sum()
     for idx in sorted_idx:
         fname = os.path.basename(img_paths[idx])
         perc = 100.0 * errors[idx] / total if total > 0 else 0.0
         logger.info(f"{fname:>20} | {errors[idx]:10.5f} | {perc:15.2f} %")
     logger.info("-" * 54)
+
+
+def validate_handeye_calibration(
+    board_pts_base,
+    R_base2cam,
+    t_base2cam,
+    camera_matrix,
+    dist_coeffs,
+    detected_corners,
+    logger,
+):
+    """
+    Validate hand-eye calibration by comparing detected corners with projected corners.
+    """
+    # Project the board points to the camera frame (projected corners)
+    projected_corners = project_board_via_handeye(
+        board_pts_base, R_base2cam, t_base2cam, camera_matrix, dist_coeffs
+    )
+
+    # Debug: Print the number of corners detected and projected
+    logger.info(f"Detected corners shape: {detected_corners.shape}")
+    logger.info(f"Projected corners shape: {projected_corners.shape}")
+
+    # Ensure detected corners are in the correct 2D format for comparison
+    if detected_corners.shape[1] == 3:  # If detected corners are in 3D space
+        # Project the 3D detected corners to 2D (camera coordinates)
+        detected_corners_2d, _ = cv2.projectPoints(
+            detected_corners,
+            np.zeros((3, 1)),
+            np.zeros((3, 1)),
+            camera_matrix,
+            dist_coeffs,
+        )
+        detected_corners_2d = detected_corners_2d.squeeze()  # Remove extra dimensions
+    else:
+        detected_corners_2d = detected_corners
+
+    # Ensure the detected corners match the projected corners in terms of number and shape
+    if detected_corners_2d.shape != projected_corners.shape:
+        logger.warning(
+            f"Mismatch in number of corners: detected {detected_corners_2d.shape[0]}, "
+            f"projected {projected_corners.shape[0]}"
+        )
+        # Adjust the size of detected corners if necessary (slice or pad to match the number of corners)
+        detected_corners_2d = detected_corners_2d[: projected_corners.shape[0]]
+        projected_corners = projected_corners[: detected_corners_2d.shape[0]]
+
+    # Calculate the error between detected and projected corners
+    error = np.linalg.norm(detected_corners_2d - projected_corners.squeeze(), axis=1)
+
+    # Log the mean error
+    mean_error = error.mean()
+    logger.info(f"Mean reprojection error: {mean_error:.3f} pixels")
+    return mean_error
 
 
 @dataclass
@@ -372,11 +579,16 @@ class HandEyeValidationWorkflow:
             self.logger.error("No valid board detections.")
             return
 
+        # Analyze Hand-Eye Residuals
         lt_base_pred, rb_base_pred = analyze_handeye_residuals(
             cam_corners, R_cam2base, t_cam2base
         )
 
         # 1. Error vs ground truth
+        lt_base_pred, rb_base_pred = analyze_handeye_residuals(
+            cam_corners, R_cam2base, t_cam2base
+        )
+
         lt_errs_gt, rb_errs_gt = error_vs_reference(
             lt_base_pred, rb_base_pred, BOARD_LT_BASE, BOARD_RB_BASE
         )
@@ -386,8 +598,26 @@ class HandEyeValidationWorkflow:
                 f"{label}: mean={errs.mean():.5f}, std={errs.std():.5f}, "
                 f"min={errs.min():.5f}, max={errs.max():.5f}, "
                 f"median={np.median(errs):.5f}, "
-                f"90th={np.percentile(errs,90):.5f}"
+                f"90th={np.percentile(errs, 90):.5f}"
             )
+
+        # Validate hand-eye calibration
+        board_pts_base = board.getChessboardCorners()
+        for path in val_img_paths:
+            lt, rb = detect_board_corners(
+                path, board, dictionary, camera_matrix, dist_coeffs
+            )
+            if lt is not None and rb is not None:
+                # Validate the projection using hand-eye calibration results
+                validate_handeye_calibration(
+                    board_pts_base,
+                    R_cam2base,
+                    t_cam2base,
+                    camera_matrix,
+                    dist_coeffs,
+                    np.array([lt, rb]),
+                    self.logger,
+                )
 
         plot_errors(
             lt_errs_gt,
@@ -418,9 +648,9 @@ class HandEyeValidationWorkflow:
 
         self.logger.info("=== Filtering by 80th percentile (LT/GT error) ===")
         keep_paths, drop_paths = filter_by_percentile(
-            lt_errs_gt,
+            lt_errs_mean,
             val_img_paths,
-            percentile=80,
+            percentile=50,
             logger=self.logger,
             title="LT/GT error filtering",
         )
@@ -437,14 +667,14 @@ class HandEyeValidationWorkflow:
         else:
             self.logger.info("No images to drop.")
 
-        plot_handeye_reconstruction_o3d(
-            lt_base_pred,
-            rb_base_pred,
-            gt_lt=BOARD_LT_BASE,
-            gt_rb=BOARD_RB_BASE,
-            mean_lt=lt_mean,
-            mean_rb=rb_mean,
-        )
+        # plot_handeye_reconstruction_o3d(
+        #     lt_base_pred,
+        #     rb_base_pred,
+        #     gt_lt=BOARD_LT_BASE,
+        #     gt_rb=BOARD_RB_BASE,
+        #     mean_lt=lt_mean,
+        #     mean_rb=rb_mean,
+        # )
 
         # Show contribution table
         # self.logger.info("=== GT error ===")
