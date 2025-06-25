@@ -19,7 +19,7 @@ charuco:
   squares_y: 7
   square_length: 0.033
   marker_length: 0.025
-  aruco_dict: "4X4_100"
+  aruco_dict: "5X5_100"
   min_corners: 4
   outlier_std: 2.0
   analyze_corners: false
@@ -40,7 +40,7 @@ sample_selector:
   visualize: false
 
 validation:
-  aruco_dict: "4X4_100"
+  aruco_dict: "5X5_100"
   squares_x: 5
   squares_y: 7
   square_length: 0.033
