@@ -41,7 +41,7 @@ class ErrorTracker:
             try:
                 func()
             except Exception as e:
-                cls.logger.error("Cleanup failed: %s", e)
+                cls.logger.error(f"Cleanup failed: {e}")
         cls.stop_keyboard_listener()
 
     @classmethod
@@ -54,7 +54,7 @@ class ErrorTracker:
 
         def _hook(exc_type, exc, tb) -> None:
             message = "".join(traceback.format_exception(exc_type, exc, tb))
-            cls.logger.error("Unhandled exception:\n%s", message)
+            cls.logger.error(f"Unhandled exception:\n{message}")
             cls._run_cleanup()
             if cls._orig_hook:
                 cls._orig_hook(exc_type, exc, tb)
@@ -68,7 +68,7 @@ class ErrorTracker:
         """Shutdown gracefully on SIGINT or SIGTERM."""
 
         def _handler(signum, frame) -> None:
-            cls.logger.info("Received signal %s", signum)
+            cls.logger.info(f"Received signal {signum}")
             cls._run_cleanup()
             raise SystemExit(1)
 
@@ -84,11 +84,11 @@ class ErrorTracker:
         try:
             from utils.keyboard import GlobalKeyListener, TerminalEchoSuppressor
         except Exception as e:
-            cls.logger.warning("Keyboard listener unavailable: %s", e)
+            cls.logger.warning(f"Keyboard listener unavailable: {e}")
             return
 
         def _on_stop() -> None:
-            cls.logger.info("Stop key '%s' pressed", stop_key)
+            cls.logger.info(f"Stop key {stop_key} pressed")
             cls._run_cleanup()
             os._exit(1)
 
@@ -97,7 +97,7 @@ class ErrorTracker:
         cls._keyboard_listener.start()
         cls._terminal_echo = TerminalEchoSuppressor()
         cls._terminal_echo.start()
-        cls.logger.debug("Keyboard listener installed for keys: %s", list(hotkeys))
+        cls.logger.debug(f"Keyboard listener installed for keys: {list(hotkeys)}")
 
     @classmethod
     def stop_keyboard_listener(cls) -> None:

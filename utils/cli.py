@@ -64,7 +64,7 @@ class CommandDispatcher:
         try:
             ns = parser.parse_args(args)
         except SystemExit as exc:  # argparse calls sys.exit() on error
-            logger.error("Argument parsing failed: %s", exc)
+            logger.error(f"Argument parsing failed: {exc}")
             raise
 
         if hasattr(ns, "func"):

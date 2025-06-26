@@ -46,6 +46,8 @@ validation:
   square_length: 0.033
   marker_length: 0.025
   pixel_threshold: 1.0
+  board_lt_base: [-0.165, -0.365, 0.0]
+  board_rb_base: [-0.4, -0.53, 0.0]
 
 edge_drawer:
   camera:
