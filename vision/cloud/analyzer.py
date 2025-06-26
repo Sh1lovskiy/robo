@@ -9,7 +9,7 @@ from utils.logger import Logger, LoggerType
 """Point cloud processing pipeline utilities."""
 
 
-ROI_LIMITS = {"x": (-0.3, -0.1), "y": (-0.2, 0.2), "z": (0.001, 0.1)}
+ROI_LIMITS = {"x": (-0.6, -0.1), "y": (-0.2, 0.2), "z": (0.001, 0.06)}
 
 
 class PointCloudDenoiser:
@@ -124,7 +124,7 @@ class TopFaceTrajectoryPlanner:
     """Plan trajectory along the top face center line."""
 
     def __init__(
-        self, marker_length_mm: float = 210, logger: LoggerType | None = None
+        self, marker_length_mm: float = 195.0, logger: LoggerType | None = None
     ) -> None:
         self.marker_length = marker_length_mm / 1000.0
         self.logger = logger or Logger.get_logger("vision.pipeline.traj")
@@ -167,9 +167,9 @@ class CloudAnalyzer:
         o3d.visualization.draw_geometries_with_editing([pcd], window_name="Raw cloud")
 
         cropped = self.cropper.crop(pcd)
-        o3d.visualization.draw_geometries_with_editing(
-            [cropped], window_name="Cropped cloud"
-        )
+        # o3d.visualization.draw_geometries_with_editing(
+        #     [cropped], window_name="Cropped cloud"
+        # )
 
         clean = self.denoiser.denoise(cropped)
         o3d.visualization.draw_geometries_with_editing(
@@ -177,7 +177,7 @@ class CloudAnalyzer:
         )
 
         obj = self.clusterer.extract_object(clean)
-        o3d.visualization.draw_geometries([obj], window_name="Clustered object")
+        # o3d.visualization.draw_geometries([obj], window_name="Clustered object")
 
         aabb, _ = self.analyzer.get_bounding_box(obj)
         o3d.visualization.draw_geometries([obj, aabb], window_name="Bounding box")
@@ -205,7 +205,7 @@ class CloudAnalyzer:
 def _add_cloud_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--input_ply",
-        default="clouds/captures_6/cloud_aggregated.ply",
+        default="cloud_new_1/cloud_aggregated.ply",
         help="Path to input PLY point cloud file",
     )
 

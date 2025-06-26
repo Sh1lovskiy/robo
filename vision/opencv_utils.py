@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
-from utils.io import load_camera_params
+from calibration.helpers.pose_utils import load_camera_params
 
 
 class OpenCVUtils:

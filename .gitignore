@@ -57,9 +57,24 @@ outputs/
 # -----------------
 # Calibration and data artifacts
 # -----------------
+5X5_old2/
 calibration/iterations/
 captures/
-
+cloud_new_2cloud_new_2/
+cloud_new_1/
+cloud_new_2/
+5X5_old1/
+calib_bad/
+5X5_old3/
+calibration/results1/
+captures_55/
+calibration/results_5X5_old2/
+calibration/results_5X5_old3/
+calibration/calib_hand17_06_2/
+calibration/captures_1/
+calibration/captures_2/
+calibration/calib_hand16_06_1/
+calibration/calib_hand17_06_1/
 # -----------------
 # Raw data & clouds
 # -----------------
