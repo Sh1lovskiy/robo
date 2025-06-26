@@ -47,8 +47,8 @@ class MarkerPathRunner:
 
 def main():
     Rx, Ry, Rz = 180.0, 0.0, 0.0
-    start = [-196.28, 93.6, 275.7, Rx, Ry, Rz]
-    end = [-200.05, -37.89, 280.39, Rx, Ry, Rz]
+    start = [-293.4, -6.83, 277.57, Rx, Ry, Rz]
+    end = [-293.4, -6.83, 267.57, Rx, Ry, Rz]
     controller = RobotController()
     runner = MarkerPathRunner(controller)
     runner.execute_marker_path(start, end)

@@ -17,13 +17,13 @@ import argparse
 import cv2
 import numpy as np
 
+from calibration.helpers.pose_utils import load_camera_params
 from robot.controller import RobotController
 from utils.cli import Command, CommandDispatcher
 from utils.config import Config
 from utils.error_tracker import CameraError
 from utils.keyboard import GlobalKeyListener
 from utils.logger import Logger, LoggerType
-from utils.io import load_camera_params
 from vision.realsense import RealSenseCamera, RealSenseConfig
 from vision.camera_base import Camera
 from vision.opencv_utils import OpenCVUtils
@@ -184,6 +184,8 @@ class PoseRecorder:
                             board,
                             camera_matrix,
                             dist_coeffs,
+                            np.zeros((3, 1), dtype=np.float64),
+                            np.zeros((3, 1), dtype=np.float64),
                         )
                         if ok:
                             cv2.drawFrameAxes(
@@ -295,7 +297,6 @@ class PathRunner:
             return
         if not self.camera_mgr.start():
             self.logger.error("Camera not available. Aborting path run.")
-            self.controller.shutdown()
             return
         for idx, pose in Logger.progress(list(enumerate(path)), desc="Path"):
             self.logger.info(f"Moving to {pose}")
@@ -306,7 +307,6 @@ class PathRunner:
             color, depth = self.camera_mgr.get_frames()
             self.frame_saver.save(idx, color, depth)
         self.camera_mgr.stop()
-        self.controller.shutdown()
         self.logger.info("Path execution finished")
 
 
@@ -341,7 +341,7 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--ip", default=Config.get("robot.ip"), help="Robot IP")
     parser.add_argument(
         "--path_file",
-        default="captures/poses.json",
+        default="/home/sha/Documents/work/robo/clouds/cloud_new/poses.json",
         help="JSON file with path poses",
     )
     parser.add_argument(

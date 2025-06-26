@@ -1,15 +1,83 @@
+# calibration/helpers/pose_utils.py
+"""Helper to load robot poses I/O."""
+
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import List
+from pathlib import Path
+from typing import List, Tuple
 
 import cv2
+import json
 import matplotlib.pyplot as plt
 import numpy as np
 
 from utils.config import Config
 from utils.logger import Logger, LoggerType
+from .validation_utils import euler_to_matrix
+
+
+def load_camera_params(filename: str) -> Tuple[np.ndarray, np.ndarray]:
+    """Load camera matrix and distortion coefficients from OpenCV XML/YAML."""
+    fs = cv2.FileStorage(str(filename), cv2.FILE_STORAGE_READ)
+    camera_matrix = fs.getNode("camera_matrix").mat()
+    dist_coeffs = fs.getNode("dist_coeffs").mat()
+    fs.release()
+    return camera_matrix, dist_coeffs
+
+
+def save_camera_params_xml(
+    filename: str,
+    camera_matrix: np.ndarray,
+    dist_coeffs: np.ndarray,
+) -> None:
+    """Save camera calibration to an OpenCV XML/YAML file."""
+    Path(filename).parent.mkdir(parents=True, exist_ok=True)
+    fs = cv2.FileStorage(str(filename), cv2.FILE_STORAGE_WRITE)
+    fs.write("camera_matrix", camera_matrix)
+    fs.write("dist_coeffs", dist_coeffs)
+    fs.release()
+
+
+def save_camera_params_txt(
+    filename: str,
+    camera_matrix: np.ndarray,
+    dist_coeffs: np.ndarray,
+    rms: float | None = None,
+) -> None:
+    """Save camera calibration to a plain text file."""
+    Path(filename).parent.mkdir(parents=True, exist_ok=True)
+    with open(filename, "w") as f:
+        if rms is not None:
+            f.write(f"RMS Error: {rms:.6f}\n")
+        f.write("camera_matrix =\n")
+        np.savetxt(f, camera_matrix, fmt="%.10f")
+        f.write("dist_coeffs =\n")
+        np.savetxt(f, dist_coeffs.reshape(1, -1), fmt="%.10f")
+
+
+class JSONPoseLoader:
+    """
+    Loads robot poses for hand-eye calibration from a JSON file.
+    Expects keys:
+        - "robot_tcp_pose": [x, y, z, rx, ry, rz] (angles in degrees or radians)
+    """
+
+    @staticmethod
+    def load_poses(json_file: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        with open(json_file, "r") as f:
+            data = json.load(f)
+
+        Rs, ts = [], []
+        for pose in data.values():
+            tcp_pose = pose["tcp_coords"]  # [x, y, z, rx, ry, rz]
+            t = np.array(tcp_pose[:3], dtype=np.float64) / 1000.0  # mm → m
+            rx, ry, rz = tcp_pose[3:]
+            R_mat = euler_to_matrix(rx, ry, rz, degrees=True)
+            Rs.append(R_mat)
+            ts.append(t)
+        return Rs, ts
 
 
 @dataclass
@@ -60,21 +128,32 @@ def _estimate_pose(
 ) -> tuple[np.ndarray, np.ndarray] | None:
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary)
-    if ids is None or len(ids) < params.min_corners:
+    if ids is None or len(ids) < max(6, params.min_corners):
         return None
     _, char_corners, char_ids = cv2.aruco.interpolateCornersCharuco(
         corners, ids, gray, board
     )
-    if char_corners is None or char_ids is None or len(char_ids) < params.min_corners:
+    if (
+        char_corners is None
+        or char_ids is None
+        or len(char_ids) < max(6, params.min_corners)
+    ):
         return None
+
+    cc = np.ascontiguousarray(char_corners.astype(np.float32))
+    ci = np.ascontiguousarray(char_ids.astype(np.int32))
+    if cc.shape[0] != ci.shape[0]:
+        return None
+    rvec_init = np.zeros((3, 1), dtype=np.float64)
+    tvec_init = np.zeros((3, 1), dtype=np.float64)
     retval, rvec, tvec = cv2.aruco.estimatePoseCharucoBoard(
-        char_corners,
-        char_ids,
+        cc,
+        ci,
         board,
         camera_matrix,
         dist_coeffs,
-        np.zeros((3, 1), dtype=np.float64),
-        np.zeros((3, 1), dtype=np.float64),
+        rvec_init,
+        tvec_init,
     )
     if not retval:
         return None
@@ -149,12 +228,15 @@ def extract_charuco_poses(
     for idx, img_path in enumerate(image_paths):
         img = cv2.imread(img_path)
         if img is None:
-            logger.warning("Cannot read image: %s", img_path)
+            logger.warning(f"Cannot read image: {img_path}")
             continue
         pose = _estimate_pose(
             img, board, dictionary, camera_matrix, dist_coeffs, params
         )
         if pose is None:
+            logger.warning(
+                f"Charuco pose not found for image: {os.path.basename(img_path)}"
+            )
             continue
         R, t = pose
         Rs.append(R)
@@ -163,9 +245,9 @@ def extract_charuco_poses(
         if params.visualize:
             cv2.aruco.drawDetectedMarkers(img, None, None)
             cv2.imshow("charuco pose", img)
-            cv2.waitKey(50)
+            cv2.waitKey(200)
     if params.visualize:
         cv2.destroyAllWindows()
     stats, outliers = _collect_corner_stats(Rs, ts, board, params, logger)
-    logger.info("Extracted %d poses after filtering", len(Rs))
+    logger.info(f"Extracted {len(Rs)} poses after filtering")
     return ExtractionResult(Rs, ts, valid_paths, image_paths, stats, outliers)
