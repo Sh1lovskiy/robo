@@ -10,4 +10,4 @@ Shared utilities for configuration, logging, CLI handling and math helpers. Thes
 - `io.py` - Camera parameter read/write helpers.
 - `geometry.py` - Small math helpers, e.g. Euler angle conversions and homogeneous transform builders.
 
-Using these helpers promotes SOLID design and keeps each module focused on a single task.
+Using these helpers keeps each module focused on a single task.

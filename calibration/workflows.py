@@ -9,6 +9,8 @@ from .workflows_handeye import add_handeye_args, run_handeye
 
 
 def create_cli() -> CommandDispatcher:
+    """Build the ``calibration`` command dispatcher."""
+
     return CommandDispatcher(
         "Calibration workflows",
         [
@@ -29,6 +31,8 @@ def create_cli() -> CommandDispatcher:
 
 
 def main() -> None:
+    """Entry point for the calibration CLI tools."""
+
     logger = Logger.get_logger("calibration.workflows")
     create_cli().run(logger=logger)
 

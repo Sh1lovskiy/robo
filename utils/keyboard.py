@@ -14,6 +14,8 @@ class GlobalKeyListener:
     """Listen for global hotkeys and suppress terminal output."""
 
     def __init__(self, hotkeys: Dict[str, KeyAction], *, suppress: bool = True) -> None:
+        """Set up hotkey callbacks and configure pynput listener."""
+
         self.logger = Logger.get_logger("utils.keyboard")
         self.hotkeys = hotkeys
         self.listener = keyboard.GlobalHotKeys(hotkeys, suppress=suppress)
@@ -36,6 +38,8 @@ class TerminalEchoSuppressor:
     """Disable terminal echo to hide typed hotkeys."""
 
     def __init__(self) -> None:
+        """Cache terminal settings for later restoration."""
+
         self.logger = Logger.get_logger("utils.terminal")
         self.fd = sys.stdin.fileno()
         self.enabled = False

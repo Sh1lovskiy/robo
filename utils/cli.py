@@ -28,6 +28,8 @@ class CommandDispatcher:
     commands: Iterable[Command] = field(default_factory=list)
 
     def _build_parser(self) -> argparse.ArgumentParser:
+        """Create the :class:`argparse.ArgumentParser` for this dispatcher."""
+
         parser = argparse.ArgumentParser(description=self.description)
         subparsers = parser.add_subparsers(dest="command")
         for cmd in self.commands:
@@ -44,7 +46,8 @@ class CommandDispatcher:
         logger: Optional[Logger] = None,
         track_exceptions: bool = True,
     ) -> None:
-        """Parse arguments and dispatch the selected command.
+        """
+        Parse arguments and dispatch the selected command.
 
         Any ``SystemExit`` raised by ``argparse`` is logged before re-raising so
         callers can track CLI usage issues across the project. Optionally

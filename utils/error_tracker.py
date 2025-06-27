@@ -37,6 +37,8 @@ class ErrorTracker:
 
     @classmethod
     def _run_cleanup(cls) -> None:
+        """Execute all registered cleanup callbacks."""
+
         for func in cls._cleanup_funcs:
             try:
                 func()
@@ -88,6 +90,7 @@ class ErrorTracker:
             return
 
         def _on_stop() -> None:
+            """Handle hotkey press by running cleanup and exiting."""
             cls.logger.info(f"Stop key {stop_key} pressed")
             cls._run_cleanup()
             os._exit(1)

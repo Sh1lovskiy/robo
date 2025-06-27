@@ -15,6 +15,8 @@ class TransformUtils:
     """
 
     def __init__(self, logger: Logger | None = None) -> None:
+        """Optionally provide a logger for verbose output."""
+
         self.logger = logger or Logger.get_logger("vision.transform")
 
     @staticmethod
@@ -88,7 +90,7 @@ class TransformUtils:
         if tcp_offset is None or np.allclose(tcp_offset, 0):
             return np.eye(4)
         x, y, z, rx, ry, rz = tcp_offset
-        from utils.geometry import euler_to_matrix
+        from calibration.helpers.pose_utils import euler_to_matrix
 
         rot = euler_to_matrix(rx, ry, rz, degrees=True)
         return self.build_transform(rot, np.array([x, y, z]))
@@ -155,6 +157,8 @@ class TransformUtils:
 
 
 def _test_transform_utils():
+    """Basic self test exercising transform helpers."""
+
     from scipy.spatial.transform import Rotation as R
 
     logger = Logger.get_logger("vision.transform.test")
