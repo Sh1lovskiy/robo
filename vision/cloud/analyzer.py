@@ -21,11 +21,15 @@ class PointCloudDenoiser:
         std_ratio: float = 5.0,
         logger: LoggerType | None = None,
     ) -> None:
+        """Store filtering parameters."""
+
         self.nb_neighbors = nb_neighbors
         self.std_ratio = std_ratio
         self.logger = logger or Logger.get_logger("vision.pipeline.denoiser")
 
     def denoise(self, pcd: o3d.geometry.PointCloud) -> o3d.geometry.PointCloud:
+        """Return ``pcd`` with statistical outliers removed."""
+
         cl, ind = pcd.remove_statistical_outlier(
             nb_neighbors=self.nb_neighbors, std_ratio=self.std_ratio
         )
@@ -42,10 +46,14 @@ class PointCloudCropper:
         limits: dict[str, tuple[float, float]] = ROI_LIMITS,
         logger: LoggerType | None = None,
     ) -> None:
+        """Create a cropper with axis-aligned ROI ``limits``."""
+
         self.limits = limits
         self.logger = logger or Logger.get_logger("vision.pipeline.cropper")
 
     def crop(self, pcd: o3d.geometry.PointCloud) -> o3d.geometry.PointCloud:
+        """Return only points inside the configured ROI."""
+
         points = np.asarray(pcd.points)
         mask = (
             (points[:, 0] >= self.limits["x"][0])
@@ -71,11 +79,15 @@ class PointCloudClusterer:
         min_points: int = 100,
         logger: LoggerType | None = None,
     ) -> None:
+        """Store DBSCAN parameters ``eps`` and ``min_points``."""
+
         self.eps = eps
         self.min_points = min_points
         self.logger = logger or Logger.get_logger("vision.pipeline.cluster")
 
     def extract_object(self, pcd: o3d.geometry.PointCloud) -> o3d.geometry.PointCloud:
+        """Return the largest DBSCAN cluster from ``pcd``."""
+
         labels = np.array(
             pcd.cluster_dbscan(
                 eps=self.eps, min_points=self.min_points, print_progress=True
@@ -94,11 +106,15 @@ class ObjectSurfaceAnalyzer:
     """Compute bounding box of the object."""
 
     def __init__(self, logger: LoggerType | None = None) -> None:
+        """Initialize with optional logger."""
+
         self.logger = logger or Logger.get_logger("vision.pipeline.analyzer")
 
     def get_bounding_box(
         self, pcd: o3d.geometry.PointCloud
     ) -> tuple[o3d.geometry.AxisAlignedBoundingBox, np.ndarray]:
+        """Return axis-aligned bounding box and its vertices."""
+
         aabb = pcd.get_axis_aligned_bounding_box()
         aabb.color = (0, 1, 0)
         return aabb, np.asarray(aabb.get_box_points())
@@ -108,10 +124,14 @@ class TopFaceFinder:
     """Find points belonging to the top face."""
 
     def __init__(self, z_tol: float = 0.01, logger: LoggerType | None = None) -> None:
+        """Store tolerance ``z_tol`` in meters for top plane detection."""
+
         self.z_tol = z_tol
         self.logger = logger or Logger.get_logger("vision.pipeline.topface")
 
     def find_top_face(self, pcd: o3d.geometry.PointCloud) -> np.ndarray:
+        """Extract points near the maximal ``Z`` height."""
+
         points = np.asarray(pcd.points)
         max_z = np.max(points[:, 2])
         mask = np.abs(points[:, 2] - max_z) < self.z_tol
@@ -126,12 +146,16 @@ class TopFaceTrajectoryPlanner:
     def __init__(
         self, marker_length_mm: float = 195.0, logger: LoggerType | None = None
     ) -> None:
+        """Initialize with marker length in millimeters."""
+
         self.marker_length = marker_length_mm / 1000.0
         self.logger = logger or Logger.get_logger("vision.pipeline.traj")
 
     def plan_center_trajectory(
         self, top_points: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray]:
+        """Compute start/end points along the principal axis."""
+
         centroid = np.mean(top_points, axis=0)
         centered = top_points - centroid
         _, _, vh = np.linalg.svd(centered, full_matrices=False)
@@ -153,6 +177,8 @@ class CloudAnalyzer:
     """Full visualization and analysis pipeline."""
 
     def __init__(self, logger: LoggerType | None = None) -> None:
+        """Compose processing pipeline helpers."""
+
         self.logger = logger or Logger.get_logger("vision.pipeline")
         self.denoiser = PointCloudDenoiser(logger=self.logger)
         self.cropper = PointCloudCropper(logger=self.logger)
@@ -162,6 +188,8 @@ class CloudAnalyzer:
         self.trajectory_planner = TopFaceTrajectoryPlanner(logger=self.logger)
 
     def run(self, input_ply: str) -> None:
+        """Execute the full analysis pipeline on ``input_ply``."""
+
         pcd = o3d.io.read_point_cloud(input_ply)
         self.logger.info(f"Loaded {input_ply}, {len(pcd.points)} points")
         o3d.visualization.draw_geometries_with_editing([pcd], window_name="Raw cloud")
@@ -203,6 +231,8 @@ class CloudAnalyzer:
 
 
 def _add_cloud_args(parser: argparse.ArgumentParser) -> None:
+    """Arguments for the ``cloud`` CLI command."""
+
     parser.add_argument(
         "--input_ply",
         default="cloud_new_1/cloud_aggregated.ply",
@@ -211,6 +241,8 @@ def _add_cloud_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _run_cloud(args: argparse.Namespace) -> None:
+    """Run the interactive cloud analysis pipeline."""
+
     pipeline = CloudAnalyzer()
     pipeline.run(args.input_ply)
 

@@ -15,8 +15,8 @@ from utils.config import Config
 from utils.error_tracker import CameraConnectionError
 from utils.logger import Logger
 from vision.camera_utils import DepthChecker, IntrinsicsPrinter
-from vision.analysis.generator import PointCloudGenerator
-from vision.analysis.analyzer import CloudAnalyzer
+from vision.cloud.generator import PointCloudGenerator
+from vision.cloud.analyzer import CloudAnalyzer
 from vision.realsense import RealSenseCamera, RealSenseConfig
 from vision.transform import TransformUtils
 
@@ -26,6 +26,7 @@ from vision.transform import TransformUtils
 
 
 def capture_cloud(output: str) -> None:
+    """Capture a single RGB-D frame and save it as a colored point cloud."""
     logger = Logger.get_logger("vision.tools.capture")
     cam = RealSenseCamera(RealSenseConfig())
     try:
@@ -45,6 +46,7 @@ def capture_cloud(output: str) -> None:
 
 
 def transform_cloud(input_ply: str, calib_npz: str, output: str) -> None:
+    """Apply hand-eye calibration transform to a PLY file."""
     logger = Logger.get_logger("vision.tools.transform")
     cloud_gen = PointCloudGenerator()
     try:
@@ -61,6 +63,7 @@ def transform_cloud(input_ply: str, calib_npz: str, output: str) -> None:
 
 
 def view_cloud(input_ply: str) -> None:
+    """Open a PLY file in an Open3D viewer."""
     logger = Logger.get_logger("vision.tools.view")
     try:
         pcd = o3d.io.read_point_cloud(input_ply)
@@ -76,6 +79,7 @@ def view_cloud(input_ply: str) -> None:
 
 
 def _add_capture_args(parser: argparse.ArgumentParser) -> None:
+    """Arguments for the ``capture`` command."""
     Config.load()
     out_dir = Config.get("cloud.output_dir", "clouds")
     parser.add_argument(
@@ -86,10 +90,13 @@ def _add_capture_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _run_capture(args: argparse.Namespace) -> None:
+    """Execute cloud capture from CLI."""
     capture_cloud(args.output)
 
 
 def main_capture() -> None:
+    """CLI entry point for :func:`capture_cloud`."""
+
     parser = argparse.ArgumentParser(description="Capture point cloud")
     _add_capture_args(parser)
     args = parser.parse_args()
@@ -97,6 +104,7 @@ def main_capture() -> None:
 
 
 def _add_transform_args(parser: argparse.ArgumentParser) -> None:
+    """Arguments for ``transform`` command."""
     parser.add_argument("--input", required=True, help="Input PLY file")
     parser.add_argument("--calib", required=True, help="Calibration npz file")
     Config.load()
@@ -109,10 +117,13 @@ def _add_transform_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _run_transform(args: argparse.Namespace) -> None:
+    """Execute cloud transform from CLI."""
     transform_cloud(args.input, args.calib, args.output)
 
 
 def main_transform() -> None:
+    """CLI entry point applying a calibration transform to a PLY file."""
+
     parser = argparse.ArgumentParser(description="Transform point cloud")
     _add_transform_args(parser)
     args = parser.parse_args()
@@ -120,14 +131,18 @@ def main_transform() -> None:
 
 
 def _add_view_args(parser: argparse.ArgumentParser) -> None:
+    """Arguments for ``view`` command."""
     parser.add_argument("--input", required=True, help="PLY file to view")
 
 
 def _run_view(args: argparse.Namespace) -> None:
+    """Display a point cloud from CLI."""
     view_cloud(args.input)
 
 
 def main_view() -> None:
+    """CLI entry displaying a PLY point cloud."""
+
     parser = argparse.ArgumentParser(description="View point cloud")
     _add_view_args(parser)
     args = parser.parse_args()
@@ -135,22 +150,29 @@ def main_view() -> None:
 
 
 def _run_intrinsics(args: argparse.Namespace) -> None:
+    """Print camera intrinsic parameters."""
     IntrinsicsPrinter().run()
 
 
 def main_intrinsics() -> None:
+    """Convenience CLI entry for :class:`IntrinsicsPrinter`."""
+
     _run_intrinsics(argparse.Namespace())
 
 
 def _run_depth(args: argparse.Namespace) -> None:
+    """Display a live depth preview."""
     DepthChecker().run()
 
 
 def main_depth() -> None:
+    """Convenience CLI entry showing a depth preview window."""
+
     _run_depth(argparse.Namespace())
 
 
 def _add_pipeline_args(parser: argparse.ArgumentParser) -> None:
+    """Arguments for point cloud processing pipeline."""
     parser.add_argument(
         "--input",
         default="captures/cloud_aggregated.ply",
@@ -159,6 +181,7 @@ def _add_pipeline_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _run_pipeline(args: argparse.Namespace) -> None:
+    """Run the analysis pipeline from CLI."""
     CloudAnalyzer().run(args.input)
 
 

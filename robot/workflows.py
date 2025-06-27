@@ -36,6 +36,7 @@ class PoseSaver:
     """Strategy interface for saving poses."""
 
     def save(self, filename: str, pose_id: str, pose: List[float]) -> None:
+        """Persist ``pose`` identified by ``pose_id`` into ``filename``."""
         raise NotImplementedError
 
 
@@ -43,6 +44,7 @@ class JsonPoseSaver(PoseSaver):
     """Save poses to a JSON file."""
 
     def save(self, filename: str, pose_id: str, pose: List[float]) -> None:
+        """Append ``pose`` to ``filename`` creating the JSON if needed."""
         if os.path.exists(filename):
             with open(filename, "r") as f:
                 data = json.load(f)
@@ -62,6 +64,7 @@ class IRFrameSaver:
     logger: LoggerType = Logger.get_logger("robot.workflow.ir")
 
     def save(self, idx: str, ir_img: np.ndarray) -> None:
+        """Write an infrared PNG for frame ``idx``."""
         os.makedirs(self.out_dir, exist_ok=True)
         cv2.imwrite(os.path.join(self.out_dir, f"{idx}_ir.png"), ir_img)
         self.logger.info(f"Saved IR for {idx}")
@@ -78,6 +81,7 @@ class PoseRecorder:
     logger: LoggerType = Logger.get_logger("robot.workflow.record")
 
     def run(self) -> None:
+        """Interactively save robot poses with synchronized camera frames."""
         camera_mgr = CameraManager()
         try:
             self.controller.enable()
@@ -210,6 +214,7 @@ class PoseRecorder:
                 self.logger.error(f"Failed to exit drag mode: {e}")
 
     def _save_frames(self, idx: str, color: np.ndarray, depth: np.ndarray) -> None:
+        """Store RGB and depth frames for pose ``idx`` on disk."""
         rgb_path = os.path.join(self.captures_dir, f"{idx}_rgb.png")
         depth_path = os.path.join(self.captures_dir, f"{idx}_depth.npy")
         os.makedirs(self.captures_dir, exist_ok=True)
@@ -229,6 +234,7 @@ class FrameSaver:
     logger: LoggerType = Logger.get_logger("robot.workflow.frames")
 
     def save(self, idx: int, color: np.ndarray, depth: np.ndarray) -> None:
+        """Write color/depth pair for frame ``idx``."""
         os.makedirs(self.out_dir, exist_ok=True)
         rgb_path = os.path.join(self.out_dir, f"{idx:03d}_rgb.png")
         depth_path = os.path.join(self.out_dir, f"{idx:03d}_depth.npy")
@@ -241,10 +247,13 @@ class CameraManager:
     """Wrap a camera instance for reliable frame acquisition."""
 
     def __init__(self, camera: Camera | None = None, logger: LoggerType | None = None):
+        """Initialize with an optional :class:`Camera` implementation."""
+
         self.cam = camera or RealSenseCamera(RealSenseConfig())
         self.logger = logger or Logger.get_logger("robot.workflow.camera")
 
     def start(self) -> bool:
+        """Start the underlying camera and perform a short warmup."""
         try:
             self.cam.start()
         except CameraError as e:
@@ -259,9 +268,12 @@ class CameraManager:
         return True
 
     def stop(self) -> None:
+        """Stop the underlying camera stream."""
+
         self.cam.stop()
 
     def get_frames(self) -> tuple[np.ndarray, np.ndarray]:
+        """Retry grabbing frames until both color and depth are valid."""
         for attempt in range(10):
             color, depth = self.cam.get_frames()
             if color is not None and depth is not None:
@@ -272,6 +284,7 @@ class CameraManager:
 
 
 def load_trajectory(path_file: str) -> List[List[float]]:
+    """Load a list of TCP poses from a JSON path file."""
     with open(path_file, "r") as f:
         data = json.load(f)
     keys = sorted(data.keys(), key=lambda x: int(x))
@@ -289,6 +302,7 @@ class PathRunner:
     logger: LoggerType = Logger.get_logger("robot.workflow.path")
 
     def run(self) -> None:
+        """Execute the trajectory while recording frames."""
         path = load_trajectory(self.traj_file)
         try:
             self.controller.enable()
@@ -311,6 +325,7 @@ class PathRunner:
 
 
 def _add_record_args(parser: argparse.ArgumentParser) -> None:
+    """Arguments for the ``record`` sub-command."""
     Config.load()
     parser.add_argument(
         "--ip",
@@ -330,6 +345,12 @@ def _add_record_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _run_record(args: argparse.Namespace) -> None:
+    """CLI hook to record robot poses.
+
+    Args:
+        args: Parsed command line namespace with ``ip``, ``captures_dir`` and
+            ``drag`` options supplied by :func:`_add_record_args`.
+    """
     recorder = PoseRecorder(
         RobotController(rpc=args.ip), JsonPoseSaver(), args.captures_dir, drag=args.drag
     )
@@ -337,6 +358,7 @@ def _run_record(args: argparse.Namespace) -> None:
 
 
 def _add_run_args(parser: argparse.ArgumentParser) -> None:
+    """Arguments for the ``run`` sub-command."""
     Config.load()
     parser.add_argument("--ip", default=Config.get("robot.ip"), help="Robot IP")
     parser.add_argument(
@@ -352,6 +374,12 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _run_path(args: argparse.Namespace) -> None:
+    """Execute a recorded path while capturing frames.
+
+    Args:
+        args: Namespace with ``ip``, ``path_file`` and ``out_dir`` attributes
+            provided by :func:`_add_run_args`.
+    """
     runner = PathRunner(
         controller=RobotController(rpc=args.ip),
         camera_mgr=CameraManager(),
@@ -362,6 +390,7 @@ def _run_path(args: argparse.Namespace) -> None:
 
 
 def _add_restart_args(parser: argparse.ArgumentParser) -> None:
+    """Arguments for ``restart`` command."""
     Config.load()
     parser.add_argument("--ip", default=Config.get("robot.ip"), help="Robot IP")
     parser.add_argument(
@@ -373,6 +402,7 @@ def _add_restart_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _run_restart(args: argparse.Namespace) -> None:
+    """Restart robot connection via CLI."""
     controller = RobotController(rpc=args.ip)
     ok = controller.restart(
         ip_address=args.ip, delay=args.delay, attempts=args.attempts
@@ -384,6 +414,8 @@ def _run_restart(args: argparse.Namespace) -> None:
 
 
 def create_cli() -> CommandDispatcher:
+    """Assemble the command dispatcher for robot workflows."""
+
     return CommandDispatcher(
         "Robot workflows",
         [
@@ -400,6 +432,8 @@ def create_cli() -> CommandDispatcher:
 
 
 def main() -> None:
+    """Entry point for ``robot.workflows`` when used as a module."""
+
     logger = Logger.get_logger("robot.workflows")
     create_cli().run(logger=logger)
 
