@@ -21,6 +21,8 @@ class ConfigLoader:
 
 class YamlConfigLoader(ConfigLoader):
     def load(self, filename: str) -> Dict[str, Any]:
+        """Load YAML file and return plain ``dict`` data."""
+
         cfg = OmegaConf.load(filename)
         return cast(Dict[str, Any], OmegaConf.to_container(cfg, resolve=True))
 
@@ -54,6 +56,7 @@ class Config:
 
     @classmethod
     def get(cls, path: str, default: Any | None = None) -> Any:
+        """Retrieve value from dotted ``path`` or return ``default``."""
         if cls._data is None:
             cls.load()
         value = cls._data
@@ -69,5 +72,7 @@ class Config:
 
     @classmethod
     def set_loader(cls, loader: ConfigLoader) -> None:
+        """Replace the config loader strategy (useful for testing)."""
+
         cls._loader = loader
         cls._logger.info(f"Config loader set to {loader.__class__.__name__}")

@@ -19,7 +19,15 @@ from .validation_utils import euler_to_matrix
 
 
 def load_camera_params(filename: str) -> Tuple[np.ndarray, np.ndarray]:
-    """Load camera matrix and distortion coefficients from OpenCV XML/YAML."""
+    """Load camera matrix and distortion coefficients from OpenCV XML/YAML.
+
+    Args:
+        filename: Path to ``.xml`` or ``.yml`` file created by OpenCV
+            calibration routines.
+
+    Returns:
+        ``(camera_matrix, dist_coeffs)`` as NumPy arrays.
+    """
     fs = cv2.FileStorage(str(filename), cv2.FILE_STORAGE_READ)
     camera_matrix = fs.getNode("camera_matrix").mat()
     dist_coeffs = fs.getNode("dist_coeffs").mat()
@@ -32,7 +40,13 @@ def save_camera_params_xml(
     camera_matrix: np.ndarray,
     dist_coeffs: np.ndarray,
 ) -> None:
-    """Save camera calibration to an OpenCV XML/YAML file."""
+    """Save camera calibration to an OpenCV XML/YAML file.
+
+    Args:
+        filename: Output XML file.
+        camera_matrix: 3x3 intrinsic matrix.
+        dist_coeffs: Distortion coefficients vector.
+    """
     Path(filename).parent.mkdir(parents=True, exist_ok=True)
     fs = cv2.FileStorage(str(filename), cv2.FILE_STORAGE_WRITE)
     fs.write("camera_matrix", camera_matrix)
@@ -46,7 +60,14 @@ def save_camera_params_txt(
     dist_coeffs: np.ndarray,
     rms: float | None = None,
 ) -> None:
-    """Save camera calibration to a plain text file."""
+    """Save camera calibration to a plain text file.
+
+    Args:
+        filename: Output text path.
+        camera_matrix: Intrinsic matrix to store.
+        dist_coeffs: Distortion coefficients to store.
+        rms: Optional RMS error value written as a header.
+    """
     Path(filename).parent.mkdir(parents=True, exist_ok=True)
     with open(filename, "w") as f:
         if rms is not None:
@@ -66,6 +87,17 @@ class JSONPoseLoader:
 
     @staticmethod
     def load_poses(json_file: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        """Return rotation and translation lists from ``json_file``.
+
+        The JSON is expected to map IDs to ``{"tcp_coords": [x, y, z, rx, ry, rz]}``.
+
+        Args:
+            json_file: Path to the recorded poses file.
+
+        Returns:
+            Tuple ``(rotations, translations)`` where each is a list of NumPy
+            arrays describing the gripper pose relative to the robot base.
+        """
         with open(json_file, "r") as f:
             data = json.load(f)
 
@@ -82,6 +114,8 @@ class JSONPoseLoader:
 
 @dataclass
 class ExtractionParams:
+    """Thresholds and flags controlling pose extraction."""
+
     min_corners: int = 4
     visualize: bool = False
     analyze_corners: bool = False
@@ -90,6 +124,8 @@ class ExtractionParams:
 
 @dataclass
 class ExtractionResult:
+    """Results returned by :func:`extract_charuco_poses`."""
+
     rotations: List[np.ndarray]
     translations: List[np.ndarray]
     valid_paths: List[str]
@@ -99,6 +135,8 @@ class ExtractionResult:
 
 
 def _load_params() -> ExtractionParams:
+    """Load :class:`ExtractionParams` from global config."""
+
     cfg = Config.get("charuco")
     return ExtractionParams(
         min_corners=cfg.get("min_corners", 4),
@@ -109,6 +147,7 @@ def _load_params() -> ExtractionParams:
 
 
 def _list_images(images_dir: str) -> List[str]:
+    """Return sorted image file paths from ``images_dir``."""
     return sorted(
         [
             os.path.join(images_dir, f)
@@ -126,6 +165,7 @@ def _estimate_pose(
     dist_coeffs: np.ndarray,
     params: ExtractionParams,
 ) -> tuple[np.ndarray, np.ndarray] | None:
+    """Estimate board pose in the camera frame using OpenCV."""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary)
     if ids is None or len(ids) < max(6, params.min_corners):
@@ -168,6 +208,7 @@ def _collect_corner_stats(
     params: ExtractionParams,
     logger: LoggerType | None,
 ) -> tuple[dict[str, dict[str, np.ndarray]], List[int]]:
+    """Compute corner statistics and remove outlier frames."""
     if not params.analyze_corners:
         return {}, []
     obj_pts = board.getChessboardCorners()
@@ -219,6 +260,7 @@ def extract_charuco_poses(
     logger: LoggerType | None = None,
     params: ExtractionParams | None = None,
 ) -> ExtractionResult:
+    """Run pose extraction for all images in a directory."""
     params = params or _load_params()
     logger = logger or Logger.get_logger("calibration.pose_extractor")
     image_paths = _list_images(images_dir)

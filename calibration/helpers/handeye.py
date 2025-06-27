@@ -17,11 +17,27 @@ class HandEyeSaver:
 
 class NPZHandEyeSaver(HandEyeSaver):
     def save(self, filename: str, R: np.ndarray, t: np.ndarray) -> None:
+        """
+        Save rotation ``R`` and translation ``t`` to ``filename``.
+
+        Args:
+            filename: Target ``.npz`` file.
+            R: 3x3 rotation matrix.
+            t: 3-element translation vector.
+        """
         np.savez(filename, R=R, t=t)
 
 
 class TxtHandEyeSaver(HandEyeSaver):
     def save(self, filename: str, R: np.ndarray, t: np.ndarray) -> None:
+        """
+        Store ``R`` and ``t`` in a human readable text format.
+
+        Args:
+            filename: Destination text file.
+            R: Rotation matrix to write.
+            t: Translation vector.
+        """
         with open(filename, "w") as f:
             f.write("R =\n")
             np.savetxt(f, R, fmt="%.8f")
@@ -31,8 +47,7 @@ class TxtHandEyeSaver(HandEyeSaver):
 
 class HandEyeCalibrator:
     """
-    Hand-Eye calibration using all OpenCV methods automatically.
-    Uses SOLID principles and centralized logging.
+    Provides logging for each step of the process.
     """
 
     METHODS = {
@@ -42,6 +57,8 @@ class HandEyeCalibrator:
     }
 
     def __init__(self, logger: LoggerType | None = None):
+        """Create empty sample buffers and configure logger."""
+
         self.R_gripper2base: list[np.ndarray] = []
         self.t_gripper2base: list[np.ndarray] = []
         self.R_target2cam: list[np.ndarray] = []
@@ -55,6 +72,15 @@ class HandEyeCalibrator:
         R_target: np.ndarray,
         t_target: np.ndarray,
     ) -> None:
+        """
+        Append one measurement pair to the calibration set.
+
+        Args:
+            R_gripper: Rotation from gripper to base frame.
+            t_gripper: Translation from gripper to base frame.
+            R_target: Rotation from calibration target to camera.
+            t_target: Translation from calibration target to camera.
+        """
         self.R_gripper2base.append(R_gripper)
         self.t_gripper2base.append(t_gripper)
         self.R_target2cam.append(R_target)
@@ -63,7 +89,15 @@ class HandEyeCalibrator:
 
     def calibrate(self, method: str = "TSAI") -> tuple[np.ndarray, np.ndarray]:
         """
-        Calibrate using the specified method (case-insensitive).
+        Run calibration using the specified method.
+
+        Args:
+            method: Name of OpenCV hand-eye algorithm, e.g. ``"TSAI"`` or
+                ``"PARK"``. Case-insensitive.
+
+        Returns:
+            Tuple ``(R, t)`` where ``R`` is the rotation from camera to base and
+            ``t`` is the translation vector in meters.
         """
         assert self.R_gripper2base, "No samples for calibration"
         key = method.upper()
@@ -84,7 +118,10 @@ class HandEyeCalibrator:
     def calibrate_all(self) -> dict[str, tuple[np.ndarray, np.ndarray]]:
         """
         Run calibration with all available methods.
-        Returns: dict {method_name: (R, t)}
+
+        Returns:
+            Mapping of method name to resulting ``(R, t)`` pair. Methods that
+            fail will not be present in the dictionary.
         """
         results = {}
         for name, code in self.METHODS.items():
@@ -109,6 +146,15 @@ class HandEyeCalibrator:
         R: np.ndarray,
         t: np.ndarray,
     ) -> None:
+        """
+        Persist calibration matrices using ``saver``.
+
+        Args:
+            saver: Output strategy such as :class:`NPZHandEyeSaver`.
+            filename: Path to the output file.
+            R: Rotation matrix.
+            t: Translation vector.
+        """
         saver.save(filename, R, t)
         self.logger.info(
             f"Calibration saved with {saver.__class__.__name__} to {filename}"
@@ -116,6 +162,8 @@ class HandEyeCalibrator:
 
 
 def simple_handeye_test() -> None:
+    """Standalone example running hand-eye calibration on synthetic data."""
+
     R_g2b = []
     t_g2b = []
     R_t2c = []

@@ -41,6 +41,7 @@ class HandEyeCalibrationWorkflow:
         cv2.aruco_CharucoBoard,
         cv2.aruco_Dictionary,
     ]:
+        """Read configuration and load input files."""
         if Config._data is None:
             Config.load()
         cfg = Config.get("handeye")
@@ -75,6 +76,8 @@ class HandEyeCalibrationWorkflow:
         valid_paths: list[str],
         all_paths: list[str],
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        """Match robot poses to image filenames after filtering."""
+
         def extract_index(fname: str) -> str:
             return os.path.splitext(os.path.basename(fname))[0].split("_")[0]
 
@@ -97,6 +100,7 @@ class HandEyeCalibrationWorkflow:
         method: str,
         results: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
     ) -> None:
+        """Persist calibration matrices in both NPZ and text formats."""
         if results is None:
             R, t = calibrator.calibrate(method)
             results = {method: (R, t)}
@@ -108,6 +112,7 @@ class HandEyeCalibrationWorkflow:
             self.logger.info(f"Saved {name} calibration to {npz_file}")
 
     def run(self) -> None:
+        """Execute hand-eye calibration using current config."""
         cfg, out_dir, charuco_xml, robot_file, images_dir, method, board, dictionary = (
             self._load_config()
         )
@@ -164,6 +169,7 @@ class HandEyeCalibrationWorkflow:
 
 
 def add_handeye_args(parser: argparse.ArgumentParser) -> None:
+    """CLI arguments for the hand-eye workflow."""
     Config.load()
     cfg = Config.get("handeye")
     out_dir = cfg.get("calib_output_dir", "calibration/results")
@@ -195,6 +201,7 @@ def add_handeye_args(parser: argparse.ArgumentParser) -> None:
 
 
 def run_handeye(args: argparse.Namespace) -> None:
+    """Entry point for ``handeye`` command."""
     Config.load()
     cfg = Config.get("handeye")
     cfg["images_dir"] = args.images_dir

@@ -14,13 +14,15 @@ __all__ = [
     "WaypointRunner",
 ]
 
-if TYPE_CHECKING:  # pragma: no cover - for static type checking only
+if TYPE_CHECKING:
     from .workflows import PoseRecorder, PathRunner, CameraManager
     from .marker import MarkerPathRunner
     from .waypoint import WaypointRunner
 
 
 def __getattr__(name: str):
+    """Lazy import workflow helpers to keep top-level API light."""
+
     if name in {"PoseRecorder", "PathRunner", "CameraManager"}:
         module = import_module(".workflows", __name__)
         return getattr(module, name)

@@ -9,6 +9,7 @@ from typing import Iterable, Tuple
 from scipy.spatial.transform import Rotation as R
 
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 
 from utils.keyboard import GlobalKeyListener, TerminalEchoSuppressor
@@ -16,6 +17,7 @@ from utils.logger import Logger, LoggerType
 
 
 def load_image_paths(images_dir: str) -> list[str]:
+    """Return sorted list of image paths inside ``images_dir``."""
     return sorted(
         [
             os.path.join(images_dir, f)
@@ -44,6 +46,20 @@ def detect_board_corners(
     dist_coeffs: np.ndarray,
     min_corners: int = 4,
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
+    """Detect Charuco board corners and return left-top/right-bottom points.
+
+    Args:
+        img_path: Image file containing the printed board.
+        board: Charuco board model used for pose estimation.
+        dictionary: ArUco dictionary for marker detection.
+        camera_matrix: Intrinsic matrix ``K``.
+        dist_coeffs: Distortion coefficients.
+        min_corners: Minimum number of detected corners required.
+
+    Returns:
+        A tuple ``(lt, rb)`` with the corner positions in camera frame if the
+        board was detected, otherwise ``(None, None)``.
+    """
     img = cv2.imread(img_path)
     if img is None:
         return None, None
@@ -88,6 +104,17 @@ def analyze_handeye_residuals(
     R_cam2base: np.ndarray,
     t_cam2base: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
+    """Project detected corners to base frame using hand-eye result.
+
+    Args:
+        cam_corners: Iterable of ``(lt, rb)`` corner tuples in camera frame.
+        R_cam2base: Rotation from camera to robot base.
+        t_cam2base: Translation from camera to robot base.
+
+    Returns:
+        Arrays ``(lt_base_pred, rb_base_pred)`` with predicted base frame
+        coordinates for each detected corner.
+    """
     lt_base_pred, rb_base_pred = [], []
     for lt_cam, rb_cam in cam_corners:
         lt_base = R_cam2base @ lt_cam + t_cam2base
@@ -103,6 +130,7 @@ def error_vs_reference(
     ref_lt: Iterable[float],
     ref_rb: Iterable[float],
 ) -> tuple[np.ndarray, np.ndarray]:
+    """Compute distance errors versus reference positions."""
     lt_errs = np.linalg.norm(lt_pred - ref_lt, axis=1)
     rb_errs = np.linalg.norm(rb_pred - ref_rb, axis=1)
     return lt_errs, rb_errs
@@ -111,6 +139,7 @@ def error_vs_reference(
 def error_vs_mean(
     lt_pred: np.ndarray, rb_pred: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Return errors relative to mean position and the means themselves."""
     lt_mean = lt_pred.mean(axis=0)
     rb_mean = rb_pred.mean(axis=0)
     lt_errs = np.linalg.norm(lt_pred - lt_mean, axis=1)
@@ -126,6 +155,7 @@ def filter_by_percentile(
     logger: LoggerType | None = None,
     title: str = "Filter by percentile",
 ) -> tuple[list[str], list[str]]:
+    """Split image paths by error percentile threshold."""
     threshold = np.percentile(errors, percentile)
     keep_idx = [i for i, e in enumerate(errors) if e > threshold]
     drop_idx = [i for i, e in enumerate(errors) if e <= threshold]
@@ -151,6 +181,7 @@ def move_images(
     drop_dir: str,
     logger: LoggerType,
 ) -> None:
+    """Move files to a ``drop_imgs`` subfolder, skipping existing ones."""
     os.makedirs(drop_dir, exist_ok=True)
     for p in img_paths:
         fname = os.path.basename(p)
@@ -167,6 +198,7 @@ def move_poses_for_dropped_images(
     images_dir: str,
     logger: LoggerType,
 ) -> None:
+    """Move corresponding robot poses for dropped images."""
     poses_json = os.path.join(images_dir, "poses.json")
     drop_dir = os.path.join(images_dir, "drop_imgs")
     drop_poses_json = os.path.join(drop_dir, "poses.json")
@@ -195,14 +227,17 @@ def move_poses_for_dropped_images(
 
 
 def ask_confirm_keyboard(logger: LoggerType, msg: str) -> bool:
+    """Prompt user via hotkeys and return True if confirmed."""
     confirmed = {"value": False}
     done = threading.Event()
 
     def on_yes() -> None:
+        """Set confirmation flag and stop waiting."""
         confirmed["value"] = True
         done.set()
 
     def on_any() -> None:
+        """Stop waiting without confirming."""
         done.set()
 
     hotkeys = {
@@ -235,7 +270,7 @@ def plot_errors(
     label2: str,
     fname: str,
 ) -> None:
-    import matplotlib.pyplot as plt
+    """Save a histogram of residuals for visual inspection."""
 
     plt.figure(figsize=(8, 6))
     plt.hist(errs1, bins=15, alpha=0.6, label="LT", color="blue")
@@ -256,6 +291,7 @@ def project_board_via_handeye(
     camera_matrix: np.ndarray,
     dist_coeffs: np.ndarray,
 ) -> np.ndarray:
+    """Project board model into the image using hand-eye transform."""
     pts_cam = (R_base2cam.T @ (board_pts_base.T - t_base2cam[:, None])).T
     img_points, _ = cv2.projectPoints(
         pts_cam, np.zeros((3, 1)), np.zeros((3, 1)), camera_matrix, dist_coeffs
@@ -272,6 +308,7 @@ def validate_handeye_calibration(
     detected_corners: np.ndarray,
     logger: LoggerType,
 ) -> float:
+    """Compute reprojection error for hand-eye calibration."""
     projected_corners = project_board_via_handeye(
         board_pts_base, R_base2cam, t_base2cam, camera_matrix, dist_coeffs
     )
