@@ -6,6 +6,7 @@ from __future__ import annotations
 import numpy as np
 import cv2
 from utils.logger import Logger, LoggerType
+from storage import IStorage
 
 
 class HandEyeSaver:
@@ -43,6 +44,19 @@ class TxtHandEyeSaver(HandEyeSaver):
             np.savetxt(f, R, fmt="%.8f")
             f.write("t =\n")
             np.savetxt(f, t.reshape(1, -1), fmt="%.8f")
+
+
+class DBHandEyeSaver(HandEyeSaver):
+    """Persist calibration results in :class:`IStorage`."""
+
+    def __init__(self, storage: IStorage, prefix: str = "handeye") -> None:
+        self.storage = storage
+        self.prefix = prefix
+
+    def save(self, filename: str, R: np.ndarray, t: np.ndarray) -> None:
+        key = f"{self.prefix}:{filename}"
+        data = {"R": R.tolist(), "t": t.tolist()}
+        self.storage.put_json(key, data)
 
 
 class HandEyeCalibrator:

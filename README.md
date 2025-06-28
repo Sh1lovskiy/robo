@@ -12,6 +12,8 @@ This repository groups several focused modules under a single project umbrella. 
 * 3D point cloud capture, filtering and visualization
 * CLI tools built with a `CommandDispatcher` for calibration, robot control and cloud ops
 * Centralized logger and `ErrorTracker` with optional JSON output
+* RocksDB-based storage backend for poses, images and metrics
+* LMDB-based storage backend for poses, images and metrics
 
 ---
 
@@ -44,6 +46,11 @@ project-root/
 │   ├── geometry.py             # Math helpers
 │   └── README.md               # Package overview
 │
+├── storage/             # LMDB storage layer
+│   ├── interface.py          # IStorage definitions
+│   ├── lmdb_storage.py       # LMDB implementation
+│   └── README.md             # Package overview
+│
 ├── vision/               # Vision, cloud, and camera utils
 │   ├── camera_base.py          # Abstract camera interface
 │   ├── realsense.py            # RealSense camera implementation
@@ -72,6 +79,7 @@ The project is organized into four main packages that mirror typical robotics la
 * **robot/** – Robot connection logic and high‑level motion API. Communication is decoupled from workflows so hardware can be replaced without touching the algorithm code (Dependency Inversion Principle).
 * **vision/** – Camera interfaces, point cloud tools, and coordinate transforms. Transform chains and coordinate conventions appear in [vision/README.md](vision/README.md).
 * **utils/** – Shared helpers for configuration, logging and geometry calculations.
+* **storage/** – LMDB based persistence layer for images and metadata.
 
 Every component keeps a single responsibility and exposes a minimal interface. New robots or cameras can be integrated by implementing the same interfaces without modifying existing modules.
 
@@ -160,6 +168,17 @@ CLI modules are thin wrappers calling workflow helpers under
 * Global exception and signal handler
 * Executes registered cleanup functions on failures
 * Optional hotkeys via `utils.keyboard`
+
+### Storage (`storage/lmdb_storage.py`)
+
+* `LmdbStorage` — default persistence backend implementing `IStorage`
+
+```python
+from storage import LmdbStorage
+store = LmdbStorage("app.lmdb")
+store.put_json("pose:0", {"tcp_coords": [0, 0, 0, 0, 0, 0]})
+img = store.get_image("rgb:0")
+```
 
 ### Robot API (`robot/controller.py`)
 
