@@ -22,6 +22,8 @@ dependencies = [
     "tqdm",
     "matplotlib",
     "seaborn",
+    "python-rocksdb",
+    "lmdb",
 ]
 
 [project.scripts]
@@ -47,4 +49,11 @@ robot = ["*.py", "*.pyx"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["robot*", "utils*", "vision*", "calibration*", "validation*"]
+include = [
+    "robot*",
+    "utils*",
+    "vision*",
+    "calibration*",
+    "validation*",
+    "storage*",
+]
