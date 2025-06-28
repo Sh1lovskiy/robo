@@ -59,6 +59,8 @@ class RobotInterface(ABC):
 
 @dataclass
 class CameraConfig:
+    """Streaming and filtering parameters for :class:`RealSenseCamera`."""
+
     width: int = 640
     height: int = 480
     decimation: int = 2
@@ -67,11 +69,15 @@ class CameraConfig:
 
 @dataclass
 class RobotConfig(RobotConfigBase):
+    """Robot kinematic and connection parameters."""
+
     pass
 
 
 @dataclass
 class EdgeConfig:
+    """Tuning values used during point cloud edge detection and motion."""
+
     hull_alpha: float = 0.03
     sample_resolution: float = 0.0001
     speed: float = 0.03
@@ -81,6 +87,8 @@ class EdgeConfig:
 
 @dataclass
 class AppConfig:
+    """Container for all :mod:`edge_drawer` configuration sections."""
+
     camera: CameraConfig = field(default_factory=CameraConfig)
     robot: RobotConfig = field(default_factory=RobotConfig)
     edge: EdgeConfig = field(default_factory=EdgeConfig)
@@ -88,6 +96,8 @@ class AppConfig:
 
     @staticmethod
     def from_dict(cfg: dict[str, Any]) -> "AppConfig":
+        """Instantiate from a raw dictionary (typically YAML or JSON)."""
+
         camera = CameraConfig(**cfg.get("camera", {}))
         robot = RobotConfig(**cfg.get("robot", {}))
         edge = EdgeConfig(**cfg.get("edge", {}))
@@ -115,6 +125,8 @@ class RealSenseCamera(CameraInterface):
     """Intel RealSense D415 camera wrapper."""
 
     def __init__(self, cfg: CameraConfig) -> None:
+        """Initialize device and prepare streaming pipelines."""
+
         if rs is None:
             raise RuntimeError("pyrealsense2 not available")
         self.cfg = cfg
@@ -128,6 +140,8 @@ class RealSenseCamera(CameraInterface):
         self.filter = rs.disparity_transform(True)
 
     def capture_pointcloud(self) -> o3d.geometry.PointCloud:
+        """Grab aligned RGB-D frames and return an Open3D point cloud."""
+
         frames = self.pipeline.wait_for_frames()
         depth = frames.get_depth_frame()
         color = frames.get_color_frame()
@@ -156,13 +170,19 @@ class StubRobot(RobotInterface):
     """Robot stub that prints poses."""
 
     def stream_line(self, poses: Iterable[np.ndarray], speed: float) -> None:
+        """Log each pose instead of sending commands to hardware."""
+
         for p in poses:
             logger.info(f"Pose: {p.tolist()}")
 
     def stop_motion(self) -> None:
+        """Log a stop request."""
+
         logger.info("Motion stopped")
 
     def force_exceeded(self, limit: float) -> bool:  # pragma: no cover
+        """Always return ``False`` as no force sensing is available."""
+
         return False
 
 
@@ -177,6 +197,21 @@ class FR3Robot(StubRobot):
 def _segment_table(
     pcd: o3d.geometry.PointCloud,
 ) -> tuple[o3d.geometry.PointCloud, np.ndarray]:
+    """Split the raw cloud into object and table plane.
+
+    The function fits a plane using ``open3d.geometry.PointCloud.segment_plane``
+    and returns the points not belonging to the plane along with the plane
+    coefficients. The plane is assumed to be the support surface (table).
+
+    Args:
+        pcd: Raw point cloud including the table surface.
+
+    Returns:
+        Tuple ``(object_cloud, plane_model)`` where ``object_cloud`` contains all
+        points above the plane and ``plane_model`` is ``(a, b, c, d)`` describing
+        the plane equation ``ax + by + cz + d = 0``.
+    """
+
     plane_model, inliers = pcd.segment_plane(0.003, 3, 1000)
     object_cloud = pcd.select_by_index(inliers, invert=True)
     return object_cloud, np.array(plane_model)
@@ -185,6 +220,23 @@ def _segment_table(
 def _find_top_edge(
     pcd: o3d.geometry.PointCloud, resolution: float
 ) -> tuple[np.ndarray, o3d.geometry.PointCloud]:
+    """Extract the longest horizontal edge on the object's top.
+
+    The algorithm computes a 2-D convex hull of the XY projection and searches
+    for the pair of consecutive hull vertices with maximal length whose average
+    Y coordinate corresponds to the uppermost part of the object. Intermediate
+    points are interpolated at ``resolution`` spacing and their Z coordinate is
+    taken as the maximum Z of nearby points.
+
+    Args:
+        pcd: Point cloud representing the object surface.
+        resolution: Distance between interpolated points along the edge.
+
+    Returns:
+        ``(line, pcd)`` where ``line`` is an ``Nx3`` array of sampled edge
+        coordinates in the input cloud frame.
+    """
+
     points = np.asarray(pcd.points)
     if points.size == 0:
         raise EdgeDetectionError("Empty point cloud")
@@ -224,6 +276,8 @@ def _find_top_edge(
 
 
 def load_transform(path: str) -> np.ndarray:
+    """Load a 4x4 transform matrix from a YAML file."""
+
     if not os.path.exists(path):
         raise EdgeDetectionError(f"Transform file not found: {path}")
     with open(path, "r") as f:
@@ -232,6 +286,16 @@ def load_transform(path: str) -> np.ndarray:
 
 
 def transform_points(points: np.ndarray, T: np.ndarray) -> np.ndarray:
+    """Apply homogeneous transform ``T`` to a set of 3‑D points.
+
+    Args:
+        points: ``Nx3`` array of XYZ coordinates.
+        T: ``4x4`` homogeneous transform matrix.
+
+    Returns:
+        Transformed points with shape ``Nx3``.
+    """
+
     ones = np.ones((points.shape[0], 1))
     pts_h = np.hstack([points, ones])
     out = (T @ pts_h.T).T
@@ -241,6 +305,17 @@ def transform_points(points: np.ndarray, T: np.ndarray) -> np.ndarray:
 def generate_trajectory(
     points: np.ndarray, orientation: np.ndarray, speed: float
 ) -> list[np.ndarray]:
+    """Build a list of poses ``[x, y, z, rx, ry, rz]`` from points and orientation.
+
+    Args:
+        points: Sequence of path vertices in base coordinates.
+        orientation: Euler angles ``[rx, ry, rz]`` appended to each point.
+        speed: Linear velocity used when streaming the trajectory.
+
+    Returns:
+        List of pose arrays suitable for :meth:`RobotInterface.stream_line`.
+    """
+
     poses = []
     for p in points:
         pose = np.hstack([p, orientation])
@@ -249,6 +324,14 @@ def generate_trajectory(
 
 
 def save_preview(pcd: o3d.geometry.PointCloud, edge: np.ndarray, out: Path) -> None:
+    """Save a 2‑D preview PNG of the detected edge.
+
+    Args:
+        pcd: Original object point cloud.
+        edge: ``Nx3`` array returned by :func:`_find_top_edge`.
+        out: Output image path.
+    """
+
     import matplotlib.pyplot as plt
 
     pts = np.asarray(pcd.points)
@@ -261,6 +344,16 @@ def save_preview(pcd: o3d.geometry.PointCloud, edge: np.ndarray, out: Path) -> N
 
 
 def run(cfg: AppConfig, *, dry_run: bool = False) -> None:
+    """Main routine performing capture, edge detection and robot motion.
+
+    Args:
+        cfg: Loaded :class:`AppConfig` with camera, robot and edge parameters.
+        dry_run: If ``True`` skip robot execution and only log planned poses.
+
+    The function captures a point cloud, extracts the top edge of the object,
+    transforms the edge to the robot base frame and streams the resulting
+    trajectory to the robot controller.
+    """
 
     Logger.configure(level=cfg.logging.get("level", "INFO"))
 

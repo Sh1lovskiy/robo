@@ -15,6 +15,8 @@ class TransformUtils:
     """
 
     def __init__(self, logger: Logger | None = None) -> None:
+        """Optionally provide a logger for verbose output."""
+
         self.logger = logger or Logger.get_logger("vision.transform")
 
     @staticmethod
@@ -155,6 +157,8 @@ class TransformUtils:
 
 
 def _test_transform_utils():
+    """Basic self test exercising transform helpers."""
+
     from scipy.spatial.transform import Rotation as R
 
     logger = Logger.get_logger("vision.transform.test")

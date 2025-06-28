@@ -19,6 +19,8 @@ from .camera_base import Camera
 
 @dataclass
 class RealSenseConfig:
+    """Parameters controlling RealSense streaming resolution and mode."""
+
     width: int = 640
     height: int = 480
     fps: int = 30
@@ -34,6 +36,8 @@ class RealSenseCamera(Camera):  # type: ignore[misc]
     """
 
     def __init__(self, cfg: RealSenseConfig, logger: LoggerType | None = None) -> None:
+        """Create a camera wrapper using ``cfg`` settings."""
+
         self.cfg = cfg
         self.pipeline = rs.pipeline()
         self.config = rs.config()

@@ -47,6 +47,8 @@ class HandEyeValidationWorkflow:
         np.ndarray,
         np.ndarray,
     ]:
+        """Load configuration and return all required calibration data."""
+
         Config.load()
         cfg = Config.get("handeye")
         val_cfg = Config.get("validation")
@@ -90,6 +92,7 @@ class HandEyeValidationWorkflow:
         camera_matrix: np.ndarray,
         dist_coeffs: np.ndarray,
     ) -> tuple[list[tuple[np.ndarray, np.ndarray]], list[str], list[str]]:
+        """Detect board corners in all images and classify good/bad frames."""
         cam_corners: list[tuple[np.ndarray, np.ndarray]] = []
         good_paths: list[str] = []
         bad_paths: list[str] = []
@@ -117,6 +120,7 @@ class HandEyeValidationWorkflow:
         dist_coeffs: np.ndarray,
         images_dir: str,
     ) -> None:
+        """Analyze residuals and optionally filter bad images."""
         lt_pred, rb_pred = analyze_handeye_residuals(
             cam_corners, R_cam2base, t_cam2base
         )
@@ -159,6 +163,7 @@ class HandEyeValidationWorkflow:
             self.logger.info("No images to drop.")
 
     def run(self) -> None:
+        """Perform full validation workflow."""
         (
             images_dir,
             _out_dir,
@@ -196,6 +201,7 @@ class HandEyeValidationWorkflow:
 
 
 def _add_validate_args(parser: argparse.ArgumentParser) -> None:
+    """Arguments for the ``validate`` command."""
     Config.load()
     cfg = Config.get("handeye")
     parser.add_argument(
@@ -211,4 +217,5 @@ def _add_validate_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _run_validate(_: argparse.Namespace) -> None:
+    """CLI entry point for validation workflow."""
     HandEyeValidationWorkflow().run()

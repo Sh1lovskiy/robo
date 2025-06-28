@@ -118,7 +118,7 @@ def test_transform_utils():
     assert np.allclose(points_c, points)
 ```
 
-All utilities follow SOLID. Each function or class focuses on a single task so the vision pipeline can be extended without modifying existing code.
+All utilities are self-contained. Each function or class performs one task so the vision pipeline can be extended without modifying existing code.
 
 ---
 

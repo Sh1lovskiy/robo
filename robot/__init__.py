@@ -21,6 +21,8 @@ if TYPE_CHECKING:  # pragma: no cover - for static type checking only
 
 
 def __getattr__(name: str):
+    """Lazy import workflow helpers to keep top-level API light."""
+
     if name in {"PoseRecorder", "PathRunner", "CameraManager"}:
         module = import_module(".workflows", __name__)
         return getattr(module, name)

@@ -24,6 +24,7 @@ DEPTH_SCALE = 0.001
 
 
 def load_handeye_txt(path: str) -> tuple[np.ndarray, np.ndarray]:
+    """Read rotation matrix ``R`` and translation ``t`` from a text file."""
     with open(path, "r") as f:
         lines = f.readlines()
     R: list[list[float]] = []
@@ -45,6 +46,7 @@ def load_handeye_txt(path: str) -> tuple[np.ndarray, np.ndarray]:
 
 
 def load_depth(depth_path: str) -> np.ndarray:
+    """Load depth map and convert integer arrays to meters."""
     depth = np.load(depth_path)
     if np.issubdtype(depth.dtype, np.integer):
         depth = depth.astype(np.float32) * DEPTH_SCALE
@@ -52,6 +54,7 @@ def load_depth(depth_path: str) -> np.ndarray:
 
 
 def get_image_pairs(data_dir: str) -> list[tuple[str, str]]:
+    """Collect matching RGB and depth filenames from ``data_dir``."""
     rgb_list = sorted(glob.glob(os.path.join(data_dir, "*_rgb.*")))
     depth_list = sorted(glob.glob(os.path.join(data_dir, "*_depth.*")))
     assert len(rgb_list) == len(depth_list), "RGB and depth image count mismatch."
@@ -59,7 +62,10 @@ def get_image_pairs(data_dir: str) -> list[tuple[str, str]]:
 
 
 class RGBDAggregator:
+    """Aggregate multiple RGB-D frames into a unified point cloud."""
     def __init__(self, logger: LoggerType | None = None) -> None:
+        """Initialize helpers for point cloud generation and transforms."""
+
         self.logger = logger or Logger.get_logger("cloud.aggregator")
         self.cloud_gen = PointCloudGenerator()
         self.transformer = TransformUtils()
@@ -74,6 +80,21 @@ class RGBDAggregator:
         t_handeye: np.ndarray,
         use_icp: bool = False,
     ) -> tuple[np.ndarray, np.ndarray | None]:
+        """Generate a merged point cloud from synchronized RGB-D frames.
+
+        Args:
+            img_pairs: List of ``(rgb_path, depth_path)`` tuples.
+            rotations: List of TCP rotation matrices in the base frame.
+            translations: List of TCP translations in the base frame.
+            intrinsics: Camera intrinsic matrix ``K``.
+            R_handeye: Rotation from camera to TCP obtained via hand-eye calibration.
+            t_handeye: Translation from camera to TCP.
+            use_icp: If ``True`` align successive clouds using ICP.
+
+        Returns:
+            Tuple ``(points, colors)`` containing the aggregated point coordinates
+            in the robot base frame and optional RGB colors.
+        """
         base_pcd: o3d.geometry.PointCloud | None = None
 
         for idx, ((rgb_path, depth_path), (R_tcp, t_tcp)) in enumerate(
@@ -135,11 +156,13 @@ class RGBDAggregator:
     def save_cloud(
         self, points: np.ndarray, colors: np.ndarray | None, out_path: str
     ) -> None:
+        """Save the aggregated cloud to disk."""
         self.cloud_gen.save_ply(out_path, points, colors)
         self.logger.info(f"Aggregated cloud saved: {out_path}")
 
 
 def _add_aggregate_args(parser: argparse.ArgumentParser) -> None:
+    """CLI argument setup for the ``aggregate`` sub-command."""
     Config.load()
     cfg = Config.get("aggregator")
     if cfg is not None:
@@ -155,6 +178,7 @@ def _add_aggregate_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _run_aggregate(args: argparse.Namespace) -> None:
+    """Entry point for command line aggregation."""
     logger = Logger.get_logger("cloud.pipeline")
     Config.load()
     cfg = Config.get("aggregator")
@@ -185,6 +209,8 @@ def _run_aggregate(args: argparse.Namespace) -> None:
 
 
 def create_cli() -> CommandDispatcher:
+    """Build the CLI dispatcher for the aggregation tool."""
+
     return CommandDispatcher(
         "Point cloud aggregation utilities",
         [
@@ -199,6 +225,8 @@ def create_cli() -> CommandDispatcher:
 
 
 def main() -> None:
+    """Entry point used by ``python -m`` execution."""
+
     logger = Logger.get_logger("vision.aggregator")
     create_cli().run(logger=logger)
 

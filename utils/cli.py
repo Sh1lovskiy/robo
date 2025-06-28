@@ -28,6 +28,8 @@ class CommandDispatcher:
     commands: Iterable[Command] = field(default_factory=list)
 
     def _build_parser(self) -> argparse.ArgumentParser:
+        """Create the :class:`argparse.ArgumentParser` for this dispatcher."""
+
         parser = argparse.ArgumentParser(description=self.description)
         subparsers = parser.add_subparsers(dest="command")
         for cmd in self.commands:
