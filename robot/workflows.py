@@ -27,6 +27,7 @@ from utils.logger import Logger, LoggerType
 from vision.realsense import RealSenseCamera, RealSenseConfig
 from vision.camera_base import Camera
 from vision.opencv_utils import OpenCVUtils
+from storage import IStorage, LmdbStorage
 
 
 # --- Pose Recording ---
@@ -56,6 +57,18 @@ class JsonPoseSaver(PoseSaver):
             json.dump(data, f, indent=4)
 
 
+class DBPoseSaver(PoseSaver):
+    """Store poses in a :class:`IStorage` backend."""
+
+    def __init__(self, storage: IStorage, prefix: str = "poses") -> None:
+        self.storage = storage
+        self.prefix = prefix
+
+    def save(self, filename: str, pose_id: str, pose: List[float]) -> None:
+        key = f"{self.prefix}:{pose_id}"
+        self.storage.put_json(key, {"tcp_coords": pose})
+
+
 @dataclass
 class IRFrameSaver:
     """Save infrared frames to disk."""
@@ -70,6 +83,20 @@ class IRFrameSaver:
         self.logger.info(f"Saved IR for {idx}")
 
 
+class DBIRFrameSaver(IRFrameSaver):
+    """Store IR frames in an :class:`IStorage` backend."""
+
+    def __init__(self, storage: IStorage, prefix: str = "ir") -> None:
+        self.storage = storage
+        self.prefix = prefix
+        self.logger = Logger.get_logger("robot.workflow.dbir")
+
+    def save(self, idx: str, ir_img: np.ndarray) -> None:
+        key = f"{self.prefix}:{idx}"
+        self.storage.put_image(key, ir_img)
+        self.logger.info(f"Saved IR for {idx}")
+
+
 @dataclass
 class PoseRecorder:
     """Interactive pose recorder with synchronized camera frames."""
@@ -77,6 +104,7 @@ class PoseRecorder:
     controller: RobotController
     saver: PoseSaver
     captures_dir: str
+    frame_saver: "FrameSaver"
     drag: bool = False
     logger: LoggerType = Logger.get_logger("robot.workflow.record")
 
@@ -124,17 +152,23 @@ class PoseRecorder:
                 self.logger.error(f"Failed to enter drag mode: {e}")
                 camera_mgr.stop()
                 return
-        ir_saver = IRFrameSaver(self.captures_dir)
-        poses_path = os.path.join(self.captures_dir, "poses.json")
-        if os.path.exists(poses_path):
-            with open(poses_path, "r") as f:
-                poses_data = json.load(f)
-            existing_ids = [
-                int(k) for k in poses_data.keys() if re.fullmatch(r"\d+", k)
-            ]
-            pose_count = max(existing_ids) + 1 if existing_ids else 0
+        if isinstance(self.saver, DBPoseSaver):
+            ir_saver = DBIRFrameSaver(self.saver.storage)
+            keys = list(self.saver.storage.iter_prefix(f"{self.saver.prefix}:"))
+            ids = [int(k.split(":")[1]) for k in keys]
+            pose_count = max(ids) + 1 if ids else 0
         else:
-            pose_count = 0
+            ir_saver = IRFrameSaver(self.captures_dir)
+            poses_path = os.path.join(self.captures_dir, "poses.json")
+            if os.path.exists(poses_path):
+                with open(poses_path, "r") as f:
+                    poses_data = json.load(f)
+                existing_ids = [
+                    int(k) for k in poses_data.keys() if re.fullmatch(r"\d+", k)
+                ]
+                pose_count = max(existing_ids) + 1 if existing_ids else 0
+            else:
+                pose_count = 0
         print("Press ENTER to save current pose. Press 'q' to quit.")
 
         should_exit = [False]
@@ -145,7 +179,10 @@ class PoseRecorder:
             pose = self.controller.get_tcp_pose()
             if pose:
                 idx = f"{pose_count:03d}"
-                self.saver.save(poses_path, idx, pose)
+                if isinstance(self.saver, DBPoseSaver):
+                    self.saver.save("", idx, pose)
+                else:
+                    self.saver.save(poses_path, idx, pose)
                 self._save_frames(idx, color, depth)
                 print(f"Saved pose {idx}")
                 pose_count += 1
@@ -214,13 +251,16 @@ class PoseRecorder:
                 self.logger.error(f"Failed to exit drag mode: {e}")
 
     def _save_frames(self, idx: str, color: np.ndarray, depth: np.ndarray) -> None:
-        """Store RGB and depth frames for pose ``idx`` on disk."""
-        rgb_path = os.path.join(self.captures_dir, f"{idx}_rgb.png")
-        depth_path = os.path.join(self.captures_dir, f"{idx}_depth.npy")
-        os.makedirs(self.captures_dir, exist_ok=True)
-        cv2.imwrite(rgb_path, color)
-        np.save(depth_path, depth)
-        self.logger.info(f"Saved frames for {idx}")
+        """Store RGB and depth frames for pose ``idx``."""
+        if isinstance(self.frame_saver, DBFrameSaver):
+            self.frame_saver.save(int(idx), color, depth)
+        else:
+            rgb_path = os.path.join(self.captures_dir, f"{idx}_rgb.png")
+            depth_path = os.path.join(self.captures_dir, f"{idx}_depth.npy")
+            os.makedirs(self.captures_dir, exist_ok=True)
+            cv2.imwrite(rgb_path, color)
+            np.save(depth_path, depth)
+            self.logger.info(f"Saved frames for {idx}")
 
 
 # --- Path Execution ---
@@ -241,6 +281,22 @@ class FrameSaver:
         cv2.imwrite(rgb_path, color)
         np.save(depth_path, depth)
         self.logger.info(f"Saved {rgb_path} and {depth_path}")
+
+
+class DBFrameSaver(FrameSaver):
+    """Store RGB and depth frames in :class:`IStorage`."""
+
+    def __init__(self, storage: IStorage, prefix: str = "frame") -> None:
+        self.storage = storage
+        self.prefix = prefix
+        self.logger = Logger.get_logger("robot.workflow.dbframes")
+
+    def save(self, idx: int, color: np.ndarray, depth: np.ndarray) -> None:
+        key = f"{self.prefix}:{idx:03d}"
+        with self.storage.batch() as b:
+            b.put_image(f"{key}:rgb", color)
+            b.put_array(f"{key}:depth", depth)
+        self.logger.info(f"Stored frame {idx}")
 
 
 class CameraManager:
@@ -352,7 +408,11 @@ def _run_record(args: argparse.Namespace) -> None:
             ``drag`` options supplied by :func:`_add_record_args`.
     """
     recorder = PoseRecorder(
-        RobotController(rpc=args.ip), JsonPoseSaver(), args.captures_dir, drag=args.drag
+        RobotController(rpc=args.ip),
+        JsonPoseSaver(),
+        args.captures_dir,
+        FrameSaver(args.captures_dir),
+        drag=args.drag,
     )
     recorder.run()
 
