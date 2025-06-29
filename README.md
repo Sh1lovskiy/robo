@@ -12,7 +12,6 @@ This repository groups several focused modules under a single project umbrella. 
 * 3D point cloud capture, filtering and visualization
 * CLI tools built with a `CommandDispatcher` for calibration, robot control and cloud ops
 * Centralized logger and `ErrorTracker` with optional JSON output
-* RocksDB-based storage backend for poses, images and metrics
 * LMDB-based storage backend for poses, images and metrics
 
 ---
@@ -36,7 +35,7 @@ project-root/
 │   ├── Robot.py                # Cython RPC bindings
 │   └── README.md               # Package overview
 │
-├── utils/                # Common utilities
+├── utils/                # Common utilities and storage
 │   ├── config.py               # Config loading/abstraction
 │   ├── logger.py               # Centralized, JSON-capable logger
 │   ├── error_tracker.py        # Global exception and signal handling
@@ -44,12 +43,8 @@ project-root/
 │   ├── keyboard.py             # Global hotkey listener
 │   ├── io.py                   # Camera calibration I/O
 │   ├── geometry.py             # Math helpers
+│   ├── lmdb_storage.py         # LMDB implementation
 │   └── README.md               # Package overview
-│
-├── storage/             # LMDB storage layer
-│   ├── interface.py          # IStorage definitions
-│   ├── lmdb_storage.py       # LMDB implementation
-│   └── README.md             # Package overview
 │
 ├── vision/               # Vision, cloud, and camera utils
 │   ├── camera_base.py          # Abstract camera interface
@@ -79,7 +74,7 @@ The project is organized into four main packages that mirror typical robotics la
 * **robot/** – Robot connection logic and high‑level motion API. Communication is decoupled from workflows so hardware can be replaced without touching the algorithm code (Dependency Inversion Principle).
 * **vision/** – Camera interfaces, point cloud tools, and coordinate transforms. Transform chains and coordinate conventions appear in [vision/README.md](vision/README.md).
 * **utils/** – Shared helpers for configuration, logging and geometry calculations.
-* **storage/** – LMDB based persistence layer for images and metadata.
+* **utils/lmdb_storage.py** – LMDB based persistence layer for images and metadata.
 
 Every component keeps a single responsibility and exposes a minimal interface. New robots or cameras can be integrated by implementing the same interfaces without modifying existing modules.
 
@@ -169,12 +164,12 @@ CLI modules are thin wrappers calling workflow helpers under
 * Executes registered cleanup functions on failures
 * Optional hotkeys via `utils.keyboard`
 
-### Storage (`storage/lmdb_storage.py`)
+### Storage (`utils/lmdb_storage.py`)
 
 * `LmdbStorage` — default persistence backend implementing `IStorage`
 
 ```python
-from storage import LmdbStorage
+from utils.lmdb_storage import LmdbStorage
 store = LmdbStorage("app.lmdb")
 store.put_json("pose:0", {"tcp_coords": [0, 0, 0, 0, 0, 0]})
 img = store.get_image("rgb:0")

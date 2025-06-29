@@ -16,9 +16,9 @@ logging:
 
 charuco:
   squares_x: 5
-  squares_y: 7
-  square_length: 0.033
-  marker_length: 0.025
+  squares_y: 8
+  square_length: 0.035
+  marker_length: 0.026
   aruco_dict: "5X5_100"
   min_corners: 4
   outlier_std: 2.0
@@ -42,17 +42,17 @@ sample_selector:
 validation:
   aruco_dict: "5X5_100"
   squares_x: 5
-  squares_y: 7
-  square_length: 0.033
-  marker_length: 0.025
+  squares_y: 8
+  square_length: 0.035
+  marker_length: 0.026
   pixel_threshold: 1.0
   board_lt_base: [-0.165, -0.365, 0.0]
   board_rb_base: [-0.4, -0.53, 0.0]
 
 edge_drawer:
   camera:
-    width: 640
-    height: 480
+    width: 1920
+    height: 1080
     decimation: 2
     filter_sigma: 1.0
   robot:
