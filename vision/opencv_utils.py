@@ -1,5 +1,3 @@
-# vision/opencv_utils.py
-
 from __future__ import annotations
 
 import cv2
@@ -9,6 +7,11 @@ from calibration.helpers.pose_utils import load_camera_params
 
 class OpenCVUtils:
     """Collection of OpenCV helper functions."""
+
+    def __init__(self, display_width: int = 640, display_height: int = 480):
+        """Set display frame size for visualization."""
+        self.display_width = display_width
+        self.display_height = display_height
 
     @staticmethod
     def draw_text(
@@ -42,12 +45,16 @@ class OpenCVUtils:
         """Apply the JET colormap to an 8-bit depth image."""
         return cv2.applyColorMap(depth_uint8, cv2.COLORMAP_JET)
 
-    @staticmethod
-    def show_depth(depth: np.ndarray, window: str = "Depth Colormap") -> None:
-        """Display a depth image with a JET colormap."""
-        depth_uint8 = OpenCVUtils.normalize_depth(depth)
-        depth_color = OpenCVUtils.apply_colormap(depth_uint8)
-        cv2.imshow(window, depth_color)
+    def show_depth(self, depth: np.ndarray, window: str = "Depth Colormap") -> None:
+        """Display a depth image with a JET colormap and resize to target window."""
+        depth_uint8 = self.normalize_depth(depth)
+        depth_color = self.apply_colormap(depth_uint8)
+        depth_disp = cv2.resize(
+            depth_color,
+            (self.display_width, self.display_height),
+            interpolation=cv2.INTER_AREA,
+        )
+        cv2.imshow(window, depth_disp)
 
     @staticmethod
     def load_camera_calib_from_xml(

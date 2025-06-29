@@ -7,20 +7,22 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from calibration.helpers.charuco import load_board
-from calibration.helpers.handeye import (
+from calibration.calibrator import (
+    load_board,
     HandEyeCalibrator,
     NPZHandEyeSaver,
     TxtHandEyeSaver,
+    DBHandEyeSaver,
 )
 from calibration.helpers.pose_utils import (
     extract_charuco_poses,
     load_camera_params,
     ExtractionParams,
-    JSONPoseLoader,
+    LmdbPoseLoader,
 )
 from utils.config import Config
 from utils.logger import Logger, LoggerType
+from utils.lmdb_storage import LmdbStorage
 from utils.cli import Command
 from utils.settings import paths
 
@@ -41,17 +43,15 @@ class HandEyeCalibrationWorkflow:
         cv2.aruco_CharucoBoard,
         cv2.aruco_Dictionary,
     ]:
-        """Read configuration and load input files."""
         if Config._data is None:
             Config.load()
         cfg = Config.get("handeye")
-        out_dir = cfg.get("calib_output_dir", "calibration/results") or str(
-            paths.RESULTS_DIR
-        )
+        out_dir = "captures/results3"
         os.makedirs(out_dir, exist_ok=True)
-        charuco_xml = cfg.get(
-            "charuco_xml", os.path.join(out_dir, "charuco_cam.xml")
-        ) or str(paths.RESULTS_DIR / "charuco_cam.xml")
+        # charuco_xml = cfg.get(
+        #     "charuco_xml", os.path.join(out_dir, "charuco_cam.xml")
+        # ) or str(paths.RESULTS_DIR / "charuco_cam.xml")
+        charuco_xml = "calibration/results1980/charuco_cam.xml"
         robot_file = cfg.get("robot_poses_file", "cloud/poses.json") or str(
             paths.CAPTURES_DIR / "poses.json"
         )
@@ -76,8 +76,6 @@ class HandEyeCalibrationWorkflow:
         valid_paths: list[str],
         all_paths: list[str],
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
-        """Match robot poses to image filenames after filtering."""
-
         def extract_index(fname: str) -> str:
             return os.path.splitext(os.path.basename(fname))[0].split("_")[0]
 
@@ -100,19 +98,19 @@ class HandEyeCalibrationWorkflow:
         method: str,
         results: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
     ) -> None:
-        """Persist calibration matrices in both NPZ and text formats."""
         if results is None:
             R, t = calibrator.calibrate(method)
             results = {method: (R, t)}
+        db = LmdbStorage(os.path.join(out_dir, "calibration.lmdb"))
         for name, (R, t) in results.items():
             npz_file = os.path.join(out_dir, f"handeye_{name}.npz")
             txt_file = os.path.join(out_dir, f"handeye_{name}.txt")
             calibrator.save(NPZHandEyeSaver(), npz_file, R, t)
             calibrator.save(TxtHandEyeSaver(), txt_file, R, t)
+            calibrator.save(DBHandEyeSaver(db), name, R, t)
             self.logger.info(f"Saved {name} calibration to {npz_file}")
 
     def run(self) -> None:
-        """Execute hand-eye calibration using current config."""
         cfg, out_dir, charuco_xml, robot_file, images_dir, method, board, dictionary = (
             self._load_config()
         )
@@ -126,7 +124,7 @@ class HandEyeCalibrationWorkflow:
             self.logger.error(f"Images directory {images_dir} not found")
             return
         camera_matrix, dist_coeffs = load_camera_params(charuco_xml)
-        Rs_g2b, ts_g2b = JSONPoseLoader.load_poses(robot_file)
+        Rs_g2b, ts_g2b = LmdbPoseLoader.load_poses(robot_file)
         params = ExtractionParams(
             min_corners=cfg.get("min_corners", 4),
             # visualize=cfg.get("visualize", True),
@@ -169,7 +167,6 @@ class HandEyeCalibrationWorkflow:
 
 
 def add_handeye_args(parser: argparse.ArgumentParser) -> None:
-    """CLI arguments for the hand-eye workflow."""
     Config.load()
     cfg = Config.get("handeye")
     out_dir = cfg.get("calib_output_dir", "calibration/results")
@@ -201,7 +198,6 @@ def add_handeye_args(parser: argparse.ArgumentParser) -> None:
 
 
 def run_handeye(args: argparse.Namespace) -> None:
-    """Entry point for ``handeye`` command."""
     Config.load()
     cfg = Config.get("handeye")
     cfg["images_dir"] = args.images_dir

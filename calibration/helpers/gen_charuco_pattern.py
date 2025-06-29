@@ -16,6 +16,7 @@ PX_PER_MM = DPI / 25.4
 WIDTH_PX = int(A4_WIDTH_MM * PX_PER_MM)
 HEIGHT_PX = int(A4_HEIGHT_MM * PX_PER_MM)
 
+# Типы шаблонов для генерации
 CHARUCO_CONFIGS = [
     # (squares_x, squares_y, aruco_dict_name, aruco_dict_id)
     (8, 5, "5X5_50", cv2.aruco.DICT_5X5_50),
@@ -27,10 +28,7 @@ CHARUCO_CONFIGS = [
 
 class CharucoPatternGenerator:
     """
-    Generate printable Charuco board patterns on an A4 sheet.
-
-    The generator pre-computes the pixel size of the sheet given the desired
-    DPI and exports images that can be printed for camera calibration.
+    Generator for printable Charuco board patterns on A4 sheet.
     """
 
     def __init__(
@@ -41,16 +39,6 @@ class CharucoPatternGenerator:
         out_dir: str = "charuco_patterns",
         logger: LoggerType = None,
     ):
-        """
-        Pre-compute output sizes and create ``out_dir`` if needed.
-
-        Args:
-            dpi: Target dots-per-inch resolution for the printout.
-            a4_width_mm: Width of the paper in millimetres.
-            a4_height_mm: Height of the paper in millimetres.
-            out_dir: Directory where generated PNGs will be stored.
-            logger: Optional project logger.
-        """
         self.dpi = dpi
         self.width_px = int(a4_width_mm / 25.4 * dpi)
         self.height_px = int(a4_height_mm / 25.4 * dpi)
@@ -62,11 +50,7 @@ class CharucoPatternGenerator:
 
     def generate_all(self, configs: List[tuple]) -> None:
         """
-        Generate all Charuco boards from a list of configurations.
-
-        Args:
-            configs: List of tuples ``(squares_x, squares_y, name, dict_id)``
-                describing board layouts.
+        Generate all charuco boards from configs list.
         """
         for cfg in configs:
             self.generate_and_save(*cfg)
@@ -82,14 +66,6 @@ class CharucoPatternGenerator:
     ) -> None:
         """
         Generate one Charuco board and save it as PNG with a label.
-
-        Args:
-            squares_x: Number of squares along the X axis.
-            squares_y: Number of squares along the Y axis.
-            dict_name: Name of the ArUco dictionary.
-            dict_id: OpenCV dictionary identifier.
-            margin_mm: Extra white border size around the board in millimetres.
-            marker_rel: Ratio of marker side length to square side length.
         """
         square_length_px = min(
             (self.width_px - 2 * margin_mm * PX_PER_MM) / squares_x,
@@ -137,10 +113,7 @@ class CharucoPatternGenerator:
         marker_length_mm: float,
     ) -> None:
         """
-         Add a text label to the PNG file for clarity.
-
-        The label includes board size, square length, marker length and
-        dictionary name so that printed sheets are self-describing.
+        Add a text label to the PNG file for clarity.
         """
         img = Image.open(img_path).convert("RGB")
         draw = ImageDraw.Draw(img)
@@ -149,13 +122,11 @@ class CharucoPatternGenerator:
             f"Square: {square_length_mm:.2f}mm | "
             f"Marker: {marker_length_mm:.2f}mm | Dict: {dict_name}"
         )
-        # draw.text((24, self.height_px - 50), text, fill=(0, 0, 0))
+        draw.text((24, self.height_px - 50), text, fill=(0, 0, 0))
         img.save(img_path.replace(".png", "_label.png"))
 
 
 def main():
-    """CLI helper generating all predefined Charuco patterns."""
-
     logger = Logger.get_logger(__name__)
     generator = CharucoPatternGenerator(logger=logger)
     generator.generate_all(CHARUCO_CONFIGS)

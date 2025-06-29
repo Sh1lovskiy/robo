@@ -163,7 +163,7 @@ class RobotController:
         self.rpc.RobotEnable(0)
         self.logger.info("Robot disabled")
 
-    # --- Additional helper methods ---
+    # --- Additional SOLID helpers ---
     def wait_motion_done(self, timeout_sec: float = 20) -> bool:
         """
         Wait until robot finishes motion (with timeout).

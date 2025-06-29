@@ -22,7 +22,6 @@ dependencies = [
     "tqdm",
     "matplotlib",
     "seaborn",
-    "python-rocksdb",
     "lmdb",
 ]
 
@@ -38,7 +37,7 @@ pointcloud-transform = "vision.tools:main_transform"
 pointcloud-view = "vision.tools:main_view"
 vis-pointcloud = "vision.tools:main_pipeline"
 vision-cli = "vision.tools:main"
-cloud-aggregate = "vision.analysis.aggregator:main"
+cloud-aggregate = "vision.cloud.aggregator:main"
 robot-cli = "robot.workflows:main"
 calibration-cli = "calibration.workflows:main"
 restart-cli = "robot.workflows:main"
@@ -55,5 +54,4 @@ include = [
     "vision*",
     "calibration*",
     "validation*",
-    "storage*",
 ]

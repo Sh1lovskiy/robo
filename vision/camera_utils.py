@@ -21,8 +21,6 @@ class IntrinsicsPrinter:
     logger: LoggerType = Logger.get_logger("vision.tools.intrinsics")
 
     def run(self) -> None:
-        """Start the camera, print intrinsics, then shut it down."""
-
         try:
             self.camera.start()
         except CameraError as e:
@@ -46,8 +44,6 @@ class DepthChecker:
     logger: LoggerType = Logger.get_logger("vision.tools.depth")
 
     def run(self) -> None:
-        """Display depth frames with distance overlay until ESC is pressed."""
-
         try:
             self.camera.start()
         except CameraError as e:

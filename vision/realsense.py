@@ -1,6 +1,10 @@
 # vision/realsense.py
 
-"""RealSense camera wrapper.
+"""RealSense camera wrapper with custom controls.
+
+Streams color (1920x1080) and depth (1280x720), disables projector,
+sets depth units to 0.0001, disables auto exposure and sets exposure for RGB sensor.
+All frames are displayed at 640x480 for UI preview.
 
 TODO: add CI badges for build and coverage.
 """
@@ -19,42 +23,44 @@ from .camera_base import Camera
 
 @dataclass
 class RealSenseConfig:
-    """Parameters controlling RealSense streaming resolution and mode."""
-
-    width: int = 640
-    height: int = 480
+    color_width: int = 1920
+    color_height: int = 1080
+    depth_width: int = 1280
+    depth_height: int = 720
     fps: int = 30
     enable_color: bool = True
     enable_depth: bool = True
     align_to_color: bool = True
+    display_width: int = 640
+    display_height: int = 480
 
 
 class RealSenseCamera(Camera):  # type: ignore[misc]
     """
     Unified interface for Intel RealSense camera.
-    Provides methods for streaming, frame alignment, and getting intrinsics.
+    Streams color and depth, sets depth units, disables emitter,
+    and allows exposure control.
     """
 
     def __init__(self, cfg: RealSenseConfig, logger: LoggerType | None = None) -> None:
-        """Create a camera wrapper using ``cfg`` settings."""
-
         self.cfg = cfg
         self.pipeline = rs.pipeline()
         self.config = rs.config()
         self.logger = logger or Logger.get_logger("vision.realsense")
+
         if cfg.enable_depth:
             self.config.enable_stream(
                 rs.stream.depth,
-                cfg.width,
-                cfg.height,
+                cfg.depth_width,
+                cfg.depth_height,
                 rs.format.z16,
                 cfg.fps,
             )
         if cfg.enable_color:
             self.config.enable_stream(
                 rs.stream.color,
-                cfg.width,
-                cfg.height,
+                cfg.color_width,
+                cfg.color_height,
                 rs.format.bgr8,
                 cfg.fps,
             )
@@ -68,15 +74,37 @@ class RealSenseCamera(Camera):  # type: ignore[misc]
 
     def start(self) -> None:
         """
-        Start streaming from the camera.
+        Start streaming and apply sensor configuration.
         """
         try:
             self.profile = self.pipeline.start(self.config)
+            dev = self.profile.get_device()
+            # Depth sensor config
             if self.enable_depth:
-                depth_sensor = self.profile.get_device().first_depth_sensor()
-                self.depth_scale = depth_sensor.get_depth_scale()
-                self.logger.info(f"Depth scale: {self.depth_scale:.6f} meters per unit")
-            if self.align_to_color:
+                depth_sensor = dev.first_depth_sensor()
+                try:
+                    depth_sensor.set_option(rs.option.depth_units, 0.0001)
+                    self.logger.info("Depth units set to 0.0001 meters")
+                except Exception as e:
+                    self.logger.warning(f"Failed to set depth units: {e}")
+                self.depth_scale = depth_sensor.get_option(rs.option.depth_units)
+                if depth_sensor.supports(rs.option.emitter_enabled):
+                    depth_sensor.set_option(rs.option.emitter_enabled, 0)
+                    self.logger.info("Depth projector (emitter) disabled")
+            # RGB sensor config
+            color_sensor = None
+            for s in dev.sensors:
+                if s.get_info(rs.camera_info.name) == "RGB Camera":
+                    color_sensor = s
+                    break
+            if color_sensor:
+                if color_sensor.supports(rs.option.enable_auto_exposure):
+                    color_sensor.set_option(rs.option.enable_auto_exposure, 0)
+                    self.logger.info("RGB auto exposure disabled")
+                if color_sensor.supports(rs.option.exposure):
+                    color_sensor.set_option(rs.option.exposure, 50)
+                    self.logger.info("RGB exposure set to 50")
+            if self.align_to_color and self.enable_color and self.enable_depth:
                 self.align = rs.align(rs.stream.color)
             self.started = True
             ErrorTracker.register_cleanup(self.stop)
@@ -85,9 +113,7 @@ class RealSenseCamera(Camera):  # type: ignore[misc]
             raise CameraConnectionError(str(e)) from e
 
     def stop(self) -> None:
-        """
-        Stop streaming and release resources.
-        """
+        """Stop streaming and release resources."""
         if self.started:
             self.pipeline.stop()
             self.started = False
@@ -96,7 +122,7 @@ class RealSenseCamera(Camera):  # type: ignore[misc]
         self, aligned: bool = True
     ) -> tuple[np.ndarray | None, np.ndarray | None]:
         """
-        Returns (color_img, depth_img) as numpy arrays (None if not enabled).
+        Returns (color_img, depth_img) as numpy arrays.
         If aligned=True and both streams enabled, aligns depth to color.
         """
         assert self.started, "Camera must be started before getting frames."
@@ -132,9 +158,7 @@ class RealSenseCamera(Camera):  # type: ignore[misc]
         }
 
     def get_depth_scale(self) -> float:
-        """
-        Get depth scale in meters per unit.
-        """
+        """Get depth scale in meters per unit."""
         assert self.depth_scale is not None, "Depth scale not available."
         return self.depth_scale
 
@@ -150,9 +174,22 @@ if __name__ == "__main__":
     for _ in range(10):
         color, depth = cam.get_frames()
         assert color is not None and depth is not None
-        print("Frame shapes:", color.shape, depth.shape)
-        cv2.imshow("Color", color)
-        cv2.imshow("Depth", (depth / depth.max() * 255).astype(np.uint8))
+        # Resize for display
+        color_disp = cv2.resize(
+            color,
+            (cam.cfg.display_width, cam.cfg.display_height),
+            interpolation=cv2.INTER_AREA,
+        )
+        # Normalize depth for visualization and resize
+        depth_vis = cv2.convertScaleAbs(depth, alpha=0.03)
+        depth_vis = cv2.applyColorMap(depth_vis, cv2.COLORMAP_JET)
+        depth_disp = cv2.resize(
+            depth_vis,
+            (cam.cfg.display_width, cam.cfg.display_height),
+            interpolation=cv2.INTER_AREA,
+        )
+        cv2.imshow("Color", color_disp)
+        cv2.imshow("Depth", depth_disp)
         if cv2.waitKey(1) == 27:
             break
     cam.stop()
