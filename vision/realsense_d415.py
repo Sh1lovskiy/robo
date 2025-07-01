@@ -9,6 +9,7 @@ import numpy as np
 import pyrealsense2 as rs
 
 from utils.logger import Logger, LoggerType
+from utils.settings import DEPTH_SCALE
 
 
 @dataclass
@@ -95,7 +96,7 @@ class RealSenseD415:
         if self.depth_sensor is None or self.rgb_sensor is None:
             raise RuntimeError("Required sensors not found")
         self._apply_settings()
-        self.depth_scale = 0.0001
+        self.depth_scale = DEPTH_SCALE
         self.logger.info(f"Depth scale: {self.depth_scale:.6f} m/unit")
         if self.stream_cfg.align_to_color:
             self.align = rs.align(rs.stream.color)

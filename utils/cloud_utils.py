@@ -1,0 +1,62 @@
+# utils/cloud_utils.py — Point cloud helper functions
+"""Utility helpers for cloud aggregation and calibration files."""
+
+from __future__ import annotations
+
+import glob
+import json
+import os
+from typing import Tuple
+import numpy as np
+
+from utils.logger import Logger, LoggerType
+from utils.settings import DEPTH_SCALE
+
+
+def load_handeye_txt(path: str) -> Tuple[np.ndarray, np.ndarray]:
+    """Load hand-eye calibration from a simple text format."""
+    with open(path, "r") as f:
+        lines = f.readlines()
+    R: list[list[float]] = []
+    t: np.ndarray = np.empty(3)
+    for line in lines:
+        if line.startswith("R") or line.startswith("t"):
+            continue
+        values = [float(x) for x in line.strip().split()]
+        if len(values) == 3:
+            if len(R) < 3:
+                R.append(values)
+            else:
+                t = np.array(values)
+    return np.array(R), t
+
+
+def load_depth(depth_path: str, depth_scale: float = DEPTH_SCALE) -> np.ndarray:
+    """Load depth map converting integer arrays to meters."""
+    depth = np.load(depth_path)
+    if np.issubdtype(depth.dtype, np.integer):
+        depth = depth.astype(np.float32) * depth_scale
+    return depth
+
+
+def get_image_pairs(data_dir: str) -> list[tuple[str, str]]:
+    """Return matched RGB/depth image file pairs in ``data_dir``."""
+    rgb_list = sorted(glob.glob(os.path.join(data_dir, "*_rgb.*")))
+    depth_list = sorted(glob.glob(os.path.join(data_dir, "*_depth.*")))
+    if len(rgb_list) != len(depth_list):
+        raise RuntimeError("RGB and depth image count mismatch")
+    return list(zip(rgb_list, depth_list))
+
+
+def load_extrinsics_json(
+    json_path: str, logger: LoggerType | None = None
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Read depth-to-RGB extrinsics from a JSON file."""
+    logger = logger or Logger.get_logger("utils.cloud")
+    with open(json_path, "r") as f:
+        data = json.load(f)
+    R = np.array(data["depth_to_rgb"]["rotation"])
+    t = np.array(data["depth_to_rgb"]["translation"])
+    logger.info("Extrinsics loaded from %s", json_path)
+    return R, t
+
