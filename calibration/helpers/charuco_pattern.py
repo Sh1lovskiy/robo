@@ -9,13 +9,11 @@ import cv2
 from PIL import Image, ImageDraw
 
 from utils.logger import Logger, LoggerType
+from utils.settings import pattern
 
-A4_WIDTH_MM = 297
-A4_HEIGHT_MM = 210
-DPI = 300
-PX_PER_MM = DPI / 25.4
-WIDTH_PX = int(A4_WIDTH_MM * PX_PER_MM)
-HEIGHT_PX = int(A4_HEIGHT_MM * PX_PER_MM)
+PX_PER_MM = pattern.dpi / 25.4
+WIDTH_PX = int(pattern.a4_width_mm * PX_PER_MM)
+HEIGHT_PX = int(pattern.a4_height_mm * PX_PER_MM)
 
 # Preset Charuco board configurations
 CHARUCO_CONFIGS = [
@@ -34,9 +32,9 @@ class CharucoPatternGenerator:
 
     def __init__(
         self,
-        dpi: int = DPI,
-        a4_width_mm: int = A4_WIDTH_MM,
-        a4_height_mm: int = A4_HEIGHT_MM,
+        dpi: int = pattern.dpi,
+        a4_width_mm: int = pattern.a4_width_mm,
+        a4_height_mm: int = pattern.a4_height_mm,
         out_dir: str = "charuco_patterns",
         logger: LoggerType = None,
     ):

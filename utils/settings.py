@@ -1,6 +1,8 @@
 """Project settings and paths"""
 
-from dataclasses import dataclass
+"""Project configuration dataclasses used across modules."""
+
+from dataclasses import dataclass, field
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -82,6 +84,30 @@ class ValidationSettings:
 
 
 validation = ValidationSettings()
+
+
+@dataclass(frozen=True)
+class CharucoPatternSettings:
+    a4_width_mm: int = 297
+    a4_height_mm: int = 210
+    dpi: int = 300
+
+
+pattern = CharucoPatternSettings()
+
+
+@dataclass(frozen=True)
+class CloudSettings:
+    roi_limits: dict[str, tuple[float, float]] = field(
+        default_factory=lambda: {
+            "x": (-0.6, -0.1),
+            "y": (-0.2, 0.1),
+            "z": (-0.009, 0.05),
+        }
+    )
+
+
+cloud = CloudSettings()
 
 
 @dataclass(frozen=True)

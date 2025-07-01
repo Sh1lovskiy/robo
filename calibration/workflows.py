@@ -3,9 +3,9 @@ from __future__ import annotations
 from utils.logger import Logger
 from utils.cli import Command, CommandDispatcher
 
-from .validate import _add_validate_args, _run_validate
-from .workflows_charuco import add_charuco_args, run_charuco
-from .workflows_handeye import add_handeye_args, run_handeye
+from .validation import _add_validate_args, _run_validate
+from .workflows.charuco import add_charuco_args, run_charuco
+from .workflows.handeye import add_handeye_args, run_handeye
 
 
 def create_cli() -> CommandDispatcher:
