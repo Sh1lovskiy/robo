@@ -14,11 +14,11 @@ import numpy as np
 
 from calibration.helpers.pose_utils import load_camera_params
 from robot.controller import RobotController
-from utils.config import Config
 from utils.error_tracker import CameraError
 from utils.keyboard import GlobalKeyListener
 from utils.logger import Logger, LoggerType
 from utils.lmdb_storage import LmdbStorage
+from utils.settings import charuco
 from vision.opencv_utils import OpenCVUtils
 from vision.d415_pipeline import (
     RealSenseD415,
@@ -178,23 +178,16 @@ class PoseRecorder:
         return True
 
     def _setup_calibration(self) -> tuple[cv2.aruco_CharucoBoard, np.ndarray | None, np.ndarray | None]:
-        Config.load()
-        char_cfg = Config.get("charuco")
+        char_cfg = charuco
         board = cv2.aruco.CharucoBoard(
-            (
-                char_cfg.get("squares_x", 5),
-                char_cfg.get("squares_y", 8),
-            ),
-            char_cfg.get("square_length", 0.035),
-            char_cfg.get("marker_length", 0.026),
+            (char_cfg.squares_x, char_cfg.squares_y),
+            char_cfg.square_length,
+            char_cfg.marker_length,
             cv2.aruco.getPredefinedDictionary(
-                getattr(cv2.aruco, f"DICT_{char_cfg.get('aruco_dict', '5X5_100')}")
+                getattr(cv2.aruco, f"DICT_{char_cfg.aruco_dict}")
             ),
         )
-        xml_path = os.path.join(
-            char_cfg.get("calib_output_dir", "calibration/results"),
-            char_cfg.get("xml_file", "charuco_cam.xml"),
-        )
+        xml_path = os.path.join(char_cfg.calib_output_dir, char_cfg.xml_file)
         camera_matrix, dist_coeffs = (None, None)
         if os.path.isfile(xml_path):
             camera_matrix, dist_coeffs = load_camera_params(xml_path)
