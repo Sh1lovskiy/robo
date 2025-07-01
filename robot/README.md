@@ -1,6 +1,6 @@
 # robot package
 
-High-level controller and helper workflows for the robot. The code abstracts the low-level RPC interface provided by `Robot.py` into a Pythonic API that can be mocked or replaced.  Each class is designed to obey the Single Responsibility Principle: the controller only exposes motion commands and state queries, while workflow helpers deal with user interaction and data storage.
+Provides :class:`RobotController` and workflow helpers for pose recording and trajectory execution.  The Cython RPC bindings are wrapped in a clean Python API so that implementations can be swapped or mocked for testing.
 
 - `controller.py` - `RobotController` wrapping the Cython `Robot` RPC bindings. Provides `move_*` helpers, restart logic and detailed logging.
 - `workflows.py` - Pose recorder and path runner implementations.  These scripts orchestrate the controller and file I/O while remaining open for extension via composition.

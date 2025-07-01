@@ -1,3 +1,5 @@
+"""Interactive RealSense depth filter visualizer."""
+
 import numpy as np
 import pyrealsense2 as rs
 import cv2

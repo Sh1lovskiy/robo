@@ -1,6 +1,4 @@
-"""Project settings and paths"""
-
-"""Project configuration dataclasses used across modules."""
+"""Project wide configuration dataclasses and default values."""
 
 from dataclasses import dataclass, field
 from pathlib import Path

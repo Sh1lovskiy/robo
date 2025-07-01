@@ -1,4 +1,4 @@
-"""Utilities for loading robot poses."""
+"""Helpers for reading robot pose samples from disk."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ class JSONPoseLoader:
 
     @staticmethod
     def load_poses(json_file: str) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        """Return rotation and translation lists from ``json_file``."""
         with open(json_file, "r") as f:
             data = json.load(f)
         Rs, ts = [], []
@@ -33,7 +34,10 @@ class LmdbPoseLoader:
     """Load robot poses from an LMDB database."""
 
     @staticmethod
-    def load_poses(db_path: str, prefix: str = "poses") -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    def load_poses(
+        db_path: str, prefix: str = "poses"
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        """Retrieve pose matrices from the LMDB at ``db_path``."""
         store = LmdbStorage(db_path, readonly=True)
         keys = sorted(store.iter_keys(f"{prefix}:"), key=lambda k: int(k.split(":")[1]))
         Rs: List[np.ndarray] = []
@@ -47,4 +51,3 @@ class LmdbPoseLoader:
             Rs.append(R_mat)
             ts.append(t)
         return Rs, ts
-

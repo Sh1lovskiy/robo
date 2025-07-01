@@ -1,4 +1,5 @@
 # vision/transform.py
+"""SE(3) transformation utilities for camera and robot frames."""
 
 from __future__ import annotations
 
