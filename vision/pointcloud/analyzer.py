@@ -9,7 +9,9 @@ from utils.logger import Logger, LoggerType
 """Point cloud processing pipeline utilities."""
 
 
-ROI_LIMITS = {"x": (-0.6, -0.1), "y": (-0.2, 0.1), "z": (-0.009, 0.05)}
+from utils.settings import cloud
+
+ROI_LIMITS = cloud.roi_limits
 
 
 class PointCloudDenoiser:

@@ -37,11 +37,11 @@ pointcloud-transform = "vision.tools:main_transform"
 pointcloud-view = "vision.tools:main_view"
 vis-pointcloud = "vision.tools:main_pipeline"
 vision-cli = "vision.tools:main"
-cloud-aggregate = "vision.cloud.aggregator:main"
+cloud-aggregate = "vision.pointcloud.aggregator:main"
 robot-cli = "robot.workflows:main"
 calibration-cli = "calibration.workflows:main"
 restart-cli = "robot.workflows:main"
-validation-cli = "validation.workflows:main"
+validation-cli = "calibration.validation:main"
 
 [tool.setuptools.package-data]
 robot = ["*.py", "*.pyx"]
@@ -53,5 +53,4 @@ include = [
     "utils*",
     "vision*",
     "calibration*",
-    "validation*",
 ]

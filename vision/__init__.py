@@ -1,12 +1,12 @@
 """Vision utilities."""
 
-from .realsense_d415 import RealSenseD415
+from .camera import RealSenseD415
 from .transform import TransformUtils
 from .handeye import EyeInHandCalibrator
-from .cloud.generator import PointCloudGenerator
-from .cloud.aggregator import RGBDAggregator
-from .cloud.analyzer import CloudAnalyzer
-from .cloud.builder import PointCloudBuilder
+from .pointcloud.generator import PointCloudGenerator
+from .pointcloud.aggregator import RGBDAggregator
+from .pointcloud.analyzer import CloudAnalyzer
+from .pointcloud.builder import PointCloudBuilder
 
 
 __all__ = [

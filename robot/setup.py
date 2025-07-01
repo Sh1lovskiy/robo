@@ -4,7 +4,7 @@ from Cython.Build import cythonize
 
 ext_modules = cythonize(
     Extension(
-        "robot.rpc", ["Robot.py"], extra_compile_args=["-fno-var-tracking-assignments"]
+        "robot.rpc", ["rpc.py"], extra_compile_args=["-fno-var-tracking-assignments"]
     ),
     compiler_directives={"language_level": "3"},
 )
