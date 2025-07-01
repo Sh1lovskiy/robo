@@ -1,3 +1,5 @@
+"""Move the robot through manually specified 3D waypoints."""
+
 from __future__ import annotations
 
 import time
@@ -11,6 +13,8 @@ from utils.logger import Logger, LoggerType
 
 @dataclass
 class Waypoint:
+    """Single 3D coordinate in meters."""
+
     x: float
     y: float
     z: float
@@ -35,6 +39,7 @@ class WaypointRunner:
         height_offset: float = 0.0,
         logger: LoggerType | None = None,
     ) -> None:
+        """Initialize the runner with a controller and waypoint list."""
         self.controller = controller
         self.points = list(points)
         self.rx = rx
@@ -44,10 +49,12 @@ class WaypointRunner:
         self.logger = logger or Logger.get_logger("robot.waypoint_runner")
 
     def _make_pose(self, wp: Waypoint) -> List[float]:
+        """Convert a :class:`Waypoint` into a full 6D pose."""
         pose = [wp.x, wp.y, wp.z + self.offset, self.rx, self.ry, self.rz]
         return pose
 
     def _wait_for_user(self, listener: GlobalKeyListener, stop: dict) -> bool:
+        """Block until user presses 'n' or 'q'."""
         listener.start()
         self.logger.info("Press 'n' to continue or 'q' to quit.")
         while not stop.get("next"):
@@ -57,6 +64,7 @@ class WaypointRunner:
         return not stop.get("quit")
 
     def run(self) -> None:
+        """Iterate through waypoints interactively."""
         if not self.controller.connect():
             return
         self.controller.enable()
@@ -91,6 +99,7 @@ class WaypointRunner:
 
 
 def main() -> None:
+    """Example usage showing a hard-coded waypoint list."""
     points = [
         Waypoint(-0.30328, -0.07911, 0.27024),
         Waypoint(-0.30328, -0.07911, 0.26024),

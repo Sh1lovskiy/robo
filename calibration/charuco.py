@@ -1,8 +1,16 @@
-"""Charuco board calibration utilities."""
+"""
+Charuco board calibration utilities.
+
+This module wraps OpenCV's Charuco detection and calibration routines.  It
+provides helpers for loading board definitions, accumulating corner detections
+across images and computing camera intrinsics.  The functions are intended for
+offline calibration workflows and may be reused programmatically.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
 from typing import List, Mapping
 
 import cv2
@@ -19,7 +27,9 @@ CHARUCO_DICT_MAP = {
 }
 
 
-def load_board(cfg: Mapping[str, float | str]) -> tuple[cv2.aruco_CharucoBoard, cv2.aruco_Dictionary]:
+def load_board(
+    cfg: Mapping[str, float | str],
+) -> tuple[cv2.aruco_CharucoBoard, cv2.aruco_Dictionary]:
     """Create a Charuco board from configuration."""
     dict_name = str(cfg.get("aruco_dict", "5X5_100"))
     if dict_name not in CHARUCO_DICT_MAP:
@@ -29,27 +39,38 @@ def load_board(cfg: Mapping[str, float | str]) -> tuple[cv2.aruco_CharucoBoard, 
     square_len = float(cfg.get("square_length", 0.035))
     marker_len = float(cfg.get("marker_length", 0.026))
     dictionary = cv2.aruco.getPredefinedDictionary(CHARUCO_DICT_MAP[dict_name])
-    board = cv2.aruco.CharucoBoard((squares_y, squares_x), square_len, marker_len, dictionary)
+    board = cv2.aruco.CharucoBoard(
+        (squares_y, squares_x), square_len, marker_len, dictionary
+    )
     return board, dictionary
 
 
 @dataclass
 class CharucoCalibrator:
-    """Charuco board calibration using OpenCV."""
+    """Accumulate Charuco detections and solve for camera intrinsics."""
 
     board: cv2.aruco_CharucoBoard
     dictionary: cv2.aruco_Dictionary
-    logger: LoggerType = field(default_factory=lambda: Logger.get_logger("calibration.charuco"))
+    logger: LoggerType = field(
+        default_factory=lambda: Logger.get_logger("calibration.charuco")
+    )
     all_corners: List[np.ndarray] = field(default_factory=list, init=False)
     all_ids: List[np.ndarray] = field(default_factory=list, init=False)
     img_size: tuple[int, int] | None = field(default=None, init=False)
 
     def add_frame(self, img: np.ndarray) -> bool:
+        """Detect markers in an image and store the corners if successful."""
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         res = cv2.aruco.detectMarkers(gray, self.dictionary)
         if len(res[0]) > 0:
-            _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(res[0], res[1], gray, self.board)
-            if charuco_corners is not None and charuco_ids is not None and len(charuco_corners) > 3:
+            _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
+                res[0], res[1], gray, self.board
+            )
+            if (
+                charuco_corners is not None
+                and charuco_ids is not None
+                and len(charuco_corners) > 3
+            ):
                 self.all_corners.append(charuco_corners)
                 self.all_ids.append(charuco_ids)
                 self.img_size = gray.shape[::-1]
@@ -59,17 +80,36 @@ class CharucoCalibrator:
         return False
 
     def calibrate(self) -> dict[str, np.ndarray | float]:
+        """Return calibration results after multiple calls to :meth:`add_frame`."""
         assert self.img_size is not None, "No frames added."
-        ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.aruco.calibrateCameraCharuco(
-            self.all_corners, self.all_ids, self.board, self.img_size, None, None
+        ret, camera_matrix, dist_coeffs, rvecs, tvecs = (
+            cv2.aruco.calibrateCameraCharuco(
+                self.all_corners, self.all_ids, self.board, self.img_size, None, None
+            )
         )
         self.logger.info(f"Charuco calibration RMS: {ret:.6f}")
-        return dict(rms=ret, camera_matrix=camera_matrix, dist_coeffs=dist_coeffs, rvecs=rvecs, tvecs=tvecs)
+        return dict(
+            rms=ret,
+            camera_matrix=camera_matrix,
+            dist_coeffs=dist_coeffs,
+            rvecs=rvecs,
+            tvecs=tvecs,
+        )
 
 
 @dataclass
 class ExtractionParams:
-    """Parameters controlling Charuco pose extraction."""
+    """
+    Parameters controlling Charuco pose extraction.
+
+    Attributes:
+        min_corners: Minimum number of detected corners required to accept a
+            frame.
+        visualize: If ``True``, show detections as they are processed.
+        analyze_corners: Enable detailed corner statistics gathering.
+        outlier_std: Z-score threshold for outlier rejection when analyzing
+            corners.
+    """
 
     min_corners: int = 4
     visualize: bool = False
@@ -79,6 +119,8 @@ class ExtractionParams:
 
 @dataclass
 class ExtractionResult:
+    """Container for pose extraction results."""
+
     rotations: List[np.ndarray]
     translations: List[np.ndarray]
     valid_paths: List[str]
@@ -96,7 +138,9 @@ def load_camera_params(filename: str) -> tuple[np.ndarray, np.ndarray]:
     return camera_matrix, dist_coeffs
 
 
-def save_camera_params_xml(filename: str, camera_matrix: np.ndarray, dist_coeffs: np.ndarray) -> None:
+def save_camera_params_xml(
+    filename: str, camera_matrix: np.ndarray, dist_coeffs: np.ndarray
+) -> None:
     """Save camera calibration to an XML/YAML file."""
     fs = cv2.FileStorage(str(filename), cv2.FILE_STORAGE_WRITE)
     fs.write("camera_matrix", camera_matrix)
@@ -105,7 +149,10 @@ def save_camera_params_xml(filename: str, camera_matrix: np.ndarray, dist_coeffs
 
 
 def save_camera_params_txt(
-    filename: str, camera_matrix: np.ndarray, dist_coeffs: np.ndarray, rms: float | None = None
+    filename: str,
+    camera_matrix: np.ndarray,
+    dist_coeffs: np.ndarray,
+    rms: float | None = None,
 ) -> None:
     """Save camera calibration to a plain text file."""
     with open(filename, "w") as f:
@@ -119,6 +166,7 @@ def save_camera_params_txt(
 
 # Pose extraction helpers ---------------------------------------------------
 
+
 def _estimate_pose(
     img: np.ndarray,
     board: cv2.aruco_CharucoBoard,
@@ -127,12 +175,19 @@ def _estimate_pose(
     dist_coeffs: np.ndarray,
     params: ExtractionParams,
 ) -> tuple[np.ndarray, np.ndarray] | None:
+    """Internal helper to estimate board pose from an image."""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary)
     if ids is None or len(ids) < max(6, params.min_corners):
         return None
-    _, char_corners, char_ids = cv2.aruco.interpolateCornersCharuco(corners, ids, gray, board)
-    if char_corners is None or char_ids is None or len(char_ids) < max(6, params.min_corners):
+    _, char_corners, char_ids = cv2.aruco.interpolateCornersCharuco(
+        corners, ids, gray, board
+    )
+    if (
+        char_corners is None
+        or char_ids is None
+        or len(char_ids) < max(6, params.min_corners)
+    ):
         return None
     rvec_init = np.zeros((3, 1), dtype=np.float64)
     tvec_init = np.zeros((3, 1), dtype=np.float64)
@@ -161,6 +216,7 @@ def extract_charuco_poses(
     logger: LoggerType | None = None,
     params: ExtractionParams | None = None,
 ) -> ExtractionResult:
+    """Process a directory of images and estimate board poses for each."""
     params = params or ExtractionParams()
     logger = logger or Logger.get_logger("calibration.pose_extractor")
     image_paths = sorted(
@@ -178,9 +234,13 @@ def extract_charuco_poses(
         if img is None:
             logger.warning("Cannot read image: %s", img_path)
             continue
-        pose = _estimate_pose(img, board, dictionary, camera_matrix, dist_coeffs, params)
+        pose = _estimate_pose(
+            img, board, dictionary, camera_matrix, dist_coeffs, params
+        )
         if pose is None:
-            logger.warning("Charuco pose not found for image: %s", os.path.basename(img_path))
+            logger.warning(
+                "Charuco pose not found for image: %s", os.path.basename(img_path)
+            )
             continue
         R, t = pose
         Rs.append(R)
@@ -195,4 +255,3 @@ def extract_charuco_poses(
     stats = {}
     outliers: List[int] = []
     return ExtractionResult(Rs, ts, valid_paths, image_paths, stats, outliers)
-

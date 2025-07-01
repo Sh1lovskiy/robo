@@ -120,8 +120,12 @@ class RealSenseD415:
         name = device.get_info(rs.camera_info.name)
         serial = device.get_info(rs.camera_info.serial_number)
         self.logger.info(f"Device: {name} SN:{serial}")
-        depth_stream = self.profile.get_stream(rs.stream.depth).as_video_stream_profile()
-        color_stream = self.profile.get_stream(rs.stream.color).as_video_stream_profile()
+        depth_stream = self.profile.get_stream(
+            rs.stream.depth
+        ).as_video_stream_profile()
+        color_stream = self.profile.get_stream(
+            rs.stream.color
+        ).as_video_stream_profile()
         extr = depth_stream.get_extrinsics_to(color_stream)
         R = np.array(extr.rotation).reshape(3, 3)
         t = np.array(extr.translation)
@@ -139,7 +143,9 @@ class RealSenseD415:
     def _process_depth(self, frame: rs.frame) -> rs.frame:
         return frame
 
-    def get_frames(self, aligned: bool = True) -> Tuple[np.ndarray | None, np.ndarray | None]:
+    def get_frames(
+        self, aligned: bool = True
+    ) -> Tuple[np.ndarray | None, np.ndarray | None]:
         assert self.started, "Camera not started"
         frames = self.pipeline.wait_for_frames()
         if aligned and self.align:

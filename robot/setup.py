@@ -1,3 +1,5 @@
+"""Setup script for building the Cython RPC extension."""
+
 from setuptools import setup, Extension, find_packages
 from Cython.Build import cythonize
 

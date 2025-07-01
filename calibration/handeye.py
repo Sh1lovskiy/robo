@@ -1,4 +1,8 @@
-"""Hand-eye calibration helpers."""
+"""Utility classes for solving the hand-eye calibration problem.
+
+This module builds on OpenCV's ``calibrateHandEye`` implementation and provides
+storage strategies for the resulting rotation and translation matrices.
+"""
 
 from __future__ import annotations
 
@@ -21,11 +25,13 @@ class HandEyeSaver:
 
 class NPZHandEyeSaver(HandEyeSaver):
     def save(self, filename: str, R: np.ndarray, t: np.ndarray) -> None:
+        """Save ``R`` and ``t`` to an ``.npz`` archive."""
         np.savez(filename, R=R, t=t)
 
 
 class TxtHandEyeSaver(HandEyeSaver):
     def save(self, filename: str, R: np.ndarray, t: np.ndarray) -> None:
+        """Write calibration matrices to a plain text file."""
         with open(filename, "w") as f:
             f.write("R =\n")
             np.savetxt(f, R, fmt="%.8f")
@@ -40,13 +46,18 @@ class DBHandEyeSaver(HandEyeSaver):
         self.storage = storage
 
     def save(self, filename: str, R: np.ndarray, t: np.ndarray) -> None:
+        """Persist values under ``filename`` keys in :class:`LmdbStorage`."""
         self.storage.put_array(f"{filename}:R", R)
         self.storage.put_array(f"{filename}:t", t)
 
 
 @dataclass
 class HandEyeCalibrator:
-    """Wrapper over OpenCV hand-eye algorithms."""
+    """Wrapper over OpenCV hand-eye algorithms.
+
+    Attributes:
+        logger: Optional project logger used for status messages.
+    """
 
     logger: LoggerType | None = None
 
@@ -70,6 +81,7 @@ class HandEyeCalibrator:
         R_target: np.ndarray,
         t_target: np.ndarray,
     ) -> None:
+        """Record a single robot/camera pose pair used for calibration."""
         self.R_gripper2base.append(R_gripper)
         self.t_gripper2base.append(t_gripper)
         self.R_target2cam.append(R_target)
@@ -77,11 +89,13 @@ class HandEyeCalibrator:
         self.logger.debug("Added Hand-Eye sample")
 
     def calibrate(self, method: str = "TSAI") -> tuple[np.ndarray, np.ndarray]:
-        """Run calibration using the specified method."""
+        """Run calibration using the specified OpenCV method."""
         assert self.R_gripper2base, "No samples for calibration"
         key = method.upper()
         if key not in self.METHODS:
-            raise ValueError(f"Unknown method '{method}'. Available: {list(self.METHODS.keys())}")
+            raise ValueError(
+                f"Unknown method '{method}'. Available: {list(self.METHODS.keys())}"
+            )
         R, t = cv2.calibrateHandEye(
             self.R_gripper2base,
             self.t_gripper2base,
@@ -93,7 +107,7 @@ class HandEyeCalibrator:
         return R, t
 
     def calibrate_all(self) -> dict[str, tuple[np.ndarray, np.ndarray]]:
-        """Run all available calibration methods."""
+        """Execute all OpenCV algorithms and return their results."""
         results = {}
         for name, code in self.METHODS.items():
             try:
@@ -109,4 +123,3 @@ class HandEyeCalibrator:
             except Exception as e:
                 self.logger.error(f"Hand-Eye calibration failed for {name}: {e}")
         return results
-

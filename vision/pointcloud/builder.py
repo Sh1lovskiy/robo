@@ -22,7 +22,9 @@ class PointCloudBuilder:
 
     camera: RealSenseD415
     handeye: Tuple[np.ndarray, np.ndarray]
-    logger: LoggerType = field(default_factory=lambda: Logger.get_logger("vision.pointcloud.builder"))
+    logger: LoggerType = field(
+        default_factory=lambda: Logger.get_logger("vision.pointcloud.builder")
+    )
     transformer: TransformUtils = field(default_factory=TransformUtils)
     generator: PointCloudGenerator = field(default_factory=PointCloudGenerator)
 
@@ -43,7 +45,9 @@ class PointCloudBuilder:
             pcd.colors = o3d.utility.Vector3dVector(colors)
         pcd = pcd.voxel_down_sample(voxel_size=0.002)
         pcd, _ = pcd.remove_statistical_outlier(20, 1.0)
-        self.logger.info(f"Cloud: {len(pcd.points)} points, mean Z {np.mean(points[:,2]):.3f} m")
+        self.logger.info(
+            f"Cloud: {len(pcd.points)} points, mean Z {np.mean(points[:,2]):.3f} m"
+        )
         return pcd
 
     def _robot_pose_to_rt(self, pose: Iterable[float]) -> Tuple[np.ndarray, np.ndarray]:
@@ -61,7 +65,11 @@ class PointCloudBuilder:
         self.logger.info(f"Loaded cloud from {path}")
         return pcd
 
-    def remove_plane(self, pcd: o3d.geometry.PointCloud, dist: float = 0.003) -> o3d.geometry.PointCloud:
+    def remove_plane(
+        self, pcd: o3d.geometry.PointCloud, dist: float = 0.003
+    ) -> o3d.geometry.PointCloud:
         plane_model, inliers = pcd.segment_plane(dist, 3, 1000)
-        self.logger.debug(f"Plane: {np.round(plane_model,4).tolist()} with {len(inliers)} inliers")
+        self.logger.debug(
+            f"Plane: {np.round(plane_model,4).tolist()} with {len(inliers)} inliers"
+        )
         return pcd.select_by_index(inliers, invert=True)

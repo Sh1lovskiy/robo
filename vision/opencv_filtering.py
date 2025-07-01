@@ -1,3 +1,5 @@
+"""Offline depth filtering utilities built with OpenCV."""
+
 import numpy as np
 import cv2
 from utils.logger import Logger, LoggerType

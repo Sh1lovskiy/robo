@@ -1,3 +1,5 @@
+"""CLI wrappers for common calibration workflows."""
+
 from __future__ import annotations
 
 from utils.logger import Logger
@@ -9,6 +11,7 @@ from .workflows.handeye import add_handeye_args, run_handeye
 
 
 def create_cli() -> CommandDispatcher:
+    """Build the argument dispatcher for calibration commands."""
     return CommandDispatcher(
         "Calibration workflows",
         [
@@ -29,6 +32,7 @@ def create_cli() -> CommandDispatcher:
 
 
 def main() -> None:
+    """Entry point used by ``calibration-cli`` script."""
     logger = Logger.get_logger("calibration.workflows")
     create_cli().run(logger=logger)
 

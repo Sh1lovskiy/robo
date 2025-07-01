@@ -59,4 +59,3 @@ def load_extrinsics_json(
     t = np.array(data["depth_to_rgb"]["translation"])
     logger.info("Extrinsics loaded from %s", json_path)
     return R, t
-

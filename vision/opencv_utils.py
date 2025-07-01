@@ -1,3 +1,5 @@
+"""Common OpenCV helper functions used for visualization."""
+
 from __future__ import annotations
 
 import cv2

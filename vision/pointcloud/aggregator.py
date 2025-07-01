@@ -107,7 +107,9 @@ def _add_aggregate_args(parser: argparse.ArgumentParser) -> None:
         "--charuco_xml", default=str(paths.RESULTS_DIR / charuco.xml_file)
     )
     parser.add_argument("--handeye_txt", required=True)
-    parser.add_argument("--icp", action="store_true", help="Enable ICP alignment between frames")
+    parser.add_argument(
+        "--icp", action="store_true", help="Enable ICP alignment between frames"
+    )
 
 
 def _run_aggregate(args: argparse.Namespace) -> None:

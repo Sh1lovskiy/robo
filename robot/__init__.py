@@ -1,4 +1,10 @@
-"""High-level robot API exports with lazy loading of submodules."""
+"""Robot control API and workflow helpers.
+
+The package exposes :class:`RobotController` as the main programmatic interface
+to the robot along with higher level workflow classes for common tasks such as
+trajectory execution and pose recording.  Optional classes are imported lazily
+to keep import time low on systems without full dependencies.
+"""
 
 from importlib import import_module
 from typing import TYPE_CHECKING

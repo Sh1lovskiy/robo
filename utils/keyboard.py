@@ -1,3 +1,5 @@
+"""Global hotkey utilities used by CLI tools."""
+
 from __future__ import annotations
 
 import sys

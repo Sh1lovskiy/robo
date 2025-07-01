@@ -1,4 +1,4 @@
-"""Point cloud helper exports."""
+"""Utilities for generating and manipulating point clouds."""
 
 from .generator import PointCloudGenerator
 from .aggregator import RGBDAggregator

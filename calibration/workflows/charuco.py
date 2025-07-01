@@ -1,3 +1,5 @@
+"""Workflow for Charuco-based camera calibration."""
+
 from __future__ import annotations
 
 import argparse
@@ -21,7 +23,12 @@ from utils.settings import paths, charuco
 
 @dataclass
 class CharucoCalibrationWorkflow:
-    """Run Charuco calibration on a folder of images."""
+    """Run Charuco calibration on a folder of images.
+
+    Attributes:
+        visualize: Display detections while processing frames.
+        logger: Optional logger instance for progress reporting.
+    """
 
     visualize: bool = True
     logger: LoggerType = Logger.get_logger("calibration.workflow.charuco")
@@ -35,6 +42,7 @@ class CharucoCalibrationWorkflow:
         cv2.aruco_CharucoBoard,
         cv2.aruco_Dictionary,
     ]:
+        """Resolve paths and board configuration for the workflow."""
         cfg = charuco
         folder = str(paths.CAPTURES_DIR)
         if not os.path.isdir(folder):
@@ -61,6 +69,7 @@ class CharucoCalibrationWorkflow:
         return board_cfg, out_dir, xml_file, txt_file, images, board, dictionary
 
     def _process_images(self, calibrator: CharucoCalibrator, images: list[str]) -> None:
+        """Feed all images to the calibrator while optionally visualizing."""
         for img_path in Logger.progress(images, desc="Charuco frames"):
             img = cv2.imread(img_path)
             if img is None:
@@ -79,6 +88,7 @@ class CharucoCalibrationWorkflow:
         txt_file: str,
         result: dict[str, np.ndarray | float],
     ) -> None:
+        """Persist calibration results in XML and TXT formats."""
         save_camera_params_xml(xml_file, result["camera_matrix"], result["dist_coeffs"])
         save_camera_params_txt(
             txt_file,
@@ -89,6 +99,7 @@ class CharucoCalibrationWorkflow:
         # self.logger.info(f"Calibration RMS: {float(result['rms'])}")
 
     def run(self) -> None:
+        """Execute the calibration workflow on all available images."""
         try:
             cfg, out_dir, xml_file, txt_file, images, board, dictionary = (
                 self._load_config()
@@ -105,6 +116,7 @@ class CharucoCalibrationWorkflow:
 
 
 def add_charuco_args(parser: argparse.ArgumentParser) -> None:
+    """Define CLI options for the ``charuco`` command."""
     parser.add_argument(
         "--no_viz",
         action="store_true",
@@ -113,4 +125,5 @@ def add_charuco_args(parser: argparse.ArgumentParser) -> None:
 
 
 def run_charuco(args: argparse.Namespace) -> None:
+    """Entry point for the ``charuco`` CLI workflow."""
     CharucoCalibrationWorkflow(not args.no_viz).run()

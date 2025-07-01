@@ -1,4 +1,5 @@
-# marker_path.py
+"""Utility for executing a simple linear marker trajectory."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -7,13 +8,17 @@ from utils.logger import Logger
 
 
 class MarkerPathRunner:
+    """Execute a simple approach-move-retreat trajectory."""
+
     def __init__(
         self, controller: RobotController, logger: Logger | None = None
     ) -> None:
+        """Create the runner using an existing :class:`RobotController`."""
         self.controller = controller
         self.logger = logger or Logger.get_logger("marker.path_runner")
 
     def move_linear(self, pos: list[float]) -> bool:
+        """Move the robot linearly to ``pos``."""
         self.logger.info(f"Moving linear to: {pos}")
         return self.controller.move_linear(list(pos))
 
@@ -23,6 +28,7 @@ class MarkerPathRunner:
         end: list[float],
         approach_dz: float = 50,
     ) -> bool:
+        """Run a short path from ``start`` to ``end`` with an approach height."""
         above_start = list(start[:3])
         above_start[2] += approach_dz
         above_pose = above_start + list(start[3:])
@@ -46,6 +52,7 @@ class MarkerPathRunner:
 
 
 def main():
+    """Simple test routine when running this module directly."""
     Rx, Ry, Rz = 180.0, 0.0, 0.0
     start = [-293.4, -6.83, 277.57, Rx, Ry, Rz]
     end = [-293.4, -6.83, 267.57, Rx, Ry, Rz]
