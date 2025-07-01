@@ -39,9 +39,9 @@ class D415StreamConfig:
 class D415CameraSettings:
     """Manual exposure and laser settings."""
 
-    ir_exposure: int = 8000
+    ir_exposure: int = 100
     ir_gain: int = 16
-    rgb_exposure: int = 200
+    rgb_exposure: int = 100
     rgb_gain: int = 64
     projector_power: int = 0
     max_projector_power: int = 360
@@ -51,7 +51,7 @@ class D415CameraSettings:
 class D415FilterConfig:
     """RealSense post-processing options."""
 
-    decimation: int = 2
+    decimation: int = 100
     spatial_alpha: float = 0.5
     spatial_delta: int = 20
     temporal_alpha: float = 0.4
@@ -109,7 +109,8 @@ class RealSenseD415:
         if self.depth_sensor is None or self.rgb_sensor is None:
             raise RuntimeError("Required sensors not found")
         self._apply_settings()
-        self.depth_scale = self.depth_sensor.get_depth_scale()
+        # self.depth_scale = self.depth_sensor.get_depth_scale()
+        self.depth_scale = 0.0001
         self.logger.info(f"Depth scale: {self.depth_scale:.6f} m/unit")
         if self.stream_cfg.align_to_color:
             self.align = rs.align(rs.stream.color)
@@ -120,27 +121,29 @@ class RealSenseD415:
     # ---------------------------------------------------------------
     def _apply_settings(self) -> None:
         s = self.settings
-        self.depth_sensor.set_option(rs.option.enable_auto_exposure, 0)
-        self.depth_sensor.set_option(rs.option.exposure, float(s.ir_exposure))
-        self.depth_sensor.set_option(rs.option.gain, float(s.ir_gain))
+        self.depth_sensor.set_option(rs.option.enable_auto_exposure, 1)
+        # self.depth_sensor.set_option(rs.option.exposure, float(s.ir_exposure))
+        # self.depth_sensor.set_option(rs.option.gain, float(s.ir_gain))
         power = float(s.projector_power)
         self.depth_sensor.set_option(rs.option.laser_power, power)
         self.rgb_sensor.set_option(rs.option.enable_auto_exposure, 0)
         self.rgb_sensor.set_option(rs.option.exposure, float(s.rgb_exposure))
         self.rgb_sensor.set_option(rs.option.gain, float(s.rgb_gain))
+        pass
 
     # ---------------------------------------------------------------
     def _setup_filters(self) -> None:
-        f = self.filters
-        self.decimation = rs.decimation_filter()
-        self.decimation.set_option(rs.option.filter_magnitude, f.decimation)
-        self.spatial = rs.spatial_filter()
-        self.spatial.set_option(rs.option.filter_smooth_alpha, f.spatial_alpha)
-        self.spatial.set_option(rs.option.filter_smooth_delta, f.spatial_delta)
-        self.temporal = rs.temporal_filter()
-        self.temporal.set_option(rs.option.filter_smooth_alpha, f.temporal_alpha)
-        self.temporal.set_option(rs.option.filter_smooth_delta, f.temporal_delta)
-        self.holes = rs.hole_filling_filter(f.hole_filling)
+        # f = self.filters
+        # self.decimation = rs.decimation_filter()
+        # self.decimation.set_option(rs.option.filter_magnitude, f.decimation)
+        # self.spatial = rs.spatial_filter()
+        # self.spatial.set_option(rs.option.filter_smooth_alpha, f.spatial_alpha)
+        # self.spatial.set_option(rs.option.filter_smooth_delta, f.spatial_delta)
+        # self.temporal = rs.temporal_filter()
+        # self.temporal.set_option(rs.option.filter_smooth_alpha, f.temporal_alpha)
+        # self.temporal.set_option(rs.option.filter_smooth_delta, f.temporal_delta)
+        # self.holes = rs.hole_filling_filter(f.hole_filling)
+        pass
 
     # ---------------------------------------------------------------
     def _log_device_info(self, device: rs.device) -> None:
@@ -169,10 +172,10 @@ class RealSenseD415:
 
     # ---------------------------------------------------------------
     def _process_depth(self, frame: rs.frame) -> rs.frame:
-        frame = self.decimation.process(frame)
-        frame = self.spatial.process(frame)
-        frame = self.temporal.process(frame)
-        frame = self.holes.process(frame)
+        # frame = self.decimation.process(frame)
+        # frame = self.spatial.process(frame)
+        # frame = self.temporal.process(frame)
+        # frame = self.holes.process(frame)
         return frame
 
     # ---------------------------------------------------------------

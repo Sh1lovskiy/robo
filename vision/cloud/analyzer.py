@@ -55,10 +55,14 @@ class PointCloudCropper:
             & (points[:, 2] >= self.limits["z"][0])
             & (points[:, 2] <= self.limits["z"][1])
         )
-        cropped = pcd.select_by_index(np.where(mask)[0])
+        idx = np.where(mask)[0]
+        cropped = pcd.select_by_index(idx)
         self.logger.info(
             f"Cropped to ROI: {len(cropped.points)} of {len(points)} points"
         )
+        if len(cropped.points) == 0:
+            self.logger.error("No points left after ROI crop! Adjust ROI_LIMITS.")
+            raise RuntimeError("Cloud is empty after cropping. Change ROI_LIMITS.")
         return cropped
 
 
@@ -205,7 +209,7 @@ class CloudAnalyzer:
 def _add_cloud_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--input_ply",
-        default="data/data_old/clouds/cloud_new_2/cloud_aggregated.ply",
+        default="captures/cloud_aggregated.ply",
         help="Path to input PLY point cloud file",
     )
 

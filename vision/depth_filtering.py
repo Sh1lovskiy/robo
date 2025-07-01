@@ -117,11 +117,10 @@ class DepthFilterVisualizer:
         cv2.destroyAllWindows()
 
 
-# --- Example usage ---
 if __name__ == "__main__":
     import sys
 
-    npy_file = sys.argv[1]  # path to .npy file
+    npy_file = sys.argv[1]
     arr = np.load(npy_file)
     vis = DepthFilterVisualizer()
     vis.visualize_pipeline(arr)

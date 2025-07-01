@@ -46,9 +46,13 @@ class LmdbBatch:
 class LmdbStorage:
     """Simple LMDB storage for images, arrays and metadata."""
 
-    def __init__(self, path: str, map_size: int = 1 << 30, readonly: bool = False) -> None:
+    def __init__(
+        self, path: str, map_size: int = 1 << 30, readonly: bool = False
+    ) -> None:
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        self.env = lmdb.open(path, map_size=map_size, readonly=readonly, lock=not readonly, subdir=False)
+        self.env = lmdb.open(
+            path, map_size=map_size, readonly=readonly, lock=not readonly, subdir=False
+        )
         self.logger: LoggerType = Logger.get_logger("utils.lmdb_storage")
         self.logger.info(f"Opened LMDB at {path}")
 
@@ -115,25 +119,58 @@ class LmdbStorage:
         return cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
 
 
-def example_usage() -> None:
-    """Small demo storing and retrieving one pose with images."""
+import sys
+from utils.logger import Logger
+from utils.lmdb_storage import LmdbStorage
 
-    store = LmdbStorage("example.lmdb")
-    pose = {"tcp_coords": [0, 0, 0, 0, 0, 0]}
-    rgb = np.zeros((10, 10, 3), dtype=np.uint8)
-    depth = np.zeros((10, 10), dtype=np.float32)
 
-    with store.batch() as b:
-        b.put_json("poses:0", pose)
-        b.put_image("frames:0:rgb", rgb)
-        b.put_array("frames:0:depth", depth)
+def show_lmdb_keys(path: str, prefix: str = ""):
+    store = LmdbStorage(path, readonly=True)
+    print(f"LMDB at {path} keys with prefix '{prefix}':")
+    for k in store.iter_keys(prefix):
+        print(" -", k)
 
-    loaded_pose = store.get_json("poses:0")
-    loaded_rgb = store.get_image("frames:0:rgb")
-    loaded_depth = store.get_array("frames:0:depth")
-    print("Loaded pose", loaded_pose)
-    print("RGB shape", loaded_rgb.shape, "Depth shape", loaded_depth.shape)
+
+def show_lmdb_value(path: str, key: str):
+    store = LmdbStorage(path, readonly=True)
+    val = store.get(key)
+    if val is None:
+        print(f"Key '{key}' not found")
+        return
+    try:
+        print(f"{key}: {val[:200]}... (raw bytes)")
+        try:
+            # Try as JSON
+            import json
+
+            print("As JSON:", store.get_json(key))
+        except Exception:
+            pass
+        try:
+            import numpy as np
+
+            arr = store.get_array(key)
+            if arr is not None:
+                print("As numpy array, shape:", arr.shape, "dtype:", arr.dtype)
+        except Exception:
+            pass
+    except Exception as e:
+        print(f"Error decoding {key}: {e}")
 
 
 if __name__ == "__main__":
-    example_usage()
+    import argparse
+
+    parser = argparse.ArgumentParser("LMDB Inspector")
+    parser.add_argument("lmdb_path", help="Path to .lmdb")
+    parser.add_argument("--list", action="store_true", help="List all keys")
+    parser.add_argument("--prefix", default="", help="Filter keys by prefix")
+    parser.add_argument("--show", help="Show value for key")
+    args = parser.parse_args()
+
+    if args.list:
+        show_lmdb_keys(args.lmdb_path, args.prefix)
+    elif args.show:
+        show_lmdb_value(args.lmdb_path, args.show)
+    else:
+        print("Use --list or --show <key>")
