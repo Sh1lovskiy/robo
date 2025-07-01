@@ -11,9 +11,9 @@ import numpy as np
 
 from calibration.calibrator import CHARUCO_DICT_MAP
 from utils.cli import Command, CommandDispatcher
-from utils.config import Config
 from calibration.helpers.pose_utils import load_camera_params
 from utils.logger import Logger, LoggerType
+from utils.settings import handeye, validation, charuco
 from .helpers.validation_utils import (
     load_image_paths,
     detect_board_corners,
@@ -47,17 +47,16 @@ class HandEyeValidationWorkflow:
         np.ndarray,
         np.ndarray,
     ]:
-        Config.load()
-        cfg = Config.get("handeye")
-        val_cfg = Config.get("validation")
-        images_dir = cfg.get("images_dir", "captures")
-        charuco_xml = cfg.get("charuco_xml", "calibration/results/charuco_cam.xml")
-        out_dir = cfg.get("calib_output_dir", "calibration/results")
-        squares_x = val_cfg.get("squares_x", 5)
-        squares_y = val_cfg.get("squares_y", 7)
-        square_length = val_cfg.get("square_length", 0.033)
-        marker_length = val_cfg.get("marker_length", 0.025)
-        dict_name = val_cfg.get("aruco_dict", "5X5_100")
+        cfg = handeye
+        val_cfg = validation
+        images_dir = cfg.images_dir
+        charuco_xml = cfg.charuco_xml
+        out_dir = cfg.calib_output_dir
+        squares_x = cfg.squares_x
+        squares_y = cfg.squares_y
+        square_length = cfg.square_length
+        marker_length = cfg.marker_length
+        dict_name = cfg.aruco_dict
         dictionary = cv2.aruco.getPredefinedDictionary(CHARUCO_DICT_MAP[dict_name])
         board = cv2.aruco.CharucoBoard(
             (squares_x, squares_y), square_length, marker_length, dictionary
@@ -67,8 +66,8 @@ class HandEyeValidationWorkflow:
         npz_file = os.path.join(out_dir, "handeye_PARK.npz")
         data = np.load(npz_file)
         R_cam2base, t_cam2base = data["R"], data["t"].flatten()
-        lt_ref = np.array(val_cfg.get("board_lt_base", [0.0, 0.0, 0.0]))
-        rb_ref = np.array(val_cfg.get("board_rb_base", [0.0, 0.0, 0.0]))
+        lt_ref = np.array(val_cfg.board_lt_base)
+        rb_ref = np.array(val_cfg.board_rb_base)
         return (
             images_dir,
             out_dir,
@@ -196,16 +195,15 @@ class HandEyeValidationWorkflow:
 
 
 def _add_validate_args(parser: argparse.ArgumentParser) -> None:
-    Config.load()
-    cfg = Config.get("handeye")
+    cfg = handeye
     parser.add_argument(
         "--images_dir",
-        default=cfg.get("images_dir", "cloud"),
+        default=cfg.images_dir,
         help="Directory with Charuco images",
     )
     parser.add_argument(
         "--charuco_xml",
-        default=cfg.get("charuco_xml", "calibration/results/charuco_cam.xml"),
+        default=cfg.charuco_xml,
         help="Camera calibration XML file",
     )
 

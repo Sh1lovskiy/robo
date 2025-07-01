@@ -13,10 +13,9 @@ from calibration.helpers.pose_utils import (
     save_camera_params_xml,
     save_camera_params_txt,
 )
-from utils.config import Config
 from utils.logger import Logger, LoggerType
 from utils.cli import Command
-from utils.settings import paths
+from utils.settings import paths, charuco
 
 
 @dataclass
@@ -35,31 +34,30 @@ class CharucoCalibrationWorkflow:
         cv2.aruco_CharucoBoard,
         cv2.aruco_Dictionary,
     ]:
-        if Config._data is None:
-            Config.load()
-        cfg = Config.get("charuco")
+        cfg = charuco
         folder = str(paths.CAPTURES_DIR)
         if not os.path.isdir(folder):
             self.logger.error(f"Images directory {folder} not found")
             raise FileNotFoundError(folder)
-        out_dir = cfg.get("calib_output_dir", "calibration/results1980") or str(
-            paths.RESULTS_DIR
-        )
+        out_dir = cfg.calib_output_dir
         os.makedirs(out_dir, exist_ok=True)
-        xml_file = os.path.join(out_dir, cfg.get("xml_file", "charuco_cam.xml")) or str(
-            paths.RESULTS_DIR / "charuco_cam.xml"
+        xml_file = os.path.join(out_dir, cfg.xml_file)
+        txt_file = os.path.join(out_dir, cfg.txt_file)
+        board_cfg = dict(
+            squares_x=cfg.squares_x,
+            squares_y=cfg.squares_y,
+            square_length=cfg.square_length,
+            marker_length=cfg.marker_length,
+            aruco_dict=cfg.aruco_dict,
         )
-        txt_file = os.path.join(out_dir, cfg.get("txt_file", "charuco_cam.txt")) or str(
-            paths.RESULTS_DIR / "charuco_cam.txt"
-        )
-        board, dictionary = load_board(cfg)
+        board, dictionary = load_board(board_cfg)
         images = [
             os.path.join(folder, f)
             for f in sorted(os.listdir(folder))
             if f.lower().endswith((".png", ".jpg", ".jpeg"))
         ]
         self.logger.info(f"Found {len(images)} images in {folder}")
-        return cfg, out_dir, xml_file, txt_file, images, board, dictionary
+        return board_cfg, out_dir, xml_file, txt_file, images, board, dictionary
 
     def _process_images(self, calibrator: CharucoCalibrator, images: list[str]) -> None:
         for img_path in Logger.progress(images, desc="Charuco frames"):

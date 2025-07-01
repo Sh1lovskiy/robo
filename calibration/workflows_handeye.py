@@ -20,17 +20,17 @@ from calibration.helpers.pose_utils import (
     ExtractionParams,
     LmdbPoseLoader,
 )
-from utils.config import Config
 from utils.logger import Logger, LoggerType
 from utils.lmdb_storage import LmdbStorage
 from utils.cli import Command
-from utils.settings import paths
+from utils.settings import paths, handeye, charuco, HandEyeSettings
 
 
 @dataclass
 class HandEyeCalibrationWorkflow:
     """Run hand-eye calibration using saved poses and Charuco frames."""
 
+    cfg: HandEyeSettings = handeye
     logger: LoggerType = Logger.get_logger("calibration.workflow.handeye")
 
     def _load_config(self) -> tuple[
@@ -43,21 +43,21 @@ class HandEyeCalibrationWorkflow:
         cv2.aruco_CharucoBoard,
         cv2.aruco_Dictionary,
     ]:
-        if Config._data is None:
-            Config.load()
-        cfg = Config.get("handeye")
-        out_dir = "captures/results3"
+        cfg = self.cfg
+        out_dir = cfg.calib_output_dir
         os.makedirs(out_dir, exist_ok=True)
-        # charuco_xml = cfg.get(
-        #     "charuco_xml", os.path.join(out_dir, "charuco_cam.xml")
-        # ) or str(paths.RESULTS_DIR / "charuco_cam.xml")
-        charuco_xml = "calibration/results1980/charuco_cam.xml"
-        robot_file = cfg.get("robot_poses_file", "cloud/poses.json") or str(
-            paths.CAPTURES_DIR / "poses.json"
+        charuco_xml = cfg.charuco_xml
+        robot_file = cfg.robot_poses_file
+        images_dir = cfg.images_dir
+        method = cfg.method.upper()
+        board_cfg = dict(
+            squares_x=charuco.squares_x,
+            squares_y=charuco.squares_y,
+            square_length=charuco.square_length,
+            marker_length=charuco.marker_length,
+            aruco_dict=charuco.aruco_dict,
         )
-        images_dir = cfg.get("images_dir", "cloud") or str(paths.CAPTURES_DIR)
-        method = cfg.get("method", "ALL").upper()
-        board, dictionary = load_board(cfg)
+        board, dictionary = load_board(board_cfg)
         return (
             cfg,
             out_dir,
@@ -126,11 +126,10 @@ class HandEyeCalibrationWorkflow:
         camera_matrix, dist_coeffs = load_camera_params(charuco_xml)
         Rs_g2b, ts_g2b = LmdbPoseLoader.load_poses(robot_file)
         params = ExtractionParams(
-            min_corners=cfg.get("min_corners", 4),
-            # visualize=cfg.get("visualize", True),
-            visualize=True,
+            min_corners=cfg.min_corners,
+            visualize=cfg.visualize,
             analyze_corners=True,
-            outlier_std=float(cfg.get("outlier_std", 2.0)),
+            outlier_std=cfg.outlier_std,
         )
         extraction = extract_charuco_poses(
             images_dir,
@@ -167,27 +166,26 @@ class HandEyeCalibrationWorkflow:
 
 
 def add_handeye_args(parser: argparse.ArgumentParser) -> None:
-    Config.load()
-    cfg = Config.get("handeye")
-    out_dir = cfg.get("calib_output_dir", "calibration/results")
+    cfg = handeye
+    out_dir = cfg.calib_output_dir
     parser.add_argument(
         "--images_dir",
-        default=cfg.get("images_dir", "captures"),
+        default=cfg.images_dir,
         help="Directory with Charuco images",
     )
     parser.add_argument(
         "--charuco_xml",
-        default=cfg.get("charuco_xml", os.path.join(out_dir, "charuco_cam.xml")),
+        default=cfg.charuco_xml,
         help="Camera calibration XML file",
     )
     parser.add_argument(
         "--robot_poses_file",
-        default=cfg.get("robot_poses_file", "captures/poses.json"),
+        default=cfg.robot_poses_file,
         help="JSON file with robot poses",
     )
     parser.add_argument(
         "--method",
-        default=cfg.get("method", "ALL"),
+        default=cfg.method,
         help="Calibration method or ALL",
     )
     parser.add_argument(
@@ -198,10 +196,14 @@ def add_handeye_args(parser: argparse.ArgumentParser) -> None:
 
 
 def run_handeye(args: argparse.Namespace) -> None:
-    Config.load()
-    cfg = Config.get("handeye")
-    cfg["images_dir"] = args.images_dir
-    cfg["charuco_xml"] = args.charuco_xml
-    cfg["robot_poses_file"] = args.robot_poses_file
-    cfg["method"] = args.method
-    HandEyeCalibrationWorkflow().run()
+    cfg = HandEyeSettings(
+        images_dir=args.images_dir,
+        charuco_xml=args.charuco_xml,
+        robot_poses_file=args.robot_poses_file,
+        method=args.method,
+        min_corners=handeye.min_corners,
+        outlier_std=handeye.outlier_std,
+        visualize=handeye.visualize,
+        calib_output_dir=handeye.calib_output_dir,
+    )
+    HandEyeCalibrationWorkflow(cfg).run()

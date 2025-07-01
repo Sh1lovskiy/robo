@@ -17,7 +17,7 @@ from robot.config import RobotConfig
 class RobotController:
     """
     High-level robot controller for movement, pose, and state management.
-    Loads configuration from config.yaml unless overridden.
+    Uses :mod:`utils.settings` for defaults.
     """
 
     def __init__(

@@ -6,18 +6,16 @@ import argparse
 
 from robot.controller import RobotController
 from utils.cli import Command, CommandDispatcher
-from utils.config import Config
 from utils.logger import Logger
 from utils.lmdb_storage import LmdbStorage
-from utils.settings import paths
+from utils.settings import paths, robot
 
 from .record import JsonPoseSaver, DBPoseSaver, PoseRecorder, CameraManager, DBFrameSaver
 from .path import PathRunner
 
 
 def _add_record_args(parser: argparse.ArgumentParser) -> None:
-    Config.load()
-    parser.add_argument("--ip", default=Config.get("robot.ip"), help="Robot IP")
+    parser.add_argument("--ip", default=robot.ip, help="Robot IP")
     parser.add_argument(
         "--captures_dir",
         default=str(paths.CAPTURES_DIR),
@@ -41,8 +39,7 @@ def _run_record(args: argparse.Namespace) -> None:
 
 
 def _add_run_args(parser: argparse.ArgumentParser) -> None:
-    Config.load()
-    parser.add_argument("--ip", default=Config.get("robot.ip"), help="Robot IP")
+    parser.add_argument("--ip", default=robot.ip, help="Robot IP")
     parser.add_argument("--db_path", default="robot_data.lmdb", help="LMDB database with poses")
 
 
@@ -58,8 +55,7 @@ def _run_path(args: argparse.Namespace) -> None:
 
 
 def _add_restart_args(parser: argparse.ArgumentParser) -> None:
-    Config.load()
-    parser.add_argument("--ip", default=Config.get("robot.ip"), help="Robot IP")
+    parser.add_argument("--ip", default=robot.ip, help="Robot IP")
     parser.add_argument("--delay", type=float, default=3.0, help="Seconds between reconnects")
     parser.add_argument("--attempts", type=int, default=3, help="Reconnect attempts")
 
