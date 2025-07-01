@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import json
-from vision.d415_pipeline import (
+from vision.realsense_d415 import (
     RealSenseD415,
     D415CameraSettings,
     D415FilterConfig,

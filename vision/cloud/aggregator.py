@@ -69,41 +69,6 @@ def load_extrinsics_json(
     return R, t
 
 
-import re
-
-
-def load_extrinsics_txt(path: str, logger: LoggerType) -> tuple[np.ndarray, np.ndarray]:
-    with open(path, "r") as f:
-        lines = f.readlines()
-    matrix = []
-    tvec = None
-    parsing_matrix = False
-    for line in lines:
-        if "Rotation:" in line:
-            parsing_matrix = True
-            matrix = []
-            continue
-        if parsing_matrix:
-            if "]" in line:
-                parsing_matrix = False
-            nums = re.findall(
-                r"[-+]?[0-9]*\.?[0-9]+e[-+]?\d+|[-+]?[0-9]*\.?[0-9]+", line
-            )
-            if nums:
-                matrix.append([float(n) for n in nums])
-            continue
-        if "Translation:" in line:
-            nums = re.findall(
-                r"[-+]?[0-9]*\.?[0-9]+e[-+]?\d+|[-+]?[0-9]*\.?[0-9]+", line
-            )
-            if nums:
-                tvec = np.array([float(n) for n in nums])
-    R = np.array(matrix)
-    t = np.array(tvec)
-    logger.info("Extrinsics loaded from %s", path)
-    return R, t
-
-
 class RGBDAggregator:
     def __init__(self, logger: LoggerType | None = None) -> None:
         self.logger = logger or Logger.get_logger("cloud.aggregator")

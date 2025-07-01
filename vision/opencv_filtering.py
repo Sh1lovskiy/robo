@@ -83,7 +83,6 @@ class DepthOfflineFilters:
         cv2.destroyAllWindows()
 
 
-# ---- Usage -----
 if __name__ == "__main__":
     import sys
 
