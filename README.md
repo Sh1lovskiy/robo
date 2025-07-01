@@ -36,7 +36,6 @@ project-root/
 │   └── README.md               # Package overview
 │
 ├── utils/                # Common utilities and storage
-│   ├── config.py               # Config loading/abstraction
 │   ├── logger.py               # Centralized, JSON-capable logger
 │   ├── error_tracker.py        # Global exception and signal handling
 │   ├── cli.py                  # CommandDispatcher helper
@@ -59,7 +58,6 @@ project-root/
 │   ├── transform.py            # 3D transformation utilities
 │   └── README.md               # Explanation of transform chain
 │
-├── conf/app.yaml         # Main configuration file
 ├── pyproject.toml        # Project metadata & dependencies
 └── README.md             # You are here
 ```
@@ -103,11 +101,7 @@ All dependencies are defined in `pyproject.toml`.
 
 ### 2. Configure
 
-Edit `conf/app.yaml` for your robot/camera IP, tool, velocity, logging, and point cloud settings. Configuration is managed with [Hydra](https://github.com/facebookresearch/hydra), so any value can be overridden via the command line:
-
-```bash
-python some_module.py robot.ip=192.168.1.10 logging.level=DEBUG
-```
+Edit `utils/settings.py` to change robot IP, Charuco parameters or logging level. All configuration lives in this single Python module.
 
 ### 3. Run CLI Tools
 CLI modules are thin wrappers calling workflow helpers under
@@ -138,13 +132,10 @@ CLI modules are thin wrappers calling workflow helpers under
 
 ## 📑 Documentation
 
-### Configuration (`conf/app.yaml`)
+### Configuration (`utils/settings.py`)
 
-* `robot:` — IP, tool/user frame, velocity, emergency delay
-* `vision:` — RealSense stream parameters, cloud parameters
-* `logging:` — log directory, level, JSON output
-* `cloud:` — point cloud setting, (resolution, voxel size, output dir, ...)
-* Default paths, robot IP and Charuco dictionary mapping live in `conf/app.yaml`
+All project paths and constants are defined in `utils/settings.py`. Adjust the
+dataclasses there to match your environment.
 
 ### Logger (`utils/logger.py`)
 
@@ -247,7 +238,7 @@ Entry points defined in `pyproject.toml` expose the common workflows:
 ## 🧰 Troubleshooting
 
 * All logs are stored in `logs/` (JSON if enabled)
-* Use `logging.level` and `logging.json` in `conf/app.yaml` to control verbosity/format
+* Use `logging.level` and `logging.json` in `utils/settings.py` to control verbosity/format
 * CLI tools print progress, errors, and file names
 * For RealSense errors: check camera connection, permissions, drivers, and stream config
 * For robot errors: verify IP, cable, firewall, and physical enable state

@@ -13,7 +13,6 @@ import open3d as o3d
 
 from utils.logger import Logger, LoggerType
 from utils.cli import Command, CommandDispatcher
-from utils.config import Config
 from utils.cloud_utils import (
     load_depth,
     load_extrinsics_json,
@@ -21,6 +20,7 @@ from utils.cloud_utils import (
     get_image_pairs,
 )
 from calibration.helpers.pose_utils import load_camera_params, JSONPoseLoader
+from utils.settings import paths, charuco
 from vision.cloud.generator import PointCloudGenerator
 from vision.transform import TransformUtils
 
@@ -100,41 +100,21 @@ iterations={len(reg.correspondence_set)}"
 
 
 def _add_aggregate_args(parser: argparse.ArgumentParser) -> None:
-    Config.load()
-    cfg = Config.get("aggregator")
-    default_data_dir = (
-        cfg.get("data_dir", "captures") if cfg is not None else "captures"
-    )
-    parser.add_argument("--data_dir", default=default_data_dir)
+    parser.add_argument("--data_dir", default=str(paths.CAPTURES_DIR))
+    parser.add_argument("--extrinsics_json", required=True)
     parser.add_argument(
-        "--extrinsics_json", required=True, help="JSON with depth_to_rgb extrinsics"
+        "--charuco_xml", default=str(paths.RESULTS_DIR / charuco.xml_file)
     )
-    parser.add_argument(
-        "--icp", action="store_true", help="Enable ICP alignment between frames"
-    )
-
-
-def _add_aggregate_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--data_dir", default="data/1920x0180_5_cloud")
-    parser.add_argument("--extrinsics_txt", default="realsense_extrinsics.json")
-    parser.add_argument(
-        "--charuco_xml", default="calibration/results1980/charuco_cam.xml"
-    )
-    parser.add_argument(
-        "--handeye_txt", default="data/5x5_100_15imgs_top1/results3/handeye_ANDREFF.txt"
-    )
-    parser.add_argument(
-        "--icp", action="store_true", help="Enable ICP alignment between frames"
-    )
+    parser.add_argument("--handeye_txt", required=True)
+    parser.add_argument("--icp", action="store_true", help="Enable ICP alignment between frames")
 
 
 def _run_aggregate(args: argparse.Namespace) -> None:
     logger = Logger.get_logger("cloud.pipeline")
-    Config.load()
-    data_dir = "captures"
-    extrinsics_txt = "realsense_extrinsics.json"
-    charuco_xml = "data/old/results1980/charuco_cam.xml"
-    handeye_txt = "calib/results3/handeye_ANDREFF.txt"
+    data_dir = args.data_dir
+    extrinsics_txt = args.extrinsics_json
+    charuco_xml = args.charuco_xml
+    handeye_txt = args.handeye_txt
 
     K, _ = load_camera_params(charuco_xml)
     logger.info(f"Camera intrinsics loaded from {charuco_xml}.")

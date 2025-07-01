@@ -71,7 +71,7 @@ import numpy as np
 # Load robot TCP pose (from robot state)
 tcp_R, tcp_t = ...  # from RobotController or forward kinematics
 # Tool offset: [x, y, z, rx, ry, rz] (from config, or zero)
-tcp_offset = ...    # from config.yaml or teach pendant
+tcp_offset = ...    # from utils.settings or teach pendant
 # Hand-eye calibration (TCP→camera)
 R_handeye, t_handeye = ...  # from handeye.npz
 

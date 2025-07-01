@@ -13,7 +13,7 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 
-from utils.config import Config
+from utils.settings import charuco
 from utils.logger import Logger, LoggerType
 from utils.lmdb_storage import LmdbStorage
 from .validation_utils import euler_to_matrix
@@ -122,12 +122,11 @@ class ExtractionResult:
 
 
 def _load_params() -> ExtractionParams:
-    cfg = Config.get("charuco")
     return ExtractionParams(
-        min_corners=cfg.get("min_corners", 4),
-        visualize=cfg.get("visualize", False),
-        analyze_corners=cfg.get("analyze_corners", False),
-        outlier_std=float(cfg.get("outlier_std", 2.0)),
+        min_corners=charuco.min_corners,
+        visualize=charuco.visualize,
+        analyze_corners=charuco.analyze_corners,
+        outlier_std=charuco.outlier_std,
     )
 
 
