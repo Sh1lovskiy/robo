@@ -56,6 +56,8 @@ logs/
 # -----------------
 # Calibration, clouds, patterns (for calibration), graphics and other data artifacts
 # -----------------
+calib/
+storage/
 captures/
 data/
 tmp/

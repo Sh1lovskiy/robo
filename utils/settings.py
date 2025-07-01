@@ -14,13 +14,8 @@ class Paths:
     LOG_DIR: Path = BASE_DIR / "logs"
     VALIDATION_RESULTS_DIR: Path = BASE_DIR / "calibration" / "results2"
 
-    # Aggregator-specific paths
-    AGGREGATOR_DATA_DIR: Path = BASE_DIR / "clouds" / "captures_3"
-    CHARUCO_XML: Path = RESULTS_DIR / "charuco_cam.xml"
-    HANDEYE_TXT: Path = RESULTS_DIR / "handeye_TSAI.txt"
-    POSES_FILE: Path = AGGREGATOR_DATA_DIR / "poses.json"
-    PLY_ICP: Path = AGGREGATOR_DATA_DIR / "cloud_aggregated_icp.ply"
-    PLY_NOICP: Path = AGGREGATOR_DATA_DIR / "cloud_aggregated.ply"
-
 
 paths = Paths()
+
+# RealSense depth unit to meters conversion
+DEPTH_SCALE: float = 0.0001

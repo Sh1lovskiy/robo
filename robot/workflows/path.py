@@ -23,7 +23,10 @@ def load_trajectory(db_path: str, prefix: str = "poses") -> List[List[float]]:
 
 def load_trajectory_db(storage: LmdbStorage, prefix: str = "poses") -> List[List[float]]:
     """Retrieve trajectory poses from a :class:`LmdbStorage` instance."""
-    keys = sorted(storage.iter_prefix(f"{prefix}:"), key=lambda k: int(k.split(":")[1]))
+    keys = sorted(
+        storage.iter_keys(f"{prefix}:") ,
+        key=lambda k: int(k.split(":")[1])
+    )
     poses: List[List[float]] = []
     for k in keys:
         data = storage.get_json(k)

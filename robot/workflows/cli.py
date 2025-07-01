@@ -9,6 +9,7 @@ from utils.cli import Command, CommandDispatcher
 from utils.config import Config
 from utils.logger import Logger
 from utils.lmdb_storage import LmdbStorage
+from utils.settings import paths
 
 from .record import JsonPoseSaver, DBPoseSaver, PoseRecorder, CameraManager, DBFrameSaver
 from .path import PathRunner
@@ -19,7 +20,7 @@ def _add_record_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--ip", default=Config.get("robot.ip"), help="Robot IP")
     parser.add_argument(
         "--captures_dir",
-        default=Config.get("path_saver.captures_dir", "captures"),
+        default=str(paths.CAPTURES_DIR),
         help="Directory for saved poses",
     )
     parser.add_argument("--drag", action="store_true", help="Enable drag teaching mode")

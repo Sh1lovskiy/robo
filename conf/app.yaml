@@ -31,14 +31,6 @@ handeye:
   outlier_std: 2.0
   visualize: false
 
-sample_selector:
-  enabled: false
-  min_samples: 5
-  max_iterations: 5
-  trans_thresh: 0.01
-  rot_thresh_deg: 5.0
-  visualize: false
-
 validation:
   aruco_dict: "5X5_100"
   squares_x: 5
@@ -48,21 +40,3 @@ validation:
   pixel_threshold: 1.0
   board_lt_base: [-0.165, -0.365, 0.0]
   board_rb_base: [-0.4, -0.53, 0.0]
-
-edge_drawer:
-  camera:
-    width: 1920
-    height: 1080
-    decimation: 2
-    filter_sigma: 1.0
-  robot:
-    ip: "192.168.58.2"
-    velocity: 20.0
-  edge:
-    hull_alpha: 0.03
-    sample_resolution: 0.0001
-    speed: 0.03
-    transform_path: "handeye.yaml"
-    force_limit: 2.0
-  logging:
-    level: "INFO"
