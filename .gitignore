@@ -56,6 +56,7 @@ logs/
 # -----------------
 # Calibration, clouds, patterns (for calibration), graphics and other data artifacts
 # -----------------
+captures/
 data/
 tmp/
 
@@ -67,6 +68,7 @@ tmp/
 *.npz
 *.txt
 *.json
+*.ply
 
 # -----------------
 # Env files

@@ -1,23 +1,24 @@
 """Vision utilities."""
 
-try:
-    from .realsense import RealSenseCamera
-except Exception:
-    RealSenseCamera = None
+from .realsense_d415 import RealSenseD415
 from .transform import TransformUtils
-try:
-    from .cloud.generator import PointCloudGenerator
-    from .cloud.aggregator import RGBDAggregator
-    from .cloud.analyzer import CloudAnalyzer
-except Exception:  # pragma: no cover - optional modules
-    PointCloudGenerator = None
-    RGBDAggregator = None
-    CloudAnalyzer = None
+from .handeye import EyeInHandCalibrator
+from .cloud.generator import PointCloudGenerator
+from .cloud.aggregator import RGBDAggregator
+from .cloud.analyzer import CloudAnalyzer
+from .cloud.builder import PointCloudBuilder
+
 
 __all__ = [
     "RealSenseCamera",
+    "RealSenseD415",
     "TransformUtils",
+    "EyeInHandCalibrator",
     "PointCloudGenerator",
     "RGBDAggregator",
     "CloudAnalyzer",
+    "PointCloudBuilder",
+    "D415StreamConfig",
+    "D415CameraSettings",
+    "D415FilterConfig",
 ]
