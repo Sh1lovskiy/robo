@@ -24,13 +24,15 @@ class HandEyeSaver:
 
 
 class NPZHandEyeSaver(HandEyeSaver):
-    def save(self, filename: str, R: np.ndarray, t: np.ndarray) -> None:
+    @staticmethod
+    def save(filename: str, R: np.ndarray, t: np.ndarray) -> None:
         """Save ``R`` and ``t`` to an ``.npz`` archive."""
         np.savez(filename, R=R, t=t)
 
 
 class TxtHandEyeSaver(HandEyeSaver):
-    def save(self, filename: str, R: np.ndarray, t: np.ndarray) -> None:
+    @staticmethod
+    def save(filename: str, R: np.ndarray, t: np.ndarray) -> None:
         """Write calibration matrices to a plain text file."""
         with open(filename, "w") as f:
             f.write("R =\n")
@@ -45,6 +47,7 @@ class DBHandEyeSaver(HandEyeSaver):
     def __init__(self, storage: LmdbStorage) -> None:
         self.storage = storage
 
+    @staticmethod
     def save(self, filename: str, R: np.ndarray, t: np.ndarray) -> None:
         """Persist values under ``filename`` keys in :class:`LmdbStorage`."""
         self.storage.put_array(f"{filename}:R", R)

@@ -10,6 +10,7 @@ import pyrealsense2 as rs
 
 from utils.logger import Logger, LoggerType
 from utils.settings import DEPTH_SCALE
+from .camera_base import CameraBase
 
 
 @dataclass
@@ -48,7 +49,7 @@ class D415FilterConfig:
     hole_filling: int = 1
 
 
-class RealSenseD415:
+class RealSenseD415(CameraBase):
     """Wrapper around ``pyrealsense2`` exposing tuned settings."""
 
     def __init__(

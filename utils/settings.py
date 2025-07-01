@@ -68,7 +68,7 @@ class HandEyeSettings:
     visualize: bool = False
     robot_poses_file: str = str(paths.CAPTURES_DIR / "poses.json")
     images_dir: str = str(paths.CAPTURES_DIR)
-    charuco_xml: str = str(paths.RESULTS_DIR / charuco.xml_file)
+    charuco_xml: str = "calibration/results1980/charuco_cam.xml"
     calib_output_dir: str = str(paths.RESULTS_DIR)
 
 
@@ -100,7 +100,7 @@ class CloudSettings:
         default_factory=lambda: {
             "x": (-0.6, -0.1),
             "y": (-0.2, 0.1),
-            "z": (-0.009, 0.05),
+            "z": (-0.009, 0.07),
         }
     )
 
@@ -117,4 +117,4 @@ class LoggingSettings:
 logging = LoggingSettings()
 
 # RealSense depth unit to meters conversion
-DEPTH_SCALE: float = 0.0001
+DEPTH_SCALE: float = 0.001
