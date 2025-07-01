@@ -1,11 +1,11 @@
-# vision/cloud/generator.py
+# vision/pointcloud/generator.py
 """Point cloud utilities built around Open3D."""
 
 from __future__ import annotations
 
 import numpy as np
 import open3d as o3d
-from calibration.helpers.pose_utils import euler_to_matrix
+from calibration.helpers.validation_utils import euler_to_matrix
 
 
 class PointCloudGenerator:

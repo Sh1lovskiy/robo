@@ -10,8 +10,8 @@ from typing import List, Optional, Union, cast
 from utils.logger import Logger, LoggerType
 from utils.error_tracker import ErrorTracker
 
-from robot.Robot import RPC
-from robot.config import RobotConfig
+from robot.rpc import RPC
+from utils.settings import RobotSettings
 
 
 class RobotController:
@@ -22,7 +22,7 @@ class RobotController:
 
     def __init__(
         self,
-        cfg: RobotConfig = RobotConfig(),
+        cfg: RobotSettings = RobotSettings(),
         rpc: Optional[Union[str, RPC]] = None,
         logger: Optional[LoggerType] = None,
     ) -> None:
