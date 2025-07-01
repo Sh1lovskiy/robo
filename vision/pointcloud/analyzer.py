@@ -115,7 +115,7 @@ class ObjectSurfaceAnalyzer:
 class TopFaceFinder:
     """Find points belonging to the top face."""
 
-    def __init__(self, z_tol: float = 0.01, logger: LoggerType | None = None) -> None:
+    def __init__(self, z_tol: float = 0.012, logger: LoggerType | None = None) -> None:
         self.z_tol = z_tol
         self.logger = logger or Logger.get_logger("vision.pipeline.topface")
 

@@ -15,7 +15,7 @@ from calibration.charuco import (
     load_camera_params,
     ExtractionParams,
 )
-from calibration.pose_loader import LmdbPoseLoader
+from calibration.pose_loader import JSONPoseLoader
 from calibration.handeye import (
     HandEyeCalibrator,
     NPZHandEyeSaver,
@@ -116,9 +116,9 @@ class HandEyeCalibrationWorkflow:
         for name, (R, t) in results.items():
             npz_file = os.path.join(out_dir, f"handeye_{name}.npz")
             txt_file = os.path.join(out_dir, f"handeye_{name}.txt")
-            calibrator.save(NPZHandEyeSaver(), npz_file, R, t)
-            calibrator.save(TxtHandEyeSaver(), txt_file, R, t)
-            calibrator.save(DBHandEyeSaver(db), name, R, t)
+            NPZHandEyeSaver.save(npz_file, R, t)
+            TxtHandEyeSaver.save(txt_file, R, t)
+            # DBHandEyeSaver.save(name, R, t)
             self.logger.info(f"Saved {name} calibration to {npz_file}")
 
     def run(self) -> None:
@@ -136,7 +136,7 @@ class HandEyeCalibrationWorkflow:
             self.logger.error(f"Images directory {images_dir} not found")
             return
         camera_matrix, dist_coeffs = load_camera_params(charuco_xml)
-        Rs_g2b, ts_g2b = LmdbPoseLoader.load_poses(robot_file)
+        Rs_g2b, ts_g2b = JSONPoseLoader.load_poses(robot_file)
         params = ExtractionParams(
             min_corners=cfg.min_corners,
             visualize=cfg.visualize,

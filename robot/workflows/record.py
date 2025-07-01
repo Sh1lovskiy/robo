@@ -20,7 +20,12 @@ from utils.logger import Logger, LoggerType
 from utils.lmdb_storage import LmdbStorage
 from utils.settings import charuco
 from vision.opencv_utils import OpenCVUtils
-from vision.camera import RealSenseD415, D415CameraSettings, D415FilterConfig
+from vision.camera import (
+    CameraBase,
+    RealSenseD415,
+    D415CameraSettings,
+    D415FilterConfig,
+)
 
 
 class PoseSaver:
@@ -88,10 +93,10 @@ class CameraManager:
 
     def __init__(
         self,
-        camera: any = None,
+        camera: CameraBase | None = None,
         *,
         logger: LoggerType | None = None,
-        camera_class: type | None = None,
+        camera_class: type[CameraBase] | None = None,
         camera_kwargs: dict | None = None,
     ) -> None:
         """Create and optionally configure the underlying camera object."""
@@ -289,7 +294,7 @@ class PoseRecorder:
         if color is None:
             return
         gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
-        corners, ids, _ = cv2.aruco.detectMarkers(gray, board.dictionary)
+        corners, ids, _ = cv2.aruco.detectMarkers(gray, board.getDictionary())
         if ids is not None and len(ids) > 0:
             cv2.aruco.drawDetectedMarkers(color, corners, ids)
             ret, char_corners, char_ids = cv2.aruco.interpolateCornersCharuco(
