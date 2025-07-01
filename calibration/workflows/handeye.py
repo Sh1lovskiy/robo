@@ -1,3 +1,5 @@
+"""Workflow for solving hand-eye calibration from saved images and poses."""
+
 from __future__ import annotations
 
 import argparse
@@ -28,7 +30,12 @@ from utils.settings import paths, handeye, charuco, HandEyeSettings
 
 @dataclass
 class HandEyeCalibrationWorkflow:
-    """Run hand-eye calibration using saved poses and Charuco frames."""
+    """Run hand-eye calibration using saved poses and Charuco frames.
+
+    Attributes:
+        cfg: Configuration with paths and algorithm settings.
+        logger: Optional logger instance for status updates.
+    """
 
     cfg: HandEyeSettings = handeye
     logger: LoggerType = Logger.get_logger("calibration.workflow.handeye")
@@ -43,6 +50,7 @@ class HandEyeCalibrationWorkflow:
         cv2.aruco_CharucoBoard,
         cv2.aruco_Dictionary,
     ]:
+        """Gather calibration inputs and board configuration."""
         cfg = self.cfg
         out_dir = cfg.calib_output_dir
         os.makedirs(out_dir, exist_ok=True)
@@ -76,6 +84,8 @@ class HandEyeCalibrationWorkflow:
         valid_paths: list[str],
         all_paths: list[str],
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        """Match robot poses to successfully processed images."""
+
         def extract_index(fname: str) -> str:
             return os.path.splitext(os.path.basename(fname))[0].split("_")[0]
 
@@ -98,6 +108,7 @@ class HandEyeCalibrationWorkflow:
         method: str,
         results: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
     ) -> None:
+        """Persist computed hand-eye matrices in multiple formats."""
         if results is None:
             R, t = calibrator.calibrate(method)
             results = {method: (R, t)}
@@ -111,6 +122,7 @@ class HandEyeCalibrationWorkflow:
             self.logger.info(f"Saved {name} calibration to {npz_file}")
 
     def run(self) -> None:
+        """Execute the hand-eye calibration workflow."""
         cfg, out_dir, charuco_xml, robot_file, images_dir, method, board, dictionary = (
             self._load_config()
         )
@@ -166,6 +178,7 @@ class HandEyeCalibrationWorkflow:
 
 
 def add_handeye_args(parser: argparse.ArgumentParser) -> None:
+    """Add command line arguments for the ``handeye`` workflow."""
     cfg = handeye
     out_dir = cfg.calib_output_dir
     parser.add_argument(
@@ -196,6 +209,7 @@ def add_handeye_args(parser: argparse.ArgumentParser) -> None:
 
 
 def run_handeye(args: argparse.Namespace) -> None:
+    """Entry point for hand-eye calibration from the CLI."""
     cfg = HandEyeSettings(
         images_dir=args.images_dir,
         charuco_xml=args.charuco_xml,

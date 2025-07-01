@@ -1,6 +1,12 @@
 # robot/controller.py
 
-"""High-level robot control interface using Fairino Robot SDK."""
+"""High-level robot control interface using the Fairino SDK.
+
+This module exposes :class:`RobotController` which wraps the Cython RPC bindings
+and offers convenience methods for motion commands, pose queries and restart
+logic.  It is designed to be hardware agnostic and easily replaceable for unit
+testing.
+"""
 
 from __future__ import annotations
 import time

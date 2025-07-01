@@ -20,6 +20,7 @@ class CameraBase(ABC):
         """Stop streaming."""
 
     @abstractmethod
-    def get_frames(self, aligned: bool = True) -> Tuple[np.ndarray | None, np.ndarray | None]:
+    def get_frames(
+        self, aligned: bool = True
+    ) -> Tuple[np.ndarray | None, np.ndarray | None]:
         """Return color and depth frames."""
-

@@ -1,3 +1,5 @@
+"""Point cloud post-processing and analysis pipeline."""
+
 from __future__ import annotations
 
 import argparse

@@ -21,12 +21,11 @@ def load_trajectory(db_path: str, prefix: str = "poses") -> List[List[float]]:
     return [store.get_json(k)["tcp_coords"] for k in keys]
 
 
-def load_trajectory_db(storage: LmdbStorage, prefix: str = "poses") -> List[List[float]]:
+def load_trajectory_db(
+    storage: LmdbStorage, prefix: str = "poses"
+) -> List[List[float]]:
     """Retrieve trajectory poses from a :class:`LmdbStorage` instance."""
-    keys = sorted(
-        storage.iter_keys(f"{prefix}:") ,
-        key=lambda k: int(k.split(":")[1])
-    )
+    keys = sorted(storage.iter_keys(f"{prefix}:"), key=lambda k: int(k.split(":")[1]))
     poses: List[List[float]] = []
     for k in keys:
         data = storage.get_json(k)
@@ -48,6 +47,7 @@ class PathRunner:
     logger: LoggerType = Logger.get_logger("robot.workflow.path")
 
     def run(self) -> None:
+        """Synchronously execute the loaded trajectory."""
         path = self._load_path()
         if not path:
             return
@@ -73,6 +73,7 @@ class PathRunner:
         self.logger.info("Path execution finished")
 
     async def run_async(self) -> None:
+        """Asynchronous variant of :meth:`run`."""
         path = self._load_path()
         if not path:
             return
@@ -94,6 +95,7 @@ class PathRunner:
         self.logger.info("Path execution finished")
 
     def _load_path(self) -> List[List[float]]:
+        """Load path poses either from LMDB or a JSON file."""
         if self.storage is not None:
             return load_trajectory_db(self.storage)
         if self.traj_file is not None:

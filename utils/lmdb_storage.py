@@ -1,3 +1,5 @@
+"""Lightweight LMDB wrapper for storing images and arrays."""
+
 from __future__ import annotations
 
 import io

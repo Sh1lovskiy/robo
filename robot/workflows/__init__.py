@@ -1,4 +1,10 @@
-"""High-level robot workflows package."""
+"""Workflow helpers for typical robot tasks.
+
+This package contains utilities used by the ``robot-cli`` entry point: pose
+recording, trajectory playback and camera management.  The API is intentionally
+lightweight so it can be reused programmatically as well as via the command
+line.
+"""
 
 from .record import CameraManager, PoseRecorder
 from .path import PathRunner
