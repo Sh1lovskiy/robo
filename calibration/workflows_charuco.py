@@ -39,7 +39,6 @@ class CharucoCalibrationWorkflow:
             Config.load()
         cfg = Config.get("charuco")
         folder = str(paths.CAPTURES_DIR)
-        folder = "captures"
         if not os.path.isdir(folder):
             self.logger.error(f"Images directory {folder} not found")
             raise FileNotFoundError(folder)

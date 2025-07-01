@@ -4,9 +4,7 @@
 from __future__ import annotations
 
 import os
-import glob
 import argparse
-import json
 from typing import Any
 
 import cv2
@@ -16,57 +14,15 @@ import open3d as o3d
 from utils.logger import Logger, LoggerType
 from utils.cli import Command, CommandDispatcher
 from utils.config import Config
+from utils.cloud_utils import (
+    load_depth,
+    load_extrinsics_json,
+    load_handeye_txt,
+    get_image_pairs,
+)
 from calibration.helpers.pose_utils import load_camera_params, JSONPoseLoader
 from vision.cloud.generator import PointCloudGenerator
 from vision.transform import TransformUtils
-
-DEPTH_SCALE = 0.0001
-
-
-def load_handeye_txt(path: str) -> tuple[np.ndarray, np.ndarray]:
-    with open(path, "r") as f:
-        lines = f.readlines()
-    R: list[list[float]] = []
-    t: np.ndarray = np.empty(3)
-    for line in lines:
-        if line.startswith("R"):
-            continue
-        elif line.startswith("t"):
-            continue
-        vals = [float(x) for x in line.strip().split()]
-        if len(vals) == 3:
-            if len(R) < 3:
-                R.append(vals)
-            else:
-                t = np.array(vals)
-    R = np.array(R)
-    t = np.array(t)
-    return R, t
-
-
-def load_depth(depth_path: str) -> np.ndarray:
-    depth = np.load(depth_path)
-    if np.issubdtype(depth.dtype, np.integer):
-        depth = depth.astype(np.float32) * DEPTH_SCALE
-    return depth
-
-
-def get_image_pairs(data_dir: str) -> list[tuple[str, str]]:
-    rgb_list = sorted(glob.glob(os.path.join(data_dir, "*_rgb.*")))
-    depth_list = sorted(glob.glob(os.path.join(data_dir, "*_depth.*")))
-    assert len(rgb_list) == len(depth_list), "RGB and depth image count mismatch."
-    return list(zip(rgb_list, depth_list))
-
-
-def load_extrinsics_json(
-    json_path: str, logger: LoggerType
-) -> tuple[np.ndarray, np.ndarray]:
-    with open(json_path, "r") as f:
-        data = json.load(f)
-    R = np.array(data["depth_to_rgb"]["rotation"])
-    t = np.array(data["depth_to_rgb"]["translation"])
-    logger.info("Extrinsics loaded from %s", json_path)
-    return R, t
 
 
 class RGBDAggregator:

@@ -1,4 +1,5 @@
-# calibration/helpers/gen_charuco_patterns.py
+# calibration/helpers/gen_charuco_pattern.py
+"""Generate printable Charuco boards"""
 
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ PX_PER_MM = DPI / 25.4
 WIDTH_PX = int(A4_WIDTH_MM * PX_PER_MM)
 HEIGHT_PX = int(A4_HEIGHT_MM * PX_PER_MM)
 
-# Типы шаблонов для генерации
+# Preset Charuco board configurations
 CHARUCO_CONFIGS = [
     # (squares_x, squares_y, aruco_dict_name, aruco_dict_id)
     (8, 5, "5X5_50", cv2.aruco.DICT_5X5_50),
