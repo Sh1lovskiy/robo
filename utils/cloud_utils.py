@@ -55,7 +55,19 @@ def load_extrinsics_json(
     logger = logger or Logger.get_logger("utils.cloud")
     with open(json_path, "r") as f:
         data = json.load(f)
-    R = np.array(data["depth_to_rgb"]["rotation"])
-    t = np.array(data["depth_to_rgb"]["translation"])
+    ext = data.get("depth_to_rgb", data)
+    if "rotation" in ext:
+        R = np.array(ext["rotation"])
+    elif "R" in ext:
+        R = np.array(ext["R"])
+    else:
+        raise KeyError("rotation matrix not found in extrinsics JSON")
+
+    if "translation" in ext:
+        t = np.array(ext["translation"])
+    elif "t" in ext:
+        t = np.array(ext["t"])
+    else:
+        raise KeyError("translation vector not found in extrinsics JSON")
     logger.info("Extrinsics loaded from %s", json_path)
     return R, t

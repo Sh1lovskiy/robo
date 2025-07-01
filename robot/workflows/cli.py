@@ -40,7 +40,7 @@ def _run_record(args: argparse.Namespace) -> None:
     storage = LmdbStorage(args.db_path)
     saver = DBPoseSaver(storage) if args.use_db else JsonPoseSaver()
     recorder = PoseRecorder(
-        controller=RobotController(rpc=args.ip),
+        controller=RobotController(robot=args.ip),
         saver=saver,
         captures_dir=args.captures_dir,
         drag=args.drag,
@@ -107,3 +107,33 @@ def main() -> None:
     """Entry point for the ``robot-cli`` script."""
     logger = Logger.get_logger("robot.workflows")
     create_cli().run(logger=logger)
+
+
+if __name__ == "__main__":
+    import sys
+
+    logger = Logger.get_logger("robot.workflows")
+
+    FUNC_MAP = {
+        "_run_record": _run_record,
+        "_run_path": _run_path,
+        "_run_restart": _run_restart,
+    }
+
+    if len(sys.argv) > 1 and sys.argv[1] in FUNC_MAP:
+        func = FUNC_MAP[sys.argv[1]]
+        parser = argparse.ArgumentParser()
+        if sys.argv[1] == "_run_record":
+            _add_record_args(parser)
+        elif sys.argv[1] == "_run_path":
+            _add_run_args(parser)
+        elif sys.argv[1] == "_run_restart":
+            _add_restart_args(parser)
+        else:
+            parser.print_help()
+            sys.exit(1)
+
+        args = parser.parse_args(sys.argv[2:])
+        func(args)
+    else:
+        main()

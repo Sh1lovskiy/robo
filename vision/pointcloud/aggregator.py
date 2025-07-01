@@ -21,7 +21,7 @@ from utils.cloud_utils import (
 )
 from calibration.charuco import load_camera_params
 from calibration.pose_loader import JSONPoseLoader
-from utils.settings import paths, charuco
+from utils.settings import paths, handeye
 from vision.pointcloud.generator import PointCloudGenerator
 from vision.transform import TransformUtils
 
@@ -58,11 +58,12 @@ class RGBDAggregator:
                 "ppy": intrinsics[1, 2],
             }
             points, colors = self.cloud_gen.depth_to_cloud(depth, cam_intr, rgb)
-            points = (R_depth2rgb @ points.T).T + t_depth2rgb
+            T_rgb_ir = self.transformer.build_transform(R_depth2rgb, t_depth2rgb)
+            T_tcp_cam = self.transformer.build_transform(R_handeye, t_handeye)
+            T_tcp_rgb = T_tcp_cam @ T_rgb_ir
             self.logger.info(f"Frame {idx}: {points.shape[0]} points (in RGB frame).")
             T_base_tcp = self.transformer.build_transform(R_tcp, t_tcp)
-            T_tcp_cam = self.transformer.build_transform(R_handeye, t_handeye)
-            T_base_cam = T_base_tcp @ T_tcp_cam
+            T_base_cam = T_base_tcp @ T_tcp_rgb
             points_world = self.transformer.transform_points(points, T_base_cam)
             pcd = o3d.geometry.PointCloud()
             pcd.points = o3d.utility.Vector3dVector(points_world)
@@ -82,8 +83,7 @@ class RGBDAggregator:
                         o3d.pipelines.registration.TransformationEstimationPointToPoint(),
                     )
                     self.logger.info(
-                        f"ICP frame {idx}: RMSE={reg.inlier_rmse:.5f}, \
-iterations={len(reg.correspondence_set)}"
+                        f"ICP frame {idx}: RMSE={reg.inlier_rmse:.5f}, iterations={len(reg.correspondence_set)}"
                     )
                     pcd.transform(reg.transformation)
                 base_pcd += pcd
@@ -102,11 +102,9 @@ iterations={len(reg.correspondence_set)}"
 
 def _add_aggregate_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--data_dir", default=str(paths.CAPTURES_DIR))
-    parser.add_argument("--extrinsics_json", required=True)
-    parser.add_argument(
-        "--charuco_xml", default=str(paths.RESULTS_DIR / charuco.xml_file)
-    )
-    parser.add_argument("--handeye_txt", required=True)
+    parser.add_argument("--extrinsics_json", default="realsense_extrinsics.json")
+    parser.add_argument("--charuco_xml", default=str(handeye.charuco_xml))
+    parser.add_argument("--handeye_txt", default="calibration/results/handeye_TSAI.txt")
     parser.add_argument(
         "--icp", action="store_true", help="Enable ICP alignment between frames"
     )

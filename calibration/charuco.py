@@ -183,8 +183,10 @@ def _estimate_pose(
     _, char_corners, char_ids = cv2.aruco.interpolateCornersCharuco(
         corners, ids, gray, board
     )
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 1000000, 0.00001)
+    corners = cv2.cornerSubPix(gray, char_corners, (15, 15), (-1, -1), criteria)
     if (
-        char_corners is None
+        corners is None
         or char_ids is None
         or len(char_ids) < max(6, params.min_corners)
     ):
@@ -192,7 +194,7 @@ def _estimate_pose(
     rvec_init = np.zeros((3, 1), dtype=np.float64)
     tvec_init = np.zeros((3, 1), dtype=np.float64)
     retval, rvec, tvec = cv2.aruco.estimatePoseCharucoBoard(
-        char_corners,
+        corners,
         char_ids,
         board,
         camera_matrix,

@@ -1,11 +1,10 @@
 # robot/controller.py
 
-"""High-level robot control interface using the Fairino SDK.
+"""High-level robot control interface.
 
-This module exposes :class:`RobotController` which wraps the Cython RPC bindings
-and offers convenience methods for motion commands, pose queries and restart
-logic.  It is designed to be hardware agnostic and easily replaceable for unit
-testing.
+``RobotController`` operates on a :class:`RobotInterface` allowing different
+communication backends.  The default adapter wraps the Fairino SDK RPC but
+tests may inject a mock implementation.
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ from typing import List, Optional, Union, cast
 from utils.logger import Logger, LoggerType
 from utils.error_tracker import ErrorTracker
 
-from robot.rpc import RPC
+from robot.interfaces import RobotInterface, FairinoRPC
 from utils.settings import RobotSettings
 
 
@@ -29,7 +28,7 @@ class RobotController:
     def __init__(
         self,
         cfg: RobotSettings = RobotSettings(),
-        rpc: Optional[Union[str, RPC]] = None,
+        robot: Optional[Union[str, RobotInterface]] = None,
         logger: Optional[LoggerType] = None,
     ) -> None:
         """Initialize the robot controller."""
@@ -42,24 +41,26 @@ class RobotController:
         self.logger = logger or Logger.get_logger("robot.controller")
         self.initial_pose: List[float] | None = None
 
-        self.rpc = self._init_rpc(rpc)
+        self.robot = self._init_robot(robot)
 
         ErrorTracker.register_cleanup(self.shutdown)
 
         self.logger.info(f"RobotController initialized with IP {self.ip_address}")
 
-    def _init_rpc(self, rpc: Optional[Union[str, RPC]]) -> RPC:
-        """Resolve RPC connection from input."""
-        if rpc is None:
-            self.logger.info("RPC created from config IP")
-            return RPC(ip=self.ip_address)
-        if isinstance(rpc, str):
-            self.logger.info("RPC created from provided IP")
-            return RPC(ip=rpc)
-        if isinstance(rpc, RPC):
-            self.logger.info("Using existing RPC instance")
-            return rpc
-        raise TypeError(f"Invalid rpc argument: {type(rpc)}")
+    def _init_robot(
+        self, robot: Optional[Union[str, RobotInterface]]
+    ) -> RobotInterface:
+        """Resolve robot communication interface from input."""
+        if robot is None:
+            self.logger.info("Creating default RPC adapter from config IP")
+            return FairinoRPC(ip=self.ip_address)
+        if isinstance(robot, str):
+            self.logger.info("Creating RPC adapter from provided IP")
+            return FairinoRPC(ip=robot)
+        if isinstance(robot, RobotInterface):
+            self.logger.info("Using provided robot interface instance")
+            return robot
+        raise TypeError(f"Invalid robot argument: {type(robot)}")
 
     def connect(self) -> bool:
         """
@@ -68,7 +69,7 @@ class RobotController:
         Returns:
             bool: True if connected, False otherwise.
         """
-        if not self.rpc.is_conect:
+        if not self.robot.is_connected():
             self.logger.error(f"Cannot connect to robot at {self.ip_address}")
             return False
         self.logger.info("Robot connected")
@@ -81,7 +82,7 @@ class RobotController:
         Returns:
             Optional[List[float]]: [x, y, z, Rx, Ry, Rz] or None on error.
         """
-        res = self.rpc.GetActualTCPPose()
+        res = self.robot.GetActualTCPPose()
         if res[0] == 0:
             pose = cast(List[float], res[1])
             self.logger.debug(f"Current pose: {pose}")
@@ -99,7 +100,7 @@ class RobotController:
         Returns:
             bool: True on success, False on failure.
         """
-        code = self.rpc.MoveJ(
+        code = self.robot.MoveJ(
             joint_pos=joints,
             tool=self.tool_id,
             user=self.user_frame_id,
@@ -121,7 +122,7 @@ class RobotController:
         Returns:
             bool: True on success, False on failure.
         """
-        code = self.rpc.MoveL(
+        code = self.robot.MoveL(
             desc_pos=pose, tool=self.tool_id, user=self.user_frame_id, vel=self.velocity
         )
         if code != 0:
@@ -156,17 +157,17 @@ class RobotController:
         Disable and disconnect robot.
         """
         self.disable()
-        self.rpc.closeRPC_state = True
+        self.robot.CloseRPC()
         self.logger.info("Robot shutdown complete")
 
     def enable(self) -> None:
         """Enable robot motors."""
-        self.rpc.RobotEnable(1)
+        self.robot.RobotEnable(1)
         self.logger.info("Robot enabled")
 
     def disable(self) -> None:
         """Disable robot motors."""
-        self.rpc.RobotEnable(0)
+        self.robot.RobotEnable(0)
         self.logger.info("Robot disabled")
 
     # --- Additional SOLID helpers ---
@@ -183,7 +184,7 @@ class RobotController:
 
         start = time.time()
         while time.time() - start < timeout_sec:
-            code, done = self.rpc.GetRobotMotionDone()
+            code, done = self.robot.GetRobotMotionDone()
             if code == 0 and done == 1:
                 return True
             time.sleep(0.05)
@@ -197,7 +198,7 @@ class RobotController:
         Returns:
             Optional[List[float]]: Joint angles in degrees or None.
         """
-        res = self.rpc.GetActualJointPosDegree()
+        res = self.robot.GetActualJointPosDegree()
         if res[0] == 0:
             return cast(List[float], res[1])
         self.logger.error("GetActualJointPosDegree failed")
@@ -225,25 +226,25 @@ class RobotController:
             f"Restarting robot at {ip} with delay {delay}s and {attempts} attempts"
         )
 
-        if self.rpc.RobotEnable(0) != 0:
+        if self.robot.RobotEnable(0) != 0:
             self.logger.error("Disable failed")
             return False
         self.logger.info("Robot disabled")
 
-        self.rpc.CloseRPC()
+        self.robot.CloseRPC()
         self.logger.debug("RPC connection closed")
 
         for attempt in range(attempts):
             time.sleep(delay)
             self.logger.info(f"Reconnect attempt {attempt + 1} of {attempts}")
-            self.rpc = self._init_rpc(ip)
+            self.robot = self._init_robot(ip)
             if not self.connect():
                 self.logger.warning("Reconnect failed")
                 continue
-            if self.rpc.RobotEnable(1) != 0:
+            if self.robot.RobotEnable(1) != 0:
                 self.logger.error("Enable failed")
                 return False
-            safety_code = self.rpc.GetSafetyCode()
+            safety_code = self.robot.GetSafetyCode()
             if safety_code != 0:
                 self.logger.error(f"Safety state prevents operation: {safety_code}")
                 return False

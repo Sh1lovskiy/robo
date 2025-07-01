@@ -12,7 +12,7 @@ import pyrealsense2 as rs
 from calibration.helpers.validation_utils import euler_to_matrix
 from utils.logger import Logger, LoggerType
 from ..transform import TransformUtils
-from vision.camera import RealSenseD415
+from vision.camera import CameraBase
 from .generator import PointCloudGenerator
 
 
@@ -20,7 +20,7 @@ from .generator import PointCloudGenerator
 class PointCloudBuilder:
     """Capture and process clouds using a calibrated camera."""
 
-    camera: RealSenseD415
+    camera: CameraBase
     handeye: Tuple[np.ndarray, np.ndarray]
     logger: LoggerType = field(
         default_factory=lambda: Logger.get_logger("vision.pointcloud.builder")
