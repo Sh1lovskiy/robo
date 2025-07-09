@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import sys
 
 from robot.controller import RobotController
 from utils.cli import Command, CommandDispatcher
 from utils.logger import Logger
-from utils.lmdb_storage import LmdbStorage
 from utils.settings import paths, robot
 
 from .record import (
     JsonPoseSaver,
-    DBPoseSaver,
     PoseRecorder,
     CameraManager,
-    DBFrameSaver,
 )
 from .path import PathRunner
 
@@ -37,8 +35,7 @@ def _add_record_args(parser: argparse.ArgumentParser) -> None:
 
 def _run_record(args: argparse.Namespace) -> None:
     """Execute pose recording with optional LMDB storage."""
-    storage = LmdbStorage(args.db_path)
-    saver = DBPoseSaver(storage) if args.use_db else JsonPoseSaver()
+    saver = JsonPoseSaver()
     recorder = PoseRecorder(
         controller=RobotController(robot=args.ip),
         saver=saver,
@@ -58,12 +55,11 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
 
 def _run_path(args: argparse.Namespace) -> None:
     """Run a saved path while recording frames."""
-    storage = LmdbStorage(args.db_path)
+    saver = JsonPoseSaver()
     runner = PathRunner(
         controller=RobotController(rpc=args.ip),
         camera_mgr=CameraManager(),
-        frame_saver=DBFrameSaver(storage),
-        storage=storage,
+        frame_saver=saver,
     )
     runner.run()
 
@@ -79,7 +75,7 @@ def _add_restart_args(parser: argparse.ArgumentParser) -> None:
 
 def _run_restart(args: argparse.Namespace) -> None:
     """Restart the robot connection using the provided parameters."""
-    controller = RobotController(rpc=args.ip)
+    controller = RobotController(args.ip)
     ok = controller.restart(
         ip_address=args.ip, delay=args.delay, attempts=args.attempts
     )
@@ -110,8 +106,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    import sys
-
     logger = Logger.get_logger("robot.workflows")
 
     FUNC_MAP = {

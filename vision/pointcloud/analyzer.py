@@ -213,7 +213,7 @@ class CloudAnalyzer:
 def _add_cloud_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--input_ply",
-        default="captures/cloud_aggregated.ply",
+        default="captures/cloud_aggregated_points.ply",
         help="Path to input PLY point cloud file",
     )
 

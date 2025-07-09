@@ -14,88 +14,99 @@ class Paths:
     RESULTS_DIR: Path = BASE_DIR / "calibration" / "results"
     CLOUD_DIR: Path = BASE_DIR / "clouds"
     LOG_DIR: Path = BASE_DIR / "logs"
+    CAMERA_INTR: Path = BASE_DIR / "data" / "results1980"
 
 
 paths = Paths()
 
 
 @dataclass(frozen=True)
-class RobotSettings:
+class RobotCfg:
     ip: str = "192.168.58.2"
     tool_id: int = 0
     user_frame_id: int = 0
-    velocity: float = 20.0
+    velocity: float = 35.0
     emergency_delay: float = 0.5
-    restart_delay: float = 1.0
+    restart_delay: float = 0.5
 
 
-robot = RobotSettings()
-
-
-@dataclass(frozen=True)
-class VisionSettings:
-    realsense_width: int = 1920
-    realsense_height: int = 1080
-    realsense_fps: int = 30
-
-
-vision = VisionSettings()
+robot = RobotCfg()
 
 
 @dataclass(frozen=True)
-class CharucoSettings:
-    squares_x: int = 5
-    squares_y: int = 8
+class D415_Cfg:
+    """Resolution and frame rate parameters."""
+
+    rgb_width: int = 1920
+    rgb_height: int = 1080
+    depth_width: int = 1280
+    depth_height: int = 720
+    fps: int = 30
+    depth_scale: float = 0.001
+    align_to_color: bool = True
+
+
+camera = D415_Cfg()
+
+
+@dataclass(frozen=True)
+class HandEyeCfg:
+    square_numbers: tuple[int, int] = (5, 8)
     square_length: float = 0.035
     marker_length: float = 0.026
     aruco_dict: str = "5X5_100"
     min_corners: int = 4
     outlier_std: float = 2.0
-    analyze_corners: bool = False
-    visualize: bool = False
-    calib_output_dir: str = str(paths.RESULTS_DIR)
-    xml_file: str = "charuco_cam.xml"
-
-
-charuco = CharucoSettings()
-
-
-@dataclass(frozen=True)
-class HandEyeSettings:
     method: str = "ALL"
-    min_corners: int = 4
-    outlier_std: float = 2.0
+    analyze_corners: bool = False
     visualize: bool = False
     robot_poses_file: str = str(paths.CAPTURES_DIR / "poses.json")
     images_dir: str = str(paths.CAPTURES_DIR)
-    charuco_xml: str = "calibration/results1980/charuco_cam.xml"
+    charuco_xml: str = str(paths.CAMERA_INTR / "charuco_cam.xml")
     calib_output_dir: str = str(paths.RESULTS_DIR)
 
 
-handeye = HandEyeSettings()
+handeye = HandEyeCfg()
 
 
 @dataclass(frozen=True)
-class ValidationSettings:
-    board_lt_base: tuple[float, float, float] = (-0.165, -0.365, 0.0)
-    board_rb_base: tuple[float, float, float] = (-0.4, -0.53, 0.0)
+class LoggingCfg:
+    level: str = "INFO"
+    json: bool = True
 
 
-validation = ValidationSettings()
-
-
-@dataclass(frozen=True)
-class CharucoPatternSettings:
-    a4_width_mm: int = 297
-    a4_height_mm: int = 210
-    dpi: int = 300
-
-
-pattern = CharucoPatternSettings()
+logging = LoggingCfg()
 
 
 @dataclass(frozen=True)
-class CloudSettings:
+class GridCalibCfg:
+    """Workspace sampling parameters for explicit hand-eye calibration."""
+
+    calibration_type: str = "EYE_IN_HAND"
+    workspace_limits: tuple[
+        tuple[float, float], tuple[float, float], tuple[float, float]
+    ] = (
+        (-0.35, -0.15),
+        (-0.15, 0.15),
+        (0.3, 0.41),
+    )
+    grid_step: float = 0.1
+    reference_point_offset: tuple[float, float, float, float] = (
+        0.7,
+        0.0,
+        0.05,
+        1.0,
+    )
+    tool_orientation: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    charuco_xml: str = str(paths.CAMERA_INTR / "charuco_cam.xml")
+    calib_output_dir: str = str(paths.RESULTS_DIR)
+
+
+grid_calib = GridCalibCfg()
+
+
+@dataclass(frozen=True)
+class CloudCfg:
     roi_limits: dict[str, tuple[float, float]] = field(
         default_factory=lambda: {
             "x": (-0.6, -0.1),
@@ -105,16 +116,4 @@ class CloudSettings:
     )
 
 
-cloud = CloudSettings()
-
-
-@dataclass(frozen=True)
-class LoggingSettings:
-    level: str = "INFO"
-    json: bool = True
-
-
-logging = LoggingSettings()
-
-# RealSense depth unit to meters conversion
-DEPTH_SCALE: float = 0.001
+cloud = CloudCfg()

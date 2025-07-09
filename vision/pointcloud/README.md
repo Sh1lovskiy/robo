@@ -8,7 +8,7 @@ $$
 (d(u-c_x)/f_x, \quad d(v-c_y)/f_y, \quad d).
 $$
 
-- `aggregator.py` – merge multiple frames into a single cloud.  It can optionally run ICP to refine alignment between successive captures.
+- `aggregator.py` – merge multiple frames into a single cloud.  Frames can be aligned via Open3D ICP or the custom `mapping.register_points` routine.
 - `pipeline.py` – common filters (voxel down‑sample, pass‑through) and simple analysis helpers for trajectories.
 - CLI entry point `cloud-aggregate` for running the aggregator from the command line.
 

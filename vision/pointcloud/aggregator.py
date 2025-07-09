@@ -42,8 +42,9 @@ class RGBDAggregator:
         t_handeye: np.ndarray,
         R_depth2rgb: np.ndarray,
         t_depth2rgb: np.ndarray,
-        use_icp: bool = False,
+        align: str = "none",
     ) -> tuple[np.ndarray, np.ndarray | None]:
+        """Merge frames into a single cloud with optional alignment."""
         base_pcd: o3d.geometry.PointCloud | None = None
         for idx, ((rgb_path, depth_path), (R_tcp, t_tcp)) in enumerate(
             zip(img_pairs, zip(rotations, translations))
@@ -73,7 +74,7 @@ class RGBDAggregator:
                 base_pcd = pcd
                 self.logger.info("First cloud set as base.")
             else:
-                if use_icp:
+                if align == "open3d":
                     threshold = 0.003
                     reg = o3d.pipelines.registration.registration_icp(
                         pcd,
@@ -82,9 +83,9 @@ class RGBDAggregator:
                         np.eye(4),
                         o3d.pipelines.registration.TransformationEstimationPointToPoint(),
                     )
-                    self.logger.info(
-                        f"ICP frame {idx}: RMSE={reg.inlier_rmse:.5f}, iterations={len(reg.correspondence_set)}"
-                    )
+                    rmse = reg.inlier_rmse
+                    cnt = len(reg.correspondence_set)
+                    self.logger.info(f"ICP frame {idx}: RMSE={rmse:.5f}, pairs={cnt}")
                     pcd.transform(reg.transformation)
                 base_pcd += pcd
                 base_pcd = base_pcd.voxel_down_sample(voxel_size=0.003)
@@ -106,8 +107,12 @@ def _add_aggregate_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--charuco_xml", default=str(handeye.charuco_xml))
     parser.add_argument("--handeye_txt", default="calibration/results/handeye_TSAI.txt")
     parser.add_argument(
-        "--icp", action="store_true", help="Enable ICP alignment between frames"
+        "--aligner",
+        choices=["none", "open3d"],
+        default="none",
+        help="Frame alignment strategy",
     )
+    parser.add_argument("--icp", action="store_true", help=argparse.SUPPRESS)
 
 
 def _run_aggregate(args: argparse.Namespace) -> None:
@@ -127,6 +132,7 @@ def _run_aggregate(args: argparse.Namespace) -> None:
     logger.info(f"Found {len(img_pairs)} RGB/depth image pairs in {data_dir}.")
     R_depth2rgb, t_depth2rgb = load_extrinsics_json(extrinsics_txt, logger)
     aggregator = RGBDAggregator(logger)
+    aligner = "open3d" if args.icp else args.aligner
     points, colors = aggregator.aggregate(
         img_pairs,
         Rs,
@@ -136,15 +142,14 @@ def _run_aggregate(args: argparse.Namespace) -> None:
         t_handeye,
         R_depth2rgb,
         t_depth2rgb,
-        use_icp=args.icp,
+        align=aligner,
     )
-    output_path = (
-        os.path.join(data_dir, "cloud_aggregated_icp.ply")
-        if args.icp
-        else os.path.join(data_dir, "cloud_aggregated.ply")
-    )
+    out_name = "cloud_aggregated.ply"
+    if aligner != "none":
+        out_name = f"cloud_aggregated_{aligner}.ply"
+    output_path = os.path.join(data_dir, out_name)
     aggregator.save_cloud(points, colors, output_path)
-    logger.info(f"Point cloud aggregation completed. ICP: {args.icp}")
+    logger.info(f"Point cloud aggregation completed. align={aligner}")
 
 
 def create_cli() -> CommandDispatcher:

@@ -17,8 +17,7 @@ from robot.controller import RobotController
 from utils.error_tracker import CameraError
 from utils.keyboard import GlobalKeyListener
 from utils.logger import Logger, LoggerType
-from utils.lmdb_storage import LmdbStorage
-from utils.settings import charuco
+from utils.settings import handeye
 from vision.opencv_utils import OpenCVUtils
 from vision.camera import (
     CameraBase,
@@ -48,19 +47,6 @@ class JsonPoseSaver(PoseSaver):
             json.dump(data, f, indent=4)
 
 
-class DBPoseSaver(PoseSaver):
-    def __init__(self, storage: LmdbStorage, prefix: str = "poses") -> None:
-        self.storage = storage
-        self.prefix = prefix
-
-    def save(
-        self, filename: str, pose_id: str, pose: List[float]
-    ) -> None:  # noqa: ARG002
-        """Store pose under ``prefix:pose_id`` in the database."""
-        key = f"{self.prefix}:{pose_id}"
-        self.storage.put_json(key, {"tcp_coords": pose})
-
-
 @dataclass
 class FrameSaver:
     out_dir: str
@@ -72,20 +58,6 @@ class FrameSaver:
         cv2.imwrite(os.path.join(self.out_dir, f"{idx:03d}_rgb.png"), color)
         np.save(os.path.join(self.out_dir, f"{idx:03d}_depth.npy"), depth)
         self.logger.info(f"Saved frame {idx}")
-
-
-class DBFrameSaver(FrameSaver):
-    def __init__(self, storage: LmdbStorage, prefix: str = "frame") -> None:
-        self.storage = storage
-        self.prefix = prefix
-        self.logger = Logger.get_logger("robot.workflow.dbframes")
-
-    def save(self, idx: int, color: np.ndarray, depth: np.ndarray) -> None:
-        key = f"{self.prefix}:{idx:03d}"
-        with self.storage.batch() as b:
-            b.put_image(f"{key}:rgb", color)
-            b.put_array(f"{key}:depth", depth)
-        self.logger.info(f"Stored frame {idx}")
 
 
 class CameraManager:
@@ -193,9 +165,9 @@ class PoseRecorder:
         self,
     ) -> tuple[cv2.aruco_CharucoBoard, np.ndarray | None, np.ndarray | None]:
         """Prepare Charuco board and load camera intrinsics if present."""
-        char_cfg = charuco
+        char_cfg = handeye
         board = cv2.aruco.CharucoBoard(
-            (char_cfg.squares_x, char_cfg.squares_y),
+            char_cfg.square_numbers,
             char_cfg.square_length,
             char_cfg.marker_length,
             cv2.aruco.getPredefinedDictionary(

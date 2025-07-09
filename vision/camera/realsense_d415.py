@@ -9,20 +9,8 @@ import numpy as np
 import pyrealsense2 as rs
 
 from utils.logger import Logger, LoggerType
-from utils.settings import DEPTH_SCALE
+from utils.settings import camera
 from .camera_base import CameraBase
-
-
-@dataclass
-class D415StreamConfig:
-    """Resolution and frame rate parameters."""
-
-    depth_width: int = 1280
-    depth_height: int = 720
-    color_width: int = 1920
-    color_height: int = 1080
-    fps: int = 30
-    align_to_color: bool = True
 
 
 @dataclass
@@ -54,12 +42,12 @@ class RealSenseD415(CameraBase):
 
     def __init__(
         self,
-        stream_cfg: D415StreamConfig | None = None,
+        stream_cfg: camera | None = None,
         settings: D415CameraSettings | None = None,
         filters: D415FilterConfig | None = None,
         logger: LoggerType | None = None,
     ) -> None:
-        self.stream_cfg = stream_cfg or D415StreamConfig()
+        self.stream_cfg = stream_cfg or camera()
         self.settings = settings or D415CameraSettings()
         self.filters = filters or D415FilterConfig()
         self.logger = logger or Logger.get_logger("vision.d415")
@@ -89,7 +77,22 @@ class RealSenseD415(CameraBase):
         )
 
     def start(self) -> None:
-        self.profile = self.pipeline.start(self.config)
+        config = rs.config()
+        config.enable_stream(
+            rs.stream.depth,
+            self.stream_cfg.depth_width,
+            self.stream_cfg.depth_height,
+            rs.format.z16,
+            self.stream_cfg.fps,
+        )
+        config.enable_stream(
+            rs.stream.color,
+            self.stream_cfg.color_width,
+            self.stream_cfg.color_height,
+            rs.format.bgr8,
+            self.stream_cfg.fps,
+        )
+        self.profile = self.pipeline.start(config)
         device = self.profile.get_device()
         sensors = {s.get_info(rs.camera_info.name): s for s in device.sensors}
         self.depth_sensor = sensors.get("Stereo Module")
@@ -97,7 +100,7 @@ class RealSenseD415(CameraBase):
         if self.depth_sensor is None or self.rgb_sensor is None:
             raise RuntimeError("Required sensors not found")
         self._apply_settings()
-        self.depth_scale = DEPTH_SCALE
+        self.depth_scale = camera.depth_scale
         self.logger.info(f"Depth scale: {self.depth_scale:.6f} m/unit")
         if self.stream_cfg.align_to_color:
             self.align = rs.align(rs.stream.color)

@@ -54,6 +54,7 @@ project-root/
 │   │   ├── generator.py            # PointCloudGenerator class
 │   │   ├── aggregator.py           # Multi-frame cloud builder
 │   │   └── pipeline.py             # Filtering/analysis helpers
+│   ├── mapping/               # PatchMatch & point set registration
 │   ├── tools.py                # Camera and cloud helper CLI
 │   ├── transform.py            # 3D transformation utilities
 │   └── README.md               # Explanation of transform chain
@@ -186,7 +187,7 @@ img = store.get_image("rgb:0")
 ### 3D Point Cloud Modules
 
 * `cloud/generator.py` — Depth to point cloud conversion, save/load (PLY, XYZ, npz)
-* `cloud/aggregator.py` — Multi-frame cloud assembly with optional ICP
+* `cloud/aggregator.py` — Multi-frame cloud assembly with optional frame alignment
 * `cloud/pipeline.py` — Filtering, clustering, and trajectory analysis
 * `transform.py` — Rigid transformations between camera/robot/world coordinates (uses calibration, see vision/README.md)
 * CLI scripts provided via entry points (`pointcloud-capture`, `pointcloud-transform`, `pointcloud-view`) and built with `utils.cli.CommandDispatcher`
