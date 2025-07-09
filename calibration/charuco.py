@@ -15,16 +15,49 @@ from typing import List, Mapping
 
 import cv2
 import numpy as np
-
 from utils.logger import Logger, LoggerType
-from utils.lmdb_storage import LmdbStorage
-from .helpers.validation_utils import euler_to_matrix
+from utils.settings import DEPTH_SCALE
 
 CHARUCO_DICT_MAP = {
     "4X4_100": cv2.aruco.DICT_4X4_100,
     "5X5_50": cv2.aruco.DICT_5X5_50,
     "5X5_100": cv2.aruco.DICT_5X5_100,
 }
+
+
+def marker_center_from_depth(
+    color: np.ndarray,
+    depth: np.ndarray,
+    dictionary: cv2.aruco_Dictionary,
+    camera_matrix: np.ndarray,
+    *,
+    marker_id: int = 100,
+    depth_scale: float = DEPTH_SCALE,
+    logger: LoggerType | None = None,
+) -> tuple[np.ndarray, tuple[int, int]] | tuple[None, None]:
+    """Return marker center in camera frame from RGB-D input."""
+    logger = logger or Logger.get_logger("calibration.marker")
+    gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
+    corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary)
+    if ids is None:
+        return None, None
+    idx = np.where(ids.flatten() == marker_id)[0]
+    if len(idx) == 0:
+        return None, None
+    pts = corners[int(idx[0])].reshape(-1, 2)
+    center = pts.mean(axis=0)
+    u, v = int(round(center[0])), int(round(center[1]))
+    if u < 0 or v < 0 or u >= depth.shape[1] or v >= depth.shape[0]:
+        return None, None
+    d = float(depth[v, u]) * depth_scale
+    if d <= 0:
+        return None, None
+    fx, fy = camera_matrix[0, 0], camera_matrix[1, 1]
+    cx, cy = camera_matrix[0, 2], camera_matrix[1, 2]
+    x = (u - cx) * d / fx
+    y = (v - cy) * d / fy
+    pos = np.array([x, y, d], dtype=np.float64)
+    return pos, (u, v)
 
 
 def load_board(
@@ -34,15 +67,47 @@ def load_board(
     dict_name = str(cfg.get("aruco_dict", "5X5_100"))
     if dict_name not in CHARUCO_DICT_MAP:
         raise ValueError(f"Unknown ArUco dictionary: {dict_name}")
-    squares_x = int(cfg.get("squares_x", 5))
-    squares_y = int(cfg.get("squares_y", 8))
+    square_numbers = int(cfg.get("square_numbers", (5, 8)))
     square_len = float(cfg.get("square_length", 0.035))
     marker_len = float(cfg.get("marker_length", 0.026))
     dictionary = cv2.aruco.getPredefinedDictionary(CHARUCO_DICT_MAP[dict_name])
-    board = cv2.aruco.CharucoBoard(
-        (squares_y, squares_x), square_len, marker_len, dictionary
-    )
+    board = cv2.aruco.CharucoBoard(square_numbers, square_len, marker_len, dictionary)
     return board, dictionary
+
+
+def board_center_from_depth(
+    color: np.ndarray,
+    depth: np.ndarray,
+    board: cv2.aruco_CharucoBoard,
+    dictionary: cv2.aruco_Dictionary,
+    camera_matrix: np.ndarray,
+    dist_coeffs: np.ndarray,
+    *,
+    depth_scale: float = DEPTH_SCALE,
+    min_corners: int = 4,
+) -> np.ndarray | None:
+    """Return board center in camera frame using depth and intrinsics."""
+    gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
+    corners, ids, _ = cv2.aruco.detectMarkers(gray, dictionary)
+    if ids is None or len(ids) < min_corners:
+        return None
+    _, char_corners, char_ids = cv2.aruco.interpolateCornersCharuco(
+        corners, ids, gray, board
+    )
+    if char_corners is None or char_ids is None or len(char_ids) < min_corners:
+        return None
+    center_px = char_corners.mean(axis=0).ravel()
+    u, v = int(round(float(center_px[0]))), int(round(float(center_px[1])))
+    if u < 0 or v < 0 or u >= depth.shape[1] or v >= depth.shape[0]:
+        return None
+    d = float(depth[v, u]) * depth_scale
+    if d <= 0:
+        return None
+    fx, fy = camera_matrix[0, 0], camera_matrix[1, 1]
+    cx, cy = camera_matrix[0, 2], camera_matrix[1, 2]
+    x = (u - cx) * d / fx
+    y = (v - cy) * d / fy
+    return np.array([x, y, d], dtype=np.float64)
 
 
 @dataclass
@@ -234,14 +299,14 @@ def extract_charuco_poses(
     for img_path in image_paths:
         img = cv2.imread(img_path)
         if img is None:
-            logger.warning("Cannot read image: %s", img_path)
+            logger.warning(f"Cannot read image: {img_path}")
             continue
         pose = _estimate_pose(
             img, board, dictionary, camera_matrix, dist_coeffs, params
         )
         if pose is None:
             logger.warning(
-                "Charuco pose not found for image: %s", os.path.basename(img_path)
+                f"Charuco pose not found for image: {os.path.basename(img_path)}"
             )
             continue
         R, t = pose

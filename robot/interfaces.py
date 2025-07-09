@@ -16,15 +16,11 @@ class RobotInterface(ABC):
         """Return TCP pose as ``(err, pose)``."""
 
     @abstractmethod
-    def MoveJ(
-        self, joint_pos: List[float], tool: int, user: int, vel: float
-    ) -> int:
+    def MoveJ(self, joint_pos: List[float], tool: int, user: int, vel: float) -> int:
         """Execute a joint move."""
 
     @abstractmethod
-    def MoveL(
-        self, desc_pos: List[float], tool: int, user: int, vel: float
-    ) -> int:
+    def MoveL(self, desc_pos: List[float], tool: int, user: int, vel: float) -> int:
         """Execute a linear move."""
 
     @abstractmethod
@@ -62,14 +58,10 @@ class FairinoRPC(RobotInterface):
     def GetActualTCPPose(self) -> Tuple[int, List[float]]:
         return self._rpc.GetActualTCPPose()
 
-    def MoveJ(
-        self, joint_pos: List[float], tool: int, user: int, vel: float
-    ) -> int:
+    def MoveJ(self, joint_pos: List[float], tool: int, user: int, vel: float) -> int:
         return self._rpc.MoveJ(joint_pos, tool, user, vel=vel)
 
-    def MoveL(
-        self, desc_pos: List[float], tool: int, user: int, vel: float
-    ) -> int:
+    def MoveL(self, desc_pos: List[float], tool: int, user: int, vel: float) -> int:
         return self._rpc.MoveL(desc_pos=desc_pos, tool=tool, user=user, vel=vel)
 
     def RobotEnable(self, flag: int) -> int:
@@ -86,4 +78,6 @@ class FairinoRPC(RobotInterface):
 
     def CloseRPC(self) -> None:
         self._rpc.CloseRPC()
-__all__ = ['RobotInterface', 'FairinoRPC']
+
+
+__all__ = ["RobotInterface", "FairinoRPC"]

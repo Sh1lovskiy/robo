@@ -9,29 +9,8 @@ from typing import Callable, List
 
 from robot.controller import RobotController
 from utils.logger import Logger, LoggerType
-from utils.lmdb_storage import LmdbStorage
 
 from .record import CameraManager, FrameSaver
-
-
-def load_trajectory(db_path: str, prefix: str = "poses") -> List[List[float]]:
-    """Load TCP poses from an LMDB database."""
-    store = LmdbStorage(db_path, readonly=True)
-    keys = sorted(store.iter_keys(f"{prefix}:"), key=lambda k: int(k.split(":")[1]))
-    return [store.get_json(k)["tcp_coords"] for k in keys]
-
-
-def load_trajectory_db(
-    storage: LmdbStorage, prefix: str = "poses"
-) -> List[List[float]]:
-    """Retrieve trajectory poses from a :class:`LmdbStorage` instance."""
-    keys = sorted(storage.iter_keys(f"{prefix}:"), key=lambda k: int(k.split(":")[1]))
-    poses: List[List[float]] = []
-    for k in keys:
-        data = storage.get_json(k)
-        if data is not None:
-            poses.append(data["tcp_coords"])
-    return poses
 
 
 @dataclass
@@ -42,7 +21,6 @@ class PathRunner:
     camera_mgr: CameraManager
     frame_saver: FrameSaver
     traj_file: str | None = None
-    storage: LmdbStorage | None = None
     progress_cb: Callable[[int, List[float]], None] | None = None
     logger: LoggerType = Logger.get_logger("robot.workflow.path")
 
@@ -93,12 +71,3 @@ class PathRunner:
                 self.progress_cb(idx, pose)
         await asyncio.to_thread(self.camera_mgr.stop)
         self.logger.info("Path execution finished")
-
-    def _load_path(self) -> List[List[float]]:
-        """Load path poses either from LMDB or a JSON file."""
-        if self.storage is not None:
-            return load_trajectory_db(self.storage)
-        if self.traj_file is not None:
-            return load_trajectory(self.traj_file)
-        self.logger.error("No trajectory source provided")
-        return []
