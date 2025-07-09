@@ -1,10 +1,19 @@
 """Common OpenCV helper functions used for visualization."""
 
 from __future__ import annotations
+from typing import Tuple
 
 import cv2
 import numpy as np
-from calibration.charuco import load_camera_params
+
+
+def load_camera_params(path: str) -> Tuple[np.ndarray, np.ndarray]:
+    """Read camera matrix and distortion coefficients from OpenCV XML/YAML."""
+    fs = cv2.FileStorage(str(path), cv2.FILE_STORAGE_READ)
+    camera_matrix = fs.getNode("camera_matrix").mat()
+    dist_coeffs = fs.getNode("dist_coeffs").mat()
+    fs.release()
+    return camera_matrix, dist_coeffs
 
 
 class OpenCVUtils:

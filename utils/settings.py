@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import cv2
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -54,6 +56,11 @@ class HandEyeCfg:
     square_numbers: tuple[int, int] = (5, 8)
     square_length: float = 0.035
     marker_length: float = 0.026
+    CHARUCO_DICT_MAP = {
+        "4X4_100": cv2.aruco.DICT_4X4_100,
+        "5X5_50": cv2.aruco.DICT_5X5_50,
+        "5X5_100": cv2.aruco.DICT_5X5_100,
+    }
     aruco_dict: str = "5X5_100"
     min_corners: int = 4
     outlier_std: float = 2.0
@@ -63,6 +70,7 @@ class HandEyeCfg:
     robot_poses_file: str = str(paths.CAPTURES_DIR / "poses.json")
     images_dir: str = str(paths.CAPTURES_DIR)
     charuco_xml: str = str(paths.CAMERA_INTR / "charuco_cam.xml")
+    charuco_txt: str = str(paths.CAMERA_INTR / "charuco_cam.txt")
     calib_output_dir: str = str(paths.RESULTS_DIR)
 
 
@@ -103,6 +111,8 @@ class GridCalibCfg:
 
 
 grid_calib = GridCalibCfg()
+
+DEPTH_SCALE = 0.001
 
 
 @dataclass(frozen=True)
