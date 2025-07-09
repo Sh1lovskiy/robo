@@ -16,7 +16,7 @@ from utils.logger import Logger, LoggerType
 from utils.error_tracker import ErrorTracker
 
 from robot.interfaces import RobotInterface, FairinoRPC
-from utils.settings import RobotSettings
+from utils.settings import robot as RobotSettings, RobotCfg
 
 
 class RobotController:
@@ -27,7 +27,7 @@ class RobotController:
 
     def __init__(
         self,
-        cfg: RobotSettings = RobotSettings(),
+        cfg: RobotCfg = RobotSettings,
         robot: Optional[Union[str, RobotInterface]] = None,
         logger: Optional[LoggerType] = None,
     ) -> None:

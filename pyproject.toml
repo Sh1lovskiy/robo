@@ -25,9 +25,6 @@ dependencies = [
     "lmdb",
 ]
 
-[project.scripts]
-
-
 [tool.setuptools.package-data]
 robot = ["*.py", "*.pyx"]
 

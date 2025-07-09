@@ -12,7 +12,6 @@ This repository groups several focused modules under a single project umbrella. 
 * 3D point cloud capture, filtering and visualization
 * CLI tools built with a `CommandDispatcher` for calibration, robot control and cloud ops
 * Centralized logger and `ErrorTracker` with optional JSON output
-* LMDB-based storage backend for poses, images and metrics
 
 ---
 
@@ -40,9 +39,7 @@ project-root/
 │   ├── error_tracker.py        # Global exception and signal handling
 │   ├── cli.py                  # CommandDispatcher helper
 │   ├── keyboard.py             # Global hotkey listener
-│   ├── io.py                   # Camera calibration I/O
-│   ├── geometry.py             # Math helpers
-│   ├── lmdb_storage.py         # LMDB implementation
+│   ├── io.py                   # File and camera parameter I/O
 │   └── README.md               # Package overview
 │
 ├── vision/               # Vision, cloud, and camera utils
@@ -73,7 +70,6 @@ The project is organized into four main packages that mirror typical robotics la
 * **robot/** – Robot connection logic and high‑level motion API. Communication is decoupled from workflows so hardware can be replaced without touching the algorithm code (Dependency Inversion Principle).
 * **vision/** – Camera interfaces, point cloud tools, and coordinate transforms. Transform chains and coordinate conventions appear in [vision/README.md](vision/README.md).
 * **utils/** – Shared helpers for configuration, logging and geometry calculations.
-* **utils/lmdb_storage.py** – LMDB based persistence layer for images and metadata.
 
 Every component keeps a single responsibility and exposes a minimal interface. New robots or cameras can be integrated by implementing the same interfaces without modifying existing modules.
 
@@ -118,10 +114,15 @@ CLI modules are thin wrappers calling workflow helpers under
   ```bash
   path-runner
   ```
-* Calibrate camera (Charuco):
+* Run calibration workflow:
 
   ```bash
-  charuco-calib
+  python -m calibration.workflows unified --camera --handeye
+  ```
+* Flexible hand-eye calibration:
+
+  ```bash
+  python -m calibration.workflows handeye --board charuco
   ```
 * Capture point cloud:
 
@@ -156,16 +157,10 @@ dataclasses there to match your environment.
 * Executes registered cleanup functions on failures
 * Optional hotkeys via `utils.keyboard`
 
-### Storage (`utils/lmdb_storage.py`)
+### I/O Helpers (`utils/io.py`)
 
-* `LmdbStorage` — default persistence backend implementing `IStorage`
-
-```python
-from utils.lmdb_storage import LmdbStorage
-store = LmdbStorage("app.lmdb")
-store.put_json("pose:0", {"tcp_coords": [0, 0, 0, 0, 0, 0]})
-img = store.get_image("rgb:0")
-```
+Simple wrappers for reading and writing images, arrays and JSON files. Camera
+calibration parameters are also loaded and saved through this module.
 
 ### Robot API (`robot/controller.py`)
 
@@ -227,8 +222,7 @@ Rigid motions are represented as 4×4 matrices in $SE(3)$. Composition uses matr
 
 ### CLI Tools
 
-Entry points defined in `pyproject.toml` expose the common workflows:
-`poses-saver`, `path-runner`, `charuco-calib`, etc. The underlying logic lives within the respective packages.
+Entry points expose the common workflows. Use `python -m calibration.workflows --help` to see available commands.
 
 ### Extensibility/Testing
 * Logger, config, robot, camera: all support dependency injection for unit tests or swapping implementations.

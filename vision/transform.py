@@ -5,7 +5,15 @@ from __future__ import annotations
 
 import numpy as np
 from utils.logger import Logger
-from calibration.helpers.validation_utils import euler_to_matrix
+from scipy.spatial.transform import Rotation
+
+
+def euler_to_matrix(
+    rx: float, ry: float, rz: float, *, degrees: bool = True
+) -> np.ndarray:
+    """Return a rotation matrix from Euler angles."""
+    rot = Rotation.from_euler("xyz", [rx, ry, rz], degrees=degrees)
+    return rot.as_matrix()
 
 
 class TransformUtils:

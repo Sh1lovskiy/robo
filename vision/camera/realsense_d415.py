@@ -70,8 +70,8 @@ class RealSenseD415(CameraBase):
         )
         self.config.enable_stream(
             rs.stream.color,
-            cfg.color_width,
-            cfg.color_height,
+            cfg.rgb_width,
+            cfg.rgb_height,
             rs.format.bgr8,
             cfg.fps,
         )
@@ -87,8 +87,8 @@ class RealSenseD415(CameraBase):
         )
         config.enable_stream(
             rs.stream.color,
-            self.stream_cfg.color_width,
-            self.stream_cfg.color_height,
+            self.stream_cfg.rgb_width,
+            self.stream_cfg.rgb_height,
             rs.format.bgr8,
             self.stream_cfg.fps,
         )

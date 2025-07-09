@@ -19,8 +19,8 @@ from utils.cloud_utils import (
     load_handeye_txt,
     get_image_pairs,
 )
-from calibration.charuco import load_camera_params
-from calibration.pose_loader import JSONPoseLoader
+from vision.opencv_utils import load_camera_params
+from utils.io import JSONPoseLoader
 from utils.settings import paths, handeye
 from vision.pointcloud.generator import PointCloudGenerator
 from vision.transform import TransformUtils
@@ -122,7 +122,7 @@ def _run_aggregate(args: argparse.Namespace) -> None:
     charuco_xml = args.charuco_xml
     handeye_txt = args.handeye_txt
 
-    K, _ = load_camera_params(charuco_xml)
+    K, _ = load_camera_calib_from_xml(charuco_xml)
     logger.info(f"Camera intrinsics loaded from {charuco_xml}.")
     R_handeye, t_handeye = load_handeye_txt(handeye_txt)
     logger.info(f"Hand-eye calibration loaded from {handeye_txt}.")

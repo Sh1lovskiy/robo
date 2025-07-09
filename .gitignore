@@ -72,7 +72,8 @@ tmp/
 *.txt
 *.json
 *.ply
-
+laser_on_esp32.py
+vis_eq.py
 # -----------------
 # Env files
 # -----------------
