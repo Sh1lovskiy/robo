@@ -229,7 +229,7 @@ class RPC():
         thread.daemon = True
         thread.start()
         time.sleep(1)
-        print(self.robot)
+        self.log_info(str(self.robot))
 
 
         try:
@@ -237,14 +237,14 @@ class RPC():
             socket.setdefaulttimeout(1)
             self.robot.GetControllerIP()
         except socket.timeout:
-            print("XML-RPC connection timed out.")
+            self.log_error("XML-RPC connection timed out.")
             RPC.is_conect = False
 
         except socket.error as e:
-            print("It may be a network failure，Please check the network connection。")
+            self.log_error("It may be a network failure. Check connection.")
             RPC.is_conect = False
         except Exception as e:
-            print("An error occurred during XML-RPC call:", e)
+            self.log_error(f"An error occurred during XML-RPC call: {e}")
             RPC.is_conect = False
         finally:
             # Restore default timeout
@@ -253,20 +253,20 @@ class RPC():
             self.robot = xmlrpc.client.ServerProxy(link)
     def connect_to_robot(self):
         """Connect to the robot's real-time port"""
-        print("SDKConnecting the robot")
+        self.log_info("SDKConnecting the robot")
         self.sock_cli_state = socket.socket(socket.AF_INET, socket.SOCK_STREAM)#Socket connection robot20004port，Used to update robot status data in real time
         try:
             self.sock_cli_state.connect((self.ip_address, self.ROBOT_REALTIME_PORT))
             self.sock_cli_state_state = True
         except Exception as ex:
             self.sock_cli_state_state = False
-            print("SDKFailed to connect to the real-time port of the robot", ex)
+            self.log_error(f"SDKFailed to connect to real-time port: {ex}")
             return False
         return True
 
     def reconnect(self):
         """Automatic reconnection"""
-        print("Automatic reconnect mechanism")
+        self.log_info("Automatic reconnect mechanism")
         for i in range(1,6):
             time.sleep(2)
             if(self.connect_to_robot()):
@@ -293,10 +293,9 @@ class RPC():
                 while not self.robot_realstate_exit and not self.stop_event.is_set():
                     recvbyte = self.sock_cli_state.recv_into(recvbuf)
                     # timestamp_ms = int(datetime.now().timestamp() * 1000)
-                    # print("Current timestamp（Millisecond level）:", timestamp_ms)
                     if recvbyte <= 0:
                         self.sock_cli_state.close()
-                        print("Receive robot status bytes -1")
+                        self.log_error("Receive robot status bytes -1")
                         return
                     else:
                         if tmp_len > 0:
@@ -350,7 +349,7 @@ class RPC():
                                         length = 0
                                         i += 1
                                 else:
-                                    print("4.2")
+                                    self.log_debug("4.2")
                                     tmp_recvbuf[:recvbyte - i] = recvbuf[i:recvbyte]
                                     tmp_len = recvbyte - i
                                     break
@@ -362,7 +361,7 @@ class RPC():
                     self.sock_cli_state_state = False
                     self.SDK_state=False
                     # self.reconnect()
-                    print("SDKFailed to read real-time data of the robot", ex)
+                    self.log_error(f"SDKFailed to read real-time data: {ex}")
 
     def setup_logging(self, output_model=1, file_path="", file_num=5):
         """Used to process logs"""
@@ -400,7 +399,7 @@ class RPC():
             log_handler.setFormatter(formatter)
             self.logger.addHandler(log_handler)
         else:
-            print("Error: Log handler not created. Logging setup aborted.")
+            self.log_error("Error: Log handler not created. Logging setup aborted.")
 
         return 0  # If logging is set successfully，Return the success code
 
@@ -493,12 +492,12 @@ class RPC():
                 if value[4] == "1":
                     return 0
                 else:
-                    print("error happended",value[4])
+                    self.log_error(f"error happended {value[4]}")
                     return -1
             else:
                 return -1
         except Exception as e:
-            print(f'An error occurred: {e}')
+            self.log_error(f'An error occurred: {e}')
 
         finally:
             sock1.close()

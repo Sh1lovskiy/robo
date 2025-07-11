@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+"""Capture synchronized robot poses and camera frames for calibration."""
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Tuple
 
 import cv2
+import json
+import numpy as np
 
 from utils.logger import Logger, LoggerType
-from utils.settings import paths
+from utils.error_tracker import ErrorTracker
+from utils.settings import paths, IMAGE_EXT, DEPTH_EXT
 from .camera_runner import CameraRunner
 from .robot_runner import RobotRunner
 from .utils import timestamp
@@ -24,34 +29,81 @@ class DataCollector:
     )
 
     def collect_handeye(self) -> Tuple[List[Path], Path]:
+        """Capture synchronized robot poses and images."""
         assert self.robot is not None, "RobotRunner required for hand-eye"
-        self.camera.camera.start()
-        poses: List[List[float]] = []
+        self.logger.info("Collecting hand-eye data")
+
+        # Generate and save grid
+        grid_poses = self.robot.generate_grid()
+        grid_file = self.robot.save_poses(grid_poses)
+
+        # Read saved poses for execution
+        with open(grid_file) as f:
+            all_targets = [v["tcp_coords"] for v in json.load(f).values()]
+
+        if not all_targets:
+            self.logger.warning("No target poses found in saved grid file")
+            return [], Path()
+
         images: List[Path] = []
+        collected_poses: List[List[float]] = []
         out_dir = paths.CAPTURES_DIR
         out_dir.mkdir(parents=True, exist_ok=True)
-        for idx, target in enumerate(self.robot.generate_grid()):
-            if not self.robot.controller.move_linear(target):
-                self.logger.error("Move failed")
-                break
-            self.robot.controller.wait_motion_done()
-            pose = self.robot.controller.get_tcp_pose()
-            if pose is None:
-                self.logger.error("Pose read failed")
-                continue
-            color, depth = self.camera.camera.get_frames()
-            if color is None:
-                self.logger.error("Image capture failed")
-                continue
-            base = out_dir / f"frame_{timestamp()}_{idx:04d}"
-            cv2.imwrite(str(base.with_suffix(".png")), color)
-            if depth is not None:
-                cv2.imwrite(str(base.with_suffix("_depth.png")), depth)
-            images.append(base.with_suffix(".png"))
-            poses.append(pose)
-        self.camera.camera.stop()
-        poses_file = self.robot.save_poses(poses)
-        return images, poses_file
+
+        try:
+            self.camera.camera.start()
+
+            for idx, target in enumerate(Logger.progress(all_targets, desc="capture")):
+                self._capture_pose(idx, target, out_dir, images, collected_poses)
+
+            if not collected_poses:
+                self.logger.warning("No valid robot poses collected!")
+
+            self.logger.info("Hand-eye data collection finished")
+            poses_file = self.robot.save_poses(collected_poses)
+            return images, poses_file
+
+        except Exception as exc:
+            self.logger.error(f"Data collection failed: {exc}")
+            ErrorTracker.report(exc)
+            return images, Path()
+
+        finally:
+            self.camera.camera.stop()
+
+    def _capture_pose(
+        self,
+        idx: int,
+        target: list[float],
+        out_dir: Path,
+        images: List[Path],
+        collected_poses: List[List[float]],
+    ) -> None:
+        """Move robot to ``target`` and capture one frame."""
+        target_np = np.array(target, dtype=np.float64)
+        self.logger.info(f"[{idx}] Moving to pose: {target}")
+        self.robot.controller.enable()
+        self.robot.controller.connect()
+        if not self.robot.controller.move_linear(target_np):
+            self.logger.error(f"Move failed to: {target}")
+            return
+        self.robot.controller.wait_motion_done()
+        pose = self.robot.controller.get_tcp_pose()
+        if pose is None:
+            self.logger.error("Pose read failed")
+            return
+        color, depth = self.camera.camera.get_frames()
+        if color is None:
+            self.logger.error("Image capture failed")
+            return
+        base = out_dir / f"frame_{timestamp()}_{idx:04d}"
+        cv2.imwrite(str(base.with_suffix(IMAGE_EXT)), color)
+        if depth is not None:
+            cv2.imwrite(str(base.with_suffix(DEPTH_EXT)), depth)
+        self.logger.info(f"Saved image: {base.with_suffix(IMAGE_EXT)}")
+        images.append(base.with_suffix(IMAGE_EXT))
+        collected_poses.append(pose)
 
     def collect_images(self, count: int) -> List[Path]:
+        """Capture ``count`` images without robot."""
         return self.camera.capture(count)

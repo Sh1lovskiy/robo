@@ -51,7 +51,7 @@ T_base_cam = T_base_tcp @ T_tcp_tool @ T_tool_cam
 
 1. Capture depth + color in camera frame
 2. Build point cloud with `vision/cloud/generator.py` (Nx3 cloud)
-3. Transform to TCP or world coordinates using `vision/transform.py`:
+3. Transform to TCP or world coordinates using `utils/transform.py`:
 
    * Load hand-eye calibration (`handeye.npz`, R, t)
    * Get TCP pose from robot (`RobotController.get_current_pose()`)
@@ -65,7 +65,7 @@ T_base_cam = T_base_tcp @ T_tcp_tool @ T_tool_cam
 ### Build full transform chain (base→TCP→tool→camera):
 
 ```python
-from vision.transform import TransformUtils
+from utils.transform import TransformUtils
 import numpy as np
 
 # Load robot TCP pose (from robot state)
@@ -107,7 +107,7 @@ cloud_world = TransformUtils().camera_to_world(cloud_cam, T_base_cam)
 ```python
 def test_transform_utils():
     import numpy as np
-    from vision.transform import TransformUtils
+    from utils.transform import TransformUtils
     R = np.eye(3)
     t = np.array([1, 2, 3])
     T = TransformUtils.build_transform(R, t)

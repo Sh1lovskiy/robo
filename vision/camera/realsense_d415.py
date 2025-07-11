@@ -47,7 +47,7 @@ class RealSenseD415(CameraBase):
         filters: D415FilterConfig | None = None,
         logger: LoggerType | None = None,
     ) -> None:
-        self.stream_cfg = stream_cfg or camera()
+        self.stream_cfg = stream_cfg or camera
         self.settings = settings or D415CameraSettings()
         self.filters = filters or D415FilterConfig()
         self.logger = logger or Logger.get_logger("vision.d415")

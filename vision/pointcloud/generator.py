@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import numpy as np
 import open3d as o3d
-from vision.transform import euler_to_matrix
+from utils.math_utils import euler_to_matrix
 
 
 class PointCloudGenerator:

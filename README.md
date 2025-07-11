@@ -21,7 +21,7 @@ This repository groups several focused modules under a single project umbrella. 
 project-root/
 │
 ├── calibration/          # Calibration algorithms & workflows
-│   ├── charuco.py              # Charuco board calibration helpers
+│   ├── pattern.py              # Unified calibration patterns
 │   ├── handeye.py              # Hand-eye calibration helpers
 │   ├── pose_loader.py          # Load robot poses from JSON
 │   ├── workflows.py            # High-level calibration routines & CLI
@@ -129,6 +129,11 @@ CLI modules are thin wrappers calling workflow helpers under
   ```bash
   python calibration/main.py --workflow both --target charuco --collect --calibrate
   ```
+* Quick run on the included small dataset:
+
+  ```bash
+  python calibration/main.py --dataset calib/imgs_small --mode handeye --method opencv
+  ```
 * Capture point cloud:
 
   ```bash
@@ -232,6 +237,26 @@ Entry points expose the common workflows. Use `python -m calibration.workflows -
 ### Extensibility/Testing
 * Logger, config, robot, camera: all support dependency injection for unit tests or swapping implementations.
 * Add new data savers, control strategies, vision pipelines, or point cloud processors with minimal edits.
+
+## Calibration Visualizations
+
+Example PNGs are written to `calib/viz/` after running the calibration CLI.
+
+```text
+calib/viz/
+├── camera_YYYYMMDD_HHMMSS_reproj.png   # per-frame reprojection error
+├── handeye_YYYYMMDD_HHMMSS_motion.png  # camera vs tool motion
+└── handeye_YYYYMMDD_HHMMSS_alignment.png  # board pose alignment
+```
+
+![Reprojection](calib/viz/example_intrinsic_reproj.png)
+*Reprojection error for each frame*
+
+![Motion](calib/viz/example_handeye_motion.png)
+*Camera vs end-effector motion*
+
+![Alignment](calib/viz/example_alignment.png)
+*Board alignment before vs after calibration*
 
 ---
 

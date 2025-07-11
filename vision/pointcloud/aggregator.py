@@ -23,7 +23,7 @@ from vision.opencv_utils import load_camera_params
 from utils.io import JSONPoseLoader
 from utils.settings import paths, handeye
 from vision.pointcloud.generator import PointCloudGenerator
-from vision.transform import TransformUtils
+from utils.transform import TransformUtils
 
 
 class RGBDAggregator:
