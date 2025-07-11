@@ -117,3 +117,14 @@ class ErrorTracker:
                 cls._terminal_echo.stop()
             finally:
                 cls._terminal_echo = None
+
+    @classmethod
+    def report(cls, exc: Exception) -> None:
+        """Log an exception with full traceback to logger only."""
+        tb = exc.__traceback__
+        if tb:
+            formatted = "".join(traceback.format_exception(type(exc), exc, tb))
+        else:
+            stack = "".join(traceback.format_stack())
+            formatted = f"{type(exc).__name__}: {exc}\nTraceback (most recent call last):\n{stack}"
+        cls.logger.error(formatted)

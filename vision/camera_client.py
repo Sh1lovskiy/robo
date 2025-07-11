@@ -17,7 +17,9 @@ class CameraClient:
     """High level camera wrapper using :class:`RealSenseD415`."""
 
     cfg: D415_Cfg = camera
-    logger: LoggerType = field(default_factory=lambda: Logger.get_logger("vision.camera_client"))
+    logger: LoggerType = field(
+        default_factory=lambda: Logger.get_logger("vision.camera_client")
+    )
 
     def __post_init__(self) -> None:
         self.device = RealSenseD415(stream_cfg=self.cfg, logger=self.logger)
@@ -43,7 +45,9 @@ class CameraClient:
             raise RuntimeError("Camera not started")
         stream = profile.get_stream(2)  # rs.stream.color
         intr = stream.as_video_stream_profile().get_intrinsics()
-        K = np.array([[intr.fx, 0, intr.ppx], [0, intr.fy, intr.ppy], [0, 0, 1]], dtype=float)
+        K = np.array(
+            [[intr.fx, 0, intr.ppx], [0, intr.fy, intr.ppy], [0, 0, 1]], dtype=float
+        )
         return K
 
     def get_state(self) -> dict:

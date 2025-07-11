@@ -1,28 +1,17 @@
-# robot/controller.py
-
-"""High-level robot control interface.
-
-``RobotController`` operates on a :class:`RobotInterface` allowing different
-communication backends.  The default adapter wraps the Fairino SDK RPC but
-tests may inject a mock implementation.
-"""
-
 from __future__ import annotations
 import time
-
 from typing import List, Optional, Union, cast
 
 from utils.logger import Logger, LoggerType
 from utils.error_tracker import ErrorTracker
-
 from robot.interfaces import RobotInterface, FairinoRPC
 from utils.settings import robot as RobotSettings, RobotCfg
 
 
 class RobotController:
     """
-    High-level robot controller for movement, pose, and state management.
-    Uses :mod:`utils.settings` for defaults.
+    High-level robot controller that wraps the robot SDK.
+    Provides safe motion commands, logging, and state introspection.
     """
 
     def __init__(
@@ -31,225 +20,164 @@ class RobotController:
         robot: Optional[Union[str, RobotInterface]] = None,
         logger: Optional[LoggerType] = None,
     ) -> None:
-        """Initialize the robot controller."""
-
+        """Initialize controller with configuration and backend."""
         self.cfg = cfg
         self.ip_address = cfg.ip
         self.tool_id = cfg.tool_id
         self.user_frame_id = cfg.user_frame_id
         self.velocity = cfg.velocity
         self.logger = logger or Logger.get_logger("robot.controller")
-        self.initial_pose: List[float] | None = None
+        self.initial_pose: Optional[List[float]] = None
 
-        self.robot = self._init_robot(robot)
+        try:
+            self.robot = self._resolve_interface(robot)
+            ErrorTracker.register_cleanup(self.shutdown)
+            self.logger.info(f"RobotController initialized with IP {self.ip_address}")
+        except Exception as exc:
+            self.logger.exception("Failed to initialize RobotController")
+            ErrorTracker.report(exc)
+            raise
 
-        ErrorTracker.register_cleanup(self.shutdown)
-
-        self.logger.info(f"RobotController initialized with IP {self.ip_address}")
-
-    def _init_robot(
+    def _resolve_interface(
         self, robot: Optional[Union[str, RobotInterface]]
     ) -> RobotInterface:
-        """Resolve robot communication interface from input."""
-        if robot is None:
-            self.logger.info("Creating default RPC adapter from config IP")
-            return FairinoRPC(ip=self.ip_address)
-        if isinstance(robot, str):
-            self.logger.info("Creating RPC adapter from provided IP")
-            return FairinoRPC(ip=robot)
-        if isinstance(robot, RobotInterface):
-            self.logger.info("Using provided robot interface instance")
-            return robot
-        raise TypeError(f"Invalid robot argument: {type(robot)}")
+        """Determine and initialize the robot communication interface."""
+        try:
+            if robot is None:
+                self.logger.info("Creating default RPC adapter from config IP")
+                return FairinoRPC(ip=self.ip_address)
+            if isinstance(robot, str):
+                self.logger.info("Creating RPC adapter from provided IP")
+                return FairinoRPC(ip=robot)
+            if isinstance(robot, RobotInterface):
+                self.logger.info("Using provided robot interface instance")
+                return robot
+            raise TypeError(f"Invalid robot argument: {type(robot)}")
+        except Exception as exc:
+            self.logger.exception("Failed to initialize robot interface")
+            ErrorTracker.report(exc)
+            raise
 
     def connect(self) -> bool:
-        """
-        Check connection to the robot.
-
-        Returns:
-            bool: True if connected, False otherwise.
-        """
-        if not self.robot.is_connected():
-            self.logger.error(f"Cannot connect to robot at {self.ip_address}")
+        """Attempt connection to the robot and log outcome."""
+        try:
+            if not self.robot.is_connected():
+                self.logger.error(f"Cannot connect to robot at {self.ip_address}")
+                return False
+            self.logger.info("Robot connected")
+            return True
+        except Exception as exc:
+            self.logger.exception("Connection check failed")
+            ErrorTracker.report(exc)
             return False
-        self.logger.info("Robot connected")
-        return True
 
     def get_tcp_pose(self) -> Optional[List[float]]:
-        """
-        Get current TCP pose.
-
-        Returns:
-            Optional[List[float]]: [x, y, z, Rx, Ry, Rz] or None on error.
-        """
-        res = self.robot.GetActualTCPPose()
-        if res[0] == 0:
-            pose = cast(List[float], res[1])
-            self.logger.debug(f"Current pose: {pose}")
-            return pose
-        self.logger.error(f"GetActualTCPPose failed with code {res[0]}")
-        return None
-
-    def move_joints(self, joints: List[float]) -> bool:
-        """
-        Move robot to specified joint angles.
-
-        Args:
-            joints (List[float]): Target joint positions (degrees).
-
-        Returns:
-            bool: True on success, False on failure.
-        """
-        code = self.robot.MoveJ(
-            joint_pos=joints,
-            tool=self.tool_id,
-            user=self.user_frame_id,
-            vel=self.velocity,
-        )
-        if code != 0:
-            self.logger.error(f"MoveJ failed with code {code}")
-            return False
-        self.logger.info(f"MoveJ success: {joints}")
-        return True
+        """Retrieve current TCP pose from robot."""
+        try:
+            code, pose = self.robot.GetActualTCPPose()
+            if code == 0:
+                self.logger.debug(f"Current TCP pose: {pose}")
+                return cast(List[float], pose)
+            self.logger.error(f"GetActualTCPPose failed with code {code}")
+            return None
+        except Exception as exc:
+            self.logger.exception("get_tcp_pose failed")
+            ErrorTracker.report(exc)
+            return None
 
     def move_linear(self, pose: List[float]) -> bool:
-        """
-        Move robot in a straight line to the specified TCP pose.
+        """Send linear motion command to robot and verify actual movement."""
+        try:
+            current = self.get_tcp_pose()
+            self.logger.info(f"Sending MoveL to: {pose}")
+            code = self.robot.MoveL(
+                pose, self.tool_id, self.user_frame_id, self.velocity
+            )
+            if code != 0:
+                self.logger.error(f"MoveL failed with code {code} for pose: {pose}")
+                return False
 
-        Args:
-            pose (List[float]): Target TCP pose [x, y, z, Rx, Ry, Rz].
+            if not self.wait_motion_done():
+                self.logger.warning("MoveL issued but motion never finished")
+                return False
 
-        Returns:
-            bool: True on success, False on failure.
-        """
-        code = self.robot.MoveL(
-            desc_pos=pose, tool=self.tool_id, user=self.user_frame_id, vel=self.velocity
-        )
-        if code != 0:
-            self.logger.error(f"MoveL failed with code {code}")
+            after = self.get_tcp_pose()
+            if (
+                current
+                and after
+                and all(abs(a - b) < 1e-2 for a, b in zip(current, after))
+            ):
+                self.logger.warning("Pose unchanged after MoveL; check robot state")
+                return False
+
+            self.logger.info(f"MoveL succeeded to: {pose}")
+            return True
+        except Exception as exc:
+            self.logger.exception("move_linear failed")
+            ErrorTracker.report(exc)
             return False
-        self.logger.info(f"MoveL success: {pose}")
-        return True
-
-    def record_home(self) -> None:
-        """
-        Record current pose as 'home'.
-        """
-        pose = self.get_tcp_pose()
-        if pose is None:
-            self.logger.error("Failed to record home position")
-            raise RuntimeError("Failed to record home position")
-        self.initial_pose = pose
-        self.logger.info(f"Home position recorded: {pose}")
-
-    def return_to_home(self) -> None:
-        """
-        Move robot to previously recorded 'home' pose.
-        """
-        if self.initial_pose is not None:
-            self.move_linear(self.initial_pose)
-            self.logger.info("Returned to home position")
-        else:
-            self.logger.warning("Home position not recorded")
-
-    def shutdown(self) -> None:
-        """
-        Disable and disconnect robot.
-        """
-        self.disable()
-        self.robot.CloseRPC()
-        self.logger.info("Robot shutdown complete")
 
     def enable(self) -> None:
         """Enable robot motors."""
-        self.robot.RobotEnable(1)
-        self.logger.info("Robot enabled")
+        try:
+            code = self.robot.RobotEnable(1)
+            if code != 0:
+                self.logger.error(f"RobotEnable failed with code {code}")
+            else:
+                self.logger.info("Robot enabled")
+        except Exception as exc:
+            self.logger.exception("enable failed")
+            ErrorTracker.report(exc)
 
     def disable(self) -> None:
         """Disable robot motors."""
-        self.robot.RobotEnable(0)
-        self.logger.info("Robot disabled")
+        try:
+            code = self.robot.RobotEnable(0)
+            if code != 0:
+                self.logger.error(f"Robot disable failed with code {code}")
+            else:
+                self.logger.info("Robot disabled")
+        except Exception as exc:
+            self.logger.exception("disable failed")
+            ErrorTracker.report(exc)
 
-    # --- Additional SOLID helpers ---
-    def wait_motion_done(self, timeout_sec: float = 20) -> bool:
-        """
-        Wait until robot finishes motion (with timeout).
-
-        Args:
-            timeout_sec (float): Maximum time to wait.
-
-        Returns:
-            bool: True if motion finished, False if timeout.
-        """
-
-        start = time.time()
-        while time.time() - start < timeout_sec:
-            code, done = self.robot.GetRobotMotionDone()
-            if code == 0 and done == 1:
-                return True
-            time.sleep(0.05)
-        self.logger.warning("Wait for motion done: timeout")
-        return False
-
-    def get_joints(self) -> Optional[List[float]]:
-        """
-        Get current joint positions.
-
-        Returns:
-            Optional[List[float]]: Joint angles in degrees or None.
-        """
-        res = self.robot.GetActualJointPosDegree()
-        if res[0] == 0:
-            return cast(List[float], res[1])
-        self.logger.error("GetActualJointPosDegree failed")
-        return None
-
-    def restart(
-        self,
-        ip_address: str | None = None,
-        *,
-        delay: float | None = None,
-        attempts: int = 3,
-    ) -> bool:
-        """Restart the controller.
-
-        Disable motors, close RPC, and attempt to reconnect ``attempts`` times
-        (waiting ``delay`` seconds between tries). ``ip_address`` overrides the
-        configured IP.
-
-        Returns ``True`` on success.
-        """
-
-        delay = delay if delay is not None else self.cfg.restart_delay
-        ip = ip_address or self.ip_address
-        self.logger.info(
-            f"Restarting robot at {ip} with delay {delay}s and {attempts} attempts"
-        )
-
-        if self.robot.RobotEnable(0) != 0:
-            self.logger.error("Disable failed")
+    def wait_motion_done(self, timeout_sec: float = 20.0) -> bool:
+        """Poll motion state until robot stops or timeout expires."""
+        try:
+            start = time.time()
+            while time.time() - start < timeout_sec:
+                code, done = self.robot.GetRobotMotionDone()
+                self.logger.debug(f"Motion status: code={code}, done={done}")
+                if code == 0 and done == 1:
+                    return True
+                time.sleep(0.05)
+            self.logger.warning("Wait for motion done: timeout")
             return False
-        self.logger.info("Robot disabled")
+        except Exception as exc:
+            self.logger.exception("wait_motion_done failed")
+            ErrorTracker.report(exc)
+            return False
 
-        self.robot.CloseRPC()
-        self.logger.debug("RPC connection closed")
+    def check_safety(self) -> bool:
+        """Check robot safety state and return True if all OK."""
+        try:
+            code = self.robot.GetSafetyCode()
+            if code == 0:
+                self.logger.info("Safety state OK")
+                return True
+            self.logger.error(f"Safety lock active: code {code}")
+            return False
+        except Exception as exc:
+            self.logger.exception("check_safety failed")
+            ErrorTracker.report(exc)
+            return False
 
-        for attempt in range(attempts):
-            time.sleep(delay)
-            self.logger.info(f"Reconnect attempt {attempt + 1} of {attempts}")
-            self.robot = self._init_robot(ip)
-            if not self.connect():
-                self.logger.warning("Reconnect failed")
-                continue
-            if self.robot.RobotEnable(1) != 0:
-                self.logger.error("Enable failed")
-                return False
-            safety_code = self.robot.GetSafetyCode()
-            if safety_code != 0:
-                self.logger.error(f"Safety state prevents operation: {safety_code}")
-                return False
-            self.logger.info("Robot restart successful")
-            return True
-
-        self.logger.error("All reconnect attempts failed")
-        return False
+    def shutdown(self) -> None:
+        """Cleanly shutdown the robot connection."""
+        try:
+            self.disable()
+            self.robot.CloseRPC()
+            self.logger.info("Robot shutdown complete")
+        except Exception as exc:
+            self.logger.exception("shutdown failed")
+            ErrorTracker.report(exc)
