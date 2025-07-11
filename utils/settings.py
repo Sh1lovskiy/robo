@@ -12,8 +12,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 class Paths:
     """Convenient bundle of frequently used project paths."""
 
-    CAPTURES_DIR: Path = BASE_DIR / "captures"
-    RESULTS_DIR: Path = BASE_DIR / "calibration" / "results"
+    CAPTURES_DIR: Path = BASE_DIR / "calib"
+    RESULTS_DIR: Path = BASE_DIR / "calibration" / "results1"
     CLOUD_DIR: Path = BASE_DIR / "clouds"
     LOG_DIR: Path = BASE_DIR / "logs"
     CAMERA_INTR: Path = BASE_DIR / "data" / "results1980"

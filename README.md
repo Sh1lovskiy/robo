@@ -124,6 +124,11 @@ CLI modules are thin wrappers calling workflow helpers under
   ```bash
   python -m calibration.workflows handeye --board charuco
   ```
+* Refactored calibration CLI:
+
+  ```bash
+  python calibration/main.py --workflow both --target charuco --collect --calibrate
+  ```
 * Capture point cloud:
 
   ```bash
