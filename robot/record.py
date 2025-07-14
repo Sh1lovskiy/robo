@@ -198,7 +198,7 @@ class PoseRecorder:
             pose_count = max(existing) + 1 if existing else 0
         else:
             pose_count = 0
-        print("Press ENTER to save current pose. Press 'q' to quit.")
+        self.logger.info("Press ENTER to save current pose. Press 'q' to quit.")
         return pose_count, poses_path
 
     def _interactive_loop(
@@ -211,25 +211,26 @@ class PoseRecorder:
         pose_count: int,
     ) -> None:
         """Handle user input and frame capture until exit."""
-        should_exit = False
+        state = {
+            "pose_count": pose_count,
+            "should_exit": False,
+        }
 
         def on_save() -> None:
-            nonlocal pose_count
             color, depth = camera_mgr.get_frames()
             pose = self.controller.get_tcp_pose()
             if pose:
-                idx = f"{pose_count:03d}"
+                idx = f"{state['pose_count']:03d}"
                 self.saver.save(poses_path, idx, pose)
                 self._save_frames(idx, color, depth)
-                print(f"Saved pose {idx}")
-                pose_count += 1
+                self.logger.info(f"Saved pose {idx}")
+                state["pose_count"] += 1
                 if self.progress_cb:
                     self.progress_cb(idx, pose)
 
         def on_exit() -> None:
-            nonlocal should_exit
-            should_exit = True
-            print("Exit requested by hotkey!")
+            state["should_exit"] = True
+            self.logger.info("Exit requested by hotkey!")
 
         listener = GlobalKeyListener(
             {
@@ -241,7 +242,7 @@ class PoseRecorder:
         )
         listener.start()
         opencv_utils = OpenCVUtils(display_width=640, display_height=480)
-        while not should_exit:
+        while not state["should_exit"]:
             color, depth = camera_mgr.get_frames()
             self._handle_frame(
                 color, depth, board, camera_matrix, dist_coeffs, opencv_utils

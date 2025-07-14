@@ -18,7 +18,7 @@ logger: LoggerType = Logger.get_logger("calibration.visualizer")
 
 
 def _rotation_angle(R: np.ndarray) -> float:
-    """Return rotation angle in degrees from a rotation matrix."""
+    """Return the angle of rotation represented by ``R`` in degrees."""
     angle = np.arccos(np.clip((np.trace(R) - 1) / 2.0, -1.0, 1.0))
     return float(np.degrees(angle))
 
@@ -63,7 +63,12 @@ def _plot_interactive(robot_ts: np.ndarray, cam_ts: np.ndarray, file: Path) -> N
         )
     fig.update_layout(
         title="Robot vs Camera Poses",
-        scene=dict(xaxis_title="X [m]", yaxis_title="Y [m]", zaxis_title="Z [m]", aspectmode="data"),
+        scene=dict(
+            xaxis_title="X [m]",
+            yaxis_title="Y [m]",
+            zaxis_title="Z [m]",
+            aspectmode="data",
+        ),
         margin=dict(l=0, r=0, b=0, t=30),
     )
     file = file.with_suffix(".html")
@@ -76,10 +81,27 @@ def _plot_static(robot_ts: np.ndarray, cam_ts: np.ndarray, file: Path) -> None:
     """Render a static Matplotlib figure."""
     fig = plt.figure(figsize=(8, 7))
     ax = fig.add_subplot(111, projection="3d")
-    ax.scatter(robot_ts[:, 0], robot_ts[:, 1], robot_ts[:, 2], c="tab:red", label="robot TCP", s=50)
-    ax.scatter(cam_ts[:, 0], cam_ts[:, 1], cam_ts[:, 2], c="tab:blue", label="camera", s=50)
+    ax.scatter(
+        robot_ts[:, 0],
+        robot_ts[:, 1],
+        robot_ts[:, 2],
+        c="tab:red",
+        label="robot TCP",
+        s=50,
+    )
+    ax.scatter(
+        cam_ts[:, 0], cam_ts[:, 1], cam_ts[:, 2], c="tab:blue", label="camera", s=50
+    )
     for rt, ct in zip(robot_ts, cam_ts):
-        ax.plot([rt[0], ct[0]], [rt[1], ct[1]], [rt[2], ct[2]], color="gray", linestyle="--", linewidth=1, alpha=0.5)
+        ax.plot(
+            [rt[0], ct[0]],
+            [rt[1], ct[1]],
+            [rt[2], ct[2]],
+            color="gray",
+            linestyle="--",
+            linewidth=1,
+            alpha=0.5,
+        )
     ax.set_title("Robot vs Camera Poses (Board centers)")
     ax.set_xlabel("X [m]")
     ax.set_ylabel("Y [m]")
@@ -92,8 +114,6 @@ def _plot_static(robot_ts: np.ndarray, cam_ts: np.ndarray, file: Path) -> None:
     fig.savefig(file)
     plt.close(fig)
     logger.info(f"Static pose plot saved to {file.relative_to(file.cwd())}")
-
-
 
 
 def plot_reprojection_errors(errors: Sequence[float], file: Path) -> None:

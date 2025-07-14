@@ -51,8 +51,14 @@ def calibrate_svd_points(
 
 
 def _skew(v: np.ndarray) -> np.ndarray:
+    """Return the skew-symmetric matrix of vector ``v``."""
     return np.array(
-        [[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]], dtype=np.float64
+        [
+            [0, -v[2], v[1]],
+            [v[2], 0, -v[0]],
+            [-v[1], v[0], 0],
+        ],
+        dtype=np.float64,
     )
 
 
@@ -62,7 +68,27 @@ def calibrate_handeye_svd(
     target_Rs: List[np.ndarray],
     target_ts: List[np.ndarray],
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Solve AX=XB using the Tsai-Lenz method with SVD."""
+    """Solve ``AX = XB`` using the Tsai–Lenz algorithm.
+
+    Parameters
+    ----------
+    robot_Rs, robot_ts
+        Absolute poses of the robot tool with respect to the base frame.
+    target_Rs, target_ts
+        Poses of the calibration pattern with respect to the camera frame.
+
+    Returns
+    -------
+    np.ndarray, np.ndarray
+        Rotation and translation from the camera frame to the robot tool frame.
+
+    Notes
+    -----
+    The method first solves for the rotation using a linear system derived from
+    relative motions and then estimates the translation via least squares as
+    described in Tsai and Lenz, "A New Technique for Fully Autonomous and
+    Efficient 3D Robotics Hand/Eye Calibration" (1989).
+    """
     pairs = len(robot_Rs)
     A_list, b_list = [], []
     for i in range(pairs - 1):

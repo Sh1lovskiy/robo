@@ -16,8 +16,6 @@ from utils.transform import TransformUtils
 logger = Logger.get_logger("calibration.evaluate")
 
 
-
-
 def transformation_error(
     A_R: Iterable[np.ndarray],
     A_t: Iterable[np.ndarray],
@@ -26,7 +24,13 @@ def transformation_error(
     X_R: np.ndarray,
     X_t: np.ndarray,
 ) -> Tuple[np.ndarray, float]:
-    """Return translation errors for ``AX`` vs ``XB`` chain."""
+    """Compute residual translation error for the hand-eye equation.
+
+    The function evaluates how well a transformation ``X`` satisfies
+    ``A_i X = X B_i`` for each pair of robot (``A``) and camera (``B``) poses.
+    The returned values are translation differences for each pair and their
+    root mean square error.
+    """
     errors = []
     try:
         T_x = TransformUtils.build_transform(X_R, X_t)
