@@ -113,16 +113,34 @@ def handeye_errors(
     R_cam2tool: np.ndarray,
     t_cam2tool: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Return per-pair rotation [deg] and translation errors."""
+    """Return per-pair rotation and translation errors.
+
+    Parameters
+    ----------
+    robot_Rs, robot_ts
+        Poses of the robot tool with respect to the base frame.
+    target_Rs, target_ts
+        Poses of the calibration board with respect to the camera frame.
+    R_cam2tool, t_cam2tool
+        Estimated camera-to-tool transformation ``X``.
+
+    Returns
+    -------
+    np.ndarray, np.ndarray
+        Arrays of rotation error in degrees and translation error in metres for
+        each motion pair used in the AX = XB formulation.
+    """
     errors_rot: List[float] = []
     errors_trans: List[float] = []
     X = np.eye(4)
     X[:3, :3] = R_cam2tool
     X[:3, 3] = t_cam2tool.flatten()
     for i in range(len(robot_Rs) - 1):
+        # Relative motions between consecutive poses
         A = np.eye(4)
         A[:3, :3] = robot_Rs[i + 1] @ robot_Rs[i].T
         A[:3, 3] = robot_ts[i + 1] - A[:3, :3] @ robot_ts[i]
+
         B = np.eye(4)
         B[:3, :3] = target_Rs[i + 1] @ target_Rs[i].T
         B[:3, 3] = target_ts[i + 1] - B[:3, :3] @ target_ts[i]

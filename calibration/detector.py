@@ -130,10 +130,13 @@ _CHARUCO_CACHE: dict[tuple, np.ndarray] = {}
 def _compute_corr_map(
     board: cv2.aruco_CharucoBoard, detector: cv2.aruco.CharucoDetector
 ) -> np.ndarray:
-    """
-    Compute Charuco ID reordering map for bottom-left-to-top-right ordering.
+    """Compute ID reordering map for a Charuco board.
 
-    Uses synthetic board detection to check Y-orientation of detected IDs.
+    The OpenCV detector may return corner IDs in an orientation that does not
+    match the conventional bottom-left to top-right ordering.  A synthetic board
+    image is generated and passed through the detector to determine if the
+    detected ordering needs to be flipped along the vertical axis.  The returned
+    array maps detected IDs to the desired ascending order.
     """
     try:
         num_w, num_h = board.getChessboardSize()
@@ -158,7 +161,7 @@ def _compute_corr_map(
                 sb = slice(row_b * (num_w - 1), (row_b + 1) * (num_w - 1))
                 corr[sa], corr[sb] = corr[sb].copy(), corr[sa].copy()
 
-        logger.info(
+        logger.debug(
             f"Computed Charuco correlation map:\n"
             f" - Shape: {corr.shape},\n"
             f" - First remapped IDs: {corr[:min(28, len(corr))].tolist()}"

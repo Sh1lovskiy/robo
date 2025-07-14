@@ -30,4 +30,4 @@ robot = ["*.py", "*.pyx"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["robot*", "utils*", "vision*", "calibration*"]
+include = ["robot*", "utils*", "vision*", "calibration*", "pattern*", "geometry*"]
