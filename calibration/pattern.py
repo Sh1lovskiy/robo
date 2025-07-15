@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from calibration.metrics import svd_transform
+from utils.geometry import estimate_board_points_3d
+from utils.settings import DEPTH_SCALE
+
 """Calibration pattern implementations and factory helpers."""
 
 from dataclasses import dataclass, field
@@ -14,7 +18,6 @@ from .detector import (
     ArucoBoardConfig,
     detect_charuco,
     find_checkerboard,
-    create_checkerboard_points,
     find_aruco,
     draw_markers,
 )
@@ -28,7 +31,7 @@ def get_dictionary_name(dictionary: cv2.aruco_Dictionary) -> str:
     if hasattr(cv2.aruco, "getPredefinedDictionaryName"):
         try:
             return cv2.aruco.getPredefinedDictionaryName(dictionary)
-        except Exception:  # pragma: no cover - fallback for older OpenCV
+        except Exception:
             pass
     for name in dir(cv2.aruco):
         if name.startswith("DICT_"):
@@ -273,22 +276,29 @@ class CharucoPattern(CalibrationPattern):
 
 
 class ArucoPattern(CalibrationPattern):
-    """Calibration pattern for a single ArUco marker."""
+    """Single ArUco marker pattern used for basic pose estimation."""
 
     config: ArucoBoardConfig
 
     def __init__(self, config: ArucoBoardConfig) -> None:
+        """Initialize with the given configuration."""
         super().__init__()
         self.config = config
         self.logger = Logger.get_logger("calibration.aruco")
         self.board = cv2.aruco.GridBoard(
-            (1, 1), self.config.marker_length, self.config.marker_length * 0.5, self.config.dictionary
+            (1, 1),
+            self.config.marker_length,
+            self.config.marker_length * 0.5,
+            self.config.dictionary,
         )
         self.detector = cv2.aruco.ArucoDetector(
             self.config.dictionary, cv2.aruco.DetectorParameters()
         )
 
-    def detect(self, image: np.ndarray, visualize: bool = False) -> Optional[PatternDetection]:
+    def detect(
+        self, image: np.ndarray, visualize: bool = False
+    ) -> Optional[PatternDetection]:
+        """Detect the marker in ``image`` and optionally draw it."""
         result = find_aruco(image, self.config)
         if result is None:
             return None
@@ -302,6 +312,7 @@ class ArucoPattern(CalibrationPattern):
     def calibrate_camera(
         self, image_size: Tuple[int, int]
     ) -> tuple[np.ndarray, np.ndarray, float, np.ndarray]:
+        """Calibrate from stored ArUco detections."""
         corners = [d.corners for d in self.detections]
         ids = [d.ids for d in self.detections]
         ret, K, dist, rvecs, tvecs = cv2.aruco.calibrateCameraAruco(
@@ -326,10 +337,14 @@ class ArucoPattern(CalibrationPattern):
     def estimate_pose(
         self, detection: PatternDetection, K: np.ndarray, dist: np.ndarray
     ) -> Optional[tuple[np.ndarray, np.ndarray]]:
+        """Return marker pose relative to the camera."""
         if detection.ids is None:
             return None
         rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(
-            detection.corners, self.config.marker_length, K, dist
+            detection.corners,
+            self.config.marker_length,
+            K,
+            dist,
         )
         if rvec is None or tvec is None:
             return None

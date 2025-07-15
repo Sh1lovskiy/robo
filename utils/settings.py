@@ -9,8 +9,8 @@ import numpy as np
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Common file name extensions
-IMAGE_EXT = "_rgb.png"
-DEPTH_EXT = "_depth.npy"
+IMAGE_EXT = ".png"
+DEPTH_EXT = ".npy"
 
 # Default plotting behaviour
 DEFAULT_INTERACTIVE = True

@@ -86,7 +86,7 @@ def find_aruco(
     img: np.ndarray, cfg: ArucoBoardConfig
 ) -> Optional[tuple[List[np.ndarray], np.ndarray]]:
     """Detect ArUco markers and return their corners and ids."""
-    logger.info("Detecting ArUco markers")
+    logger.debug("Detecting ArUco markers")
     try:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         detector = cv2.aruco.ArucoDetector(
@@ -96,7 +96,7 @@ def find_aruco(
         if ids is None or len(ids) == 0:
             logger.warning("No ArUco markers found")
             return None
-        logger.info(f"Detected {len(ids)} markers")
+        logger.debug(f"Detected {len(ids)} markers")
         return corners, ids
     except Exception as exc:
         logger.error(f"Aruco detection failed: {exc}")
