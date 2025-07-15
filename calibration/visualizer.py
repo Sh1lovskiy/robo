@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 import matplotlib.pyplot as plt
-import mpld3
 import numpy as np
 import plotly.graph_objects as go
 
@@ -122,26 +121,30 @@ def plot_reprojection_errors(
 ) -> None:
     """Plot per-frame reprojection RMS error."""
     logger.info("Plotting intrinsic calibration reprojection errors...")
-    fig, ax = plt.subplots()
-    ax.plot(
-        range(1, len(errors) + 1), errors, marker="o", color="tab:blue", label="error"
-    )
-    ax.set_xlabel("Frame")
-    ax.set_ylabel("RMS reprojection error [px]")
-    ax.set_title("Reprojection Error per Frame")
-    ax.legend()
+    frames = list(range(1, len(errors) + 1))
     file.parent.mkdir(parents=True, exist_ok=True)
-    fig.tight_layout()
     if interactive:
-        html_file = file.with_suffix(".html")
-        html_file.write_text(mpld3.fig_to_html(fig))
-        logger.info(
-            f"Saved reprojection plot to {html_file.relative_to(html_file.cwd())}"
+        fig = go.Figure()
+        fig.add_scatter(x=frames, y=errors, mode="lines+markers", name="error")
+        fig.update_layout(
+            xaxis_title="Frame",
+            yaxis_title="RMS reprojection error [px]",
+            title="Reprojection Error per Frame",
         )
+        out = file.with_suffix(".html")
+        fig.write_html(str(out))
+        logger.info(f"Saved reprojection plot to {out.relative_to(out.cwd())}")
     else:
+        fig, ax = plt.subplots()
+        ax.plot(frames, errors, marker="o", color="tab:blue", label="error")
+        ax.set_xlabel("Frame")
+        ax.set_ylabel("RMS reprojection error [px]")
+        ax.set_title("Reprojection Error per Frame")
+        ax.legend()
+        fig.tight_layout()
         fig.savefig(file)
+        plt.close(fig)
         logger.info(f"Saved reprojection error plot to {file.relative_to(file.cwd())}")
-    plt.close(fig)
 
 
 def plot_poses(

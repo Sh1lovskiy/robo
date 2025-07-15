@@ -39,6 +39,13 @@ from .io import (
     save_camera_params_xml,
     save_camera_params_txt,
 )
+from .geometry import (
+    TransformUtils,
+    euler_to_matrix,
+    make_transform,
+    decompose_transform,
+    invert_transform,
+)
 
 
 __all__ = [

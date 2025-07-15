@@ -14,7 +14,6 @@ from utils import (
     HAND_EYE_METHODS,
     HAND_EYE_MAP,
     JSONPoseLoader,
-    handeye as handeye_cfg,
     paths,
     IMAGE_EXT,
     DEPTH_SCALE,
@@ -24,11 +23,14 @@ from utils.logger import Logger, LoggerType
 from utils.error_tracker import ErrorTracker
 from .metrics import handeye_errors, svd_transform
 
-from .pattern import CalibrationPattern, CharucoPattern, PatternDetection
+from .pattern import CalibrationPattern, PatternDetection
 from .utils import save_camera_params, save_transform, timestamp
 from utils.cloud_utils import load_depth
-from utils.geometry import TransformUtils, load_extrinsics, estimate_board_points_3d
-from .detector import detect_charuco, _show_charuco
+from utils.geometry import (
+    TransformUtils,
+    load_extrinsics,
+    estimate_board_points_3d,
+)
 from .visualizer import plot_poses, plot_reprojection_errors, _rotation_angle
 from utils.settings import DEFAULT_DEPTH_INTRINSICS
 import utils.settings as settings
@@ -107,58 +109,6 @@ class HandEyeCalibrator:
         self.visualize = visualize
         self.logger = logger or Logger.get_logger("calibration.handeye")
 
-    def _gather_target_poses(
-        self,
-        images: List[Path],
-        pattern: CalibrationPattern,
-        intrinsics_rgb: tuple[np.ndarray, np.ndarray],
-        K_depth: np.ndarray | None = None,
-        use_extrinsics: bool = True,
-    ) -> tuple[List[np.ndarray], List[np.ndarray]]:
-        K_rgb, dist = intrinsics_rgb
-        targets_R: List[np.ndarray] = []
-        targets_t: List[np.ndarray] = []
-
-        if use_extrinsics:
-            R_d2rgb, t_d2rgb = load_extrinsics(Path("d415_extr.json"), "depth", "rgb")
-        visualize_path = random.choice(images) if self.visualize else None
-        for img_path in Logger.progress(images, desc="hand-eye"):
-            img = cv2.imread(str(img_path))
-            if img is None:
-                self.logger.error(f"Failed to read {img_path}")
-                continue
-
-            detection = pattern.detect(img, visualize=(img_path == visualize_path))
-            if detection is None:
-                self.logger.warning(f"Pattern not detected in {img_path}")
-                continue
-
-            depth_path = (
-                img_path.parent / f"{img_path.stem.replace('_rgb', '')}_depth.npy"
-            )
-            depth = load_depth(str(depth_path))
-
-            pose = self._estimate_target_pose(
-                pattern,
-                detection,
-                depth,
-                K_rgb,
-                dist,
-                K_depth,
-                R_d2rgb if use_extrinsics else None,
-                t_d2rgb if use_extrinsics else None,
-                use_extrinsics,
-            )
-            if pose is None:
-                self.logger.warning(f"Pose estimation failed for {img_path}")
-                continue
-            R, t = pose
-
-            targets_R.append(R)
-            targets_t.append(t)
-
-        return targets_R, targets_t
-
     def _estimate_target_pose(
         self,
         pattern: CalibrationPattern,
@@ -171,6 +121,10 @@ class HandEyeCalibrator:
         t_d2rgb: np.ndarray | None,
         use_extrinsics: bool,
     ) -> Optional[tuple[np.ndarray, np.ndarray]]:
+        # If the pattern is ArucoPattern, do not use SVD/depth (only for multi-point boards)
+        if pattern.__class__.__name__ == "ArucoPattern":
+            return pattern.estimate_pose(detection, K_rgb, dist)
+
         if use_extrinsics and R_d2rgb is not None and t_d2rgb is not None:
             pts_cam = estimate_board_points_3d(
                 detection.corners,
@@ -192,6 +146,80 @@ class HandEyeCalibrator:
             except Exception as exc:
                 self.logger.warning(f"SVD failed: {exc}; falling back to PnP")
         return pattern.estimate_pose(detection, K_rgb, dist)
+
+    def _gather_target_poses(
+        self,
+        images: List[Path],
+        pattern: CalibrationPattern,
+        intrinsics_rgb: tuple[np.ndarray, np.ndarray],
+        robot_Rs_all: List[np.ndarray],
+        robot_ts_all: List[np.ndarray],
+        K_depth: np.ndarray | None = None,
+        use_extrinsics: bool = True,
+    ) -> tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+        """
+        Only pairs robot poses with successful detections and depth files!
+        """
+        K_rgb, dist = intrinsics_rgb
+        filtered_robot_Rs: List[np.ndarray] = []
+        filtered_robot_ts: List[np.ndarray] = []
+        targets_R: List[np.ndarray] = []
+        targets_t: List[np.ndarray] = []
+
+        if use_extrinsics:
+            R_d2rgb, t_d2rgb = load_extrinsics(Path("d415_extr.json"), "depth", "rgb")
+        visualize_path = random.choice(images) if self.visualize else None
+
+        for idx, img_path in enumerate(Logger.progress(images, desc="hand-eye")):
+            if idx >= len(robot_Rs_all):
+                break
+            img = cv2.imread(str(img_path))
+            if img is None:
+                self.logger.error(f"Failed to read {img_path}")
+                continue
+
+            detection = pattern.detect(img, visualize=(img_path == visualize_path))
+            if detection is None:
+                self.logger.warning(f"Pattern not detected in {img_path}")
+                continue
+
+            base = img_path.stem.replace("_rgb", "")
+            depth_candidates = list(img_path.parent.glob(f"{base}*_depth.npy"))
+            if not depth_candidates:
+                depth_candidates = list(
+                    img_path.parent.glob(
+                        f"{img_path.stem.replace('_rgb', '')}_depth.npy"
+                    )
+                )
+            if not depth_candidates:
+                self.logger.warning(f"No depth file found for {img_path}")
+                continue
+            depth_path = depth_candidates[0]
+            depth = load_depth(str(depth_path))
+
+            pose = self._estimate_target_pose(
+                pattern,
+                detection,
+                depth,
+                K_rgb,
+                dist,
+                K_depth,
+                R_d2rgb if use_extrinsics else None,
+                t_d2rgb if use_extrinsics else None,
+                use_extrinsics,
+            )
+            if pose is None:
+                self.logger.warning(f"Pose estimation failed for {img_path}")
+                continue
+            R, t = pose
+
+            # ** Only add robot pose if detection and pose estimation succeeded! **
+            filtered_robot_Rs.append(robot_Rs_all[idx])
+            filtered_robot_ts.append(robot_ts_all[idx])
+            targets_R.append(R)
+            targets_t.append(t)
+
+        return filtered_robot_Rs, filtered_robot_ts, targets_R, targets_t
 
     def _compute_camera_poses(
         self,
@@ -256,11 +284,17 @@ class HandEyeCalibrator:
         """Compute hand-eye transformation from poses and images."""
         self.logger.info("Starting hand-eye calibration")
         try:
-            robot_Rs, robot_ts = JSONPoseLoader.load_poses(str(poses_file))
+            robot_Rs_all, robot_ts_all = JSONPoseLoader.load_poses(str(poses_file))
             K_rgb, dist = intrinsics
             K_depth = DEFAULT_DEPTH_INTRINSICS
-            target_Rs, target_ts = self._gather_target_poses(
-                images, pattern, (K_rgb, dist), K_depth=K_depth, use_extrinsics=True
+            robot_Rs, robot_ts, target_Rs, target_ts = self._gather_target_poses(
+                images,
+                pattern,
+                (K_rgb, dist),
+                robot_Rs_all,
+                robot_ts_all,
+                K_depth=K_depth,
+                use_extrinsics=True,
             )
             if not target_Rs:
                 exc = RuntimeError("No valid detections for hand-eye calibration")
@@ -280,7 +314,10 @@ class HandEyeCalibrator:
             summary = []
             for method, method_name in methods_to_run:
                 self.logger.info(f"Running hand-eye method: {method_name.upper()}")
-
+                self.logger.info(
+                    f"robot_Rs: {len(robot_Rs)}, robot_ts: {len(robot_ts)}, "
+                    f"target_Rs: {len(target_Rs)}, target_ts: {len(target_ts)}"
+                )
                 if method_name == "svd":
                     R_cam2tool, t_cam2tool = calibrate_handeye_svd(
                         robot_Rs, robot_ts, target_Rs, target_ts

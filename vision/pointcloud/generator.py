@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import numpy as np
 import open3d as o3d
-from utils.geometry import euler_to_matrix
+from utils.geometry import euler_to_matrix, make_transform
 
 
 class PointCloudGenerator:
@@ -38,10 +38,7 @@ class PointCloudGenerator:
         position = pose[:3] / 1000.0  # mm → m
         rotation = euler_to_matrix(*pose[3:], degrees=angles_in_deg)  # 3x3
 
-        T = np.eye(4)
-        T[:3, :3] = rotation
-        T[:3, 3] = position
-        return T
+        return make_transform(rotation, position)
 
     @staticmethod
     def depth_to_cloud(
@@ -66,7 +63,8 @@ class PointCloudGenerator:
         h, w = depth.shape
         fx, fy = intr["fx"], intr["fy"]
         cx, cy = intr["ppx"], intr["ppy"]
-        mask = (depth > 0.1) & (depth < 1.0)
+        z_min, z_max = depth_range
+        mask = (depth > z_min) & (depth < z_max)
         # np.where return y, x
         ys, xs = np.where(mask)
         zs = depth[ys, xs]

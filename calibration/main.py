@@ -6,13 +6,10 @@ import argparse
 from pathlib import Path
 from typing import List
 
-import random
 from utils import paths, handeye, logging, load_camera_params, IMAGE_EXT
 import utils.settings as settings
 from utils.logger import Logger
 from utils.error_tracker import ErrorTracker
-import cv2
-import numpy as np
 
 from .pattern import create_pattern
 from .data_collector import DataCollector
@@ -23,37 +20,79 @@ from .robot_runner import RobotRunner
 def _parse_args() -> argparse.Namespace:
     """Return parsed command line arguments."""
     parser = argparse.ArgumentParser(
-        prog="main.py", formatter_class=argparse.RawTextHelpFormatter
+        prog="main.py",
+        formatter_class=argparse.RawTextHelpFormatter,
+        usage=(
+            "main.py [OPTIONS]\n"
+            "\n"
+            "Arguments:\n"
+            "  --mode MODE           Calibration stages to run\n"
+            "  --pattern PATTERN     Calibration pattern type\n"
+            "  --collect             Capture new data before calibration\n"
+            "  --method METHOD       Hand-eye calibration method\n"
+            "  --visualize FORMAT    Output visualization format\n"
+            "  --count COUNT         Number of images to capture\n"
+            "  --dataset PATH        Optional directory of existing images\n"
+            "  -h, --help            Show this help message and exit\n"
+        ),
     )
     parser.add_argument(
-        "--mode", required=True, metavar="[intr|handeye|both]", help="Calibration mode"
+        "--mode",
+        required=True,
+        choices=["intr", "handeye", "both", "none"],
+        default="both",
+        metavar="MODE",
+        help=(
+            "Calibration stages to run:\n"
+            "  'intr'    : intrinsic calibration only\n"
+            "  'handeye' : hand-eye calibration only\n"
+            "  'both'    : run both intrinsic and hand-eye stages (default)\n"
+            "  'none'    : only collect data, skip calibration"
+        ),
     )
     parser.add_argument(
         "--pattern",
-        metavar="[charuco|aruco|chess]",
+        choices=["charuco", "aruco", "chess"],
         default="charuco",
-        help="Pattern type",
+        metavar="PATTERN",
+        help=(
+            "Calibration pattern type:\n"
+            "  'charuco' : Charuco board (default)\n"
+            "  'aruco'   : ArUco marker grid\n"
+            "  'chess'   : classic chessboard"
+        ),
     )
     parser.add_argument(
         "--collect", action="store_true", help="Capture new data before calibration"
     )
-    parser.add_argument("--calib", action="store_true", help="Run calibration steps")
     parser.add_argument(
         "--method",
         choices=["svd", "tsai", "park", "horaud", "andreff", "daniilidis", "all"],
         default="all",
-        help="Hand-eye method",
+        metavar="METHOD",
+        help=(
+            "Hand-eye calibration method:\n"
+            "  'svd'        : SVD-based closed-form method (AX=XB)\n"
+            "  'tsai'       : Tsai-Lenz method\n"
+            "  'park'       : Park-Martin method\n"
+            "  'horaud'     : Horaud's method\n"
+            "  'andreff'    : Andreff's iterative method\n"
+            "  'daniilidis' : Daniilidis' dual quaternion method\n"
+            "  'all'        : Run all available methods (default)"
+        ),
     )
     parser.add_argument(
         "--visualize",
-        choices=["html"],
-        default=None,
+        choices=["none", "html", "corners", "full"],
+        default="none",
         metavar="FORMAT",
-        help="Save plots as HTML",
-    )
-    parser.add_argument("--corners", action="store_true", help="Show Charuco corners")
-    parser.add_argument(
-        "--full", action="store_true", help="Enable all visualization options"
+        help=(
+            "Output visualization format:\n"
+            "  'html'    : save plots as interactive HTML with Plotly\n"
+            "  'corners' : show detected Charuco/Aruco corners on one image\n"
+            "  'full'    : enable both HTML plots and corner overlays\n"
+            "  'none'    : disable both HTML plots and corner overlays (default)"
+        ),
     )
     parser.add_argument(
         "--count",
@@ -79,8 +118,8 @@ def _load_images(directory: Path) -> List[Path]:
 def main() -> None:
     """Entry point for the calibration command line interface."""
     args = _parse_args()
-    html_out = args.visualize == "html" or args.full
-    show_corners = args.corners or args.full
+    html_out = args.visualize in ("html", "full")
+    show_corners = args.visualize in ("corners", "full")
     settings.DEFAULT_INTERACTIVE = html_out
 
     logger = Logger.get_logger("calibration.cli")
@@ -110,14 +149,20 @@ def main() -> None:
             images = _load_images(args.dataset or Path(handeye.images_dir))
             poses_file = Path(handeye.robot_poses_file)
 
-    if args.mode in ("intr", "both") and args.calib:
+    run_intr = args.mode in ("intr", "both")
+    run_handeye = args.mode in ("handeye", "both")
+
+    if args.mode == "none":
+        return
+
+    if run_intr:
         intr = IntrinsicCalibrator()
         intr_result = intr.calibrate(images, pattern)
         K, dist = intr_result.camera_matrix, intr_result.dist_coeffs
     else:
         K, dist = load_camera_params(handeye.charuco_xml)
 
-    if args.mode in ("handeye", "both") and args.calib:
+    if run_handeye:
         assert poses_file is not None
         he = HandEyeCalibrator(method=args.method, visualize=show_corners)
         he.calibrate(poses_file, images, pattern, (K, dist))
