@@ -32,7 +32,8 @@ class Paths:
     """Convenient bundle of frequently used project paths."""
 
     CAPTURES_DIR: Path = BASE_DIR / "calib"
-    RESULTS_DIR: Path = BASE_DIR / "calibration" / "results1"
+    # RESULTS_DIR: Path = BASE_DIR / "calibration" / "results1"
+    RESULTS_DIR: Path = BASE_DIR / "calib_res"
     CLOUD_DIR: Path = BASE_DIR / "clouds"
     LOG_DIR: Path = BASE_DIR / "logs"
     CAMERA_INTR: Path = BASE_DIR / "data" / "results1980"

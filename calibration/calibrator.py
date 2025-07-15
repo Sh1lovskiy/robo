@@ -1,4 +1,6 @@
 from __future__ import annotations
+import contextlib
+import io
 import random
 
 """Core calibration routines for intrinsics and hand-eye."""
@@ -19,7 +21,7 @@ from utils import (
     DEPTH_SCALE,
 )
 from .handeye import calibrate_handeye_svd
-from utils.logger import Logger, LoggerType
+from utils.logger import CaptureStderrToLogger, Logger, LoggerType
 from utils.error_tracker import ErrorTracker
 from .metrics import handeye_errors, svd_transform
 
@@ -31,8 +33,9 @@ from utils.geometry import (
     load_extrinsics,
     estimate_board_points_3d,
 )
-from .visualizer import plot_poses, plot_reprojection_errors, _rotation_angle
-from utils.settings import DEFAULT_DEPTH_INTRINSICS
+from .visualizer import plot_poses, plot_reprojection_errors
+from utils.geometry import rotation_angle
+from utils.settings import DEFAULT_DEPTH_INTRINSICS, DEPTH_EXT
 import utils.settings as settings
 
 
@@ -82,7 +85,8 @@ class IntrinsicCalibrator:
             K, dist, rms, per_view = pattern.calibrate_camera(img_size)
             out_base = paths.RESULTS_DIR / f"camera_{timestamp()}"
             save_camera_params(out_base, K, dist, rms)
-            viz_file = paths.CAPTURES_DIR / "viz" / f"{out_base.stem}_reproj{IMAGE_EXT}"
+            # viz_file = paths.CAPTURES_DIR / "viz" / f"{out_base.stem}_reproj{IMAGE_EXT}"
+            viz_file = "viz" / f"{out_base.stem}_reproj{IMAGE_EXT}"
 
             plot_reprojection_errors(
                 per_view, viz_file, interactive=settings.DEFAULT_INTERACTIVE
@@ -147,6 +151,15 @@ class HandEyeCalibrator:
                 self.logger.warning(f"SVD failed: {exc}; falling back to PnP")
         return pattern.estimate_pose(detection, K_rgb, dist)
 
+    def _depth_for_image(self, img_path: Path) -> Path | None:
+        """Return associated depth file for ``img_path`` or ``None``."""
+        base = img_path.stem.replace("_rgb", "")
+        candidates = list(img_path.parent.glob(f"{base}*_depth{DEPTH_EXT}"))
+        if candidates:
+            return candidates[0]
+        fallback = img_path.parent / f"{base}_depth{DEPTH_EXT}"
+        return fallback if fallback.exists() else None
+
     def _gather_target_poses(
         self,
         images: List[Path],
@@ -158,7 +171,8 @@ class HandEyeCalibrator:
         use_extrinsics: bool = True,
     ) -> tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
         """
-        Only pairs robot poses with successful detections and depth files!
+        Collect board and robot poses for successful detections.
+        Returns also: warnings, detected count, not_detected count
         """
         K_rgb, dist = intrinsics_rgb
         filtered_robot_Rs: List[np.ndarray] = []
@@ -170,31 +184,30 @@ class HandEyeCalibrator:
             R_d2rgb, t_d2rgb = load_extrinsics(Path("d415_extr.json"), "depth", "rgb")
         visualize_path = random.choice(images) if self.visualize else None
 
+        warnings = []
+        detected = 0
+        not_detected = 0
+
         for idx, img_path in enumerate(Logger.progress(images, desc="hand-eye")):
             if idx >= len(robot_Rs_all):
                 break
             img = cv2.imread(str(img_path))
             if img is None:
-                self.logger.error(f"Failed to read {img_path}")
+                warnings.append(f"Failed to read {img_path}")
+                not_detected += 1
                 continue
 
             detection = pattern.detect(img, visualize=(img_path == visualize_path))
             if detection is None:
-                self.logger.warning(f"Pattern not detected in {img_path}")
+                warnings.append(f"Pattern not detected in {img_path}")
+                not_detected += 1
                 continue
 
-            base = img_path.stem.replace("_rgb", "")
-            depth_candidates = list(img_path.parent.glob(f"{base}*_depth.npy"))
-            if not depth_candidates:
-                depth_candidates = list(
-                    img_path.parent.glob(
-                        f"{img_path.stem.replace('_rgb', '')}_depth.npy"
-                    )
-                )
-            if not depth_candidates:
-                self.logger.warning(f"No depth file found for {img_path}")
+            depth_path = self._depth_for_image(img_path)
+            if depth_path is None:
+                warnings.append(f"No depth file found for {img_path}")
+                not_detected += 1
                 continue
-            depth_path = depth_candidates[0]
             depth = load_depth(str(depth_path))
 
             pose = self._estimate_target_pose(
@@ -209,70 +222,142 @@ class HandEyeCalibrator:
                 use_extrinsics,
             )
             if pose is None:
-                self.logger.warning(f"Pose estimation failed for {img_path}")
+                warnings.append(f"Pose estimation failed for {img_path}")
+                not_detected += 1
                 continue
             R, t = pose
 
-            # ** Only add robot pose if detection and pose estimation succeeded! **
             filtered_robot_Rs.append(robot_Rs_all[idx])
             filtered_robot_ts.append(robot_ts_all[idx])
             targets_R.append(R)
             targets_t.append(t)
-
+            detected += 1
+        total = detected + not_detected
+        self.logger.info(
+            f"Detected pattern in {detected}/{total} images "
+            f"({not_detected} not detected, {detected/total:.1%} success rate)"
+        )
+        if warnings:
+            self.logger.info("--- Detection Warnings ---")
+            for w in warnings:
+                self.logger.warning(w)
         return filtered_robot_Rs, filtered_robot_ts, targets_R, targets_t
 
-    def _compute_camera_poses(
+    def _camera_poses(
         self,
         robot_Rs: List[np.ndarray],
         robot_ts: List[np.ndarray],
         R_cam2tool: np.ndarray,
         t_cam2tool: np.ndarray,
+        *,
+        invert: bool = False,
     ) -> tuple[List[np.ndarray], List[np.ndarray]]:
-        """
-        Return camera poses in the robot base frame.
-
-        Parameters
-        ----------
-        robot_Rs, robot_ts
-            Absolute robot poses :math:`\{{^{b}R_{g_i}},\ {^{b}t_{g_i}}\}` with
-            respect to the robot base.
-        R_cam2tool, t_cam2tool
-            Transformation from the camera frame to the robot tool frame
-            obtained from hand-eye calibration.
-
-        Returns
-        -------
-        List[np.ndarray], List[np.ndarray]
-            Rotations and translations of the camera expressed in the robot
-            base frame for each measurement.
-        """
+        """Return camera or tool poses depending on ``invert`` flag."""
         cam_Rs: List[np.ndarray] = []
         cam_ts: List[np.ndarray] = []
         T_tool = TransformUtils.build_transform(R_cam2tool, t_cam2tool)
+        T_tool_inv = np.linalg.inv(T_tool)
         for Rg, tg in zip(robot_Rs, robot_ts):
             T_base = TransformUtils.build_transform(Rg, tg)
-            T_cam = T_base @ np.linalg.inv(T_tool)
-            cam_Rs.append(T_cam[:3, :3])
-            cam_ts.append(T_cam[:3, 3])
+            T = T_tool @ T_base if invert else T_base @ T_tool_inv
+            cam_Rs.append(T[:3, :3])
+            cam_ts.append(T[:3, 3])
         return cam_Rs, cam_ts
 
-    def _compute_camera_poses_inv(
+    def _run_method(
         self,
+        method: int | str,
+        name: str,
         robot_Rs: List[np.ndarray],
         robot_ts: List[np.ndarray],
-        R_cam2tool: np.ndarray,
-        t_cam2tool: np.ndarray,
-    ) -> tuple[List[np.ndarray], List[np.ndarray]]:
-        """Return robot tool poses expressed in the camera frame."""
-        cam_Rs: List[np.ndarray] = []
-        cam_ts: List[np.ndarray] = []
-        T_tool = TransformUtils.build_transform(R_cam2tool, t_cam2tool)
-        for Rg, tg in zip(robot_Rs, robot_ts):
-            T_base = TransformUtils.build_transform(Rg, tg)
-            T_cam = T_tool @ T_base
-            cam_Rs.append(T_cam[:3, :3])
-            cam_ts.append(T_cam[:3, 3])
-        return cam_Rs, cam_ts
+        target_Rs: List[np.ndarray],
+        target_ts: List[np.ndarray],
+        out_base: Path,
+        viz_dir: Path,
+    ) -> tuple[str, float, float, float, float]:
+        """Execute one hand-eye solver and compute error metrics."""
+        if name == "svd":
+            R_cam2tool, t_cam2tool = calibrate_handeye_svd(
+                robot_Rs, robot_ts, target_Rs, target_ts
+            )
+        else:
+            with CaptureStderrToLogger(self.logger):
+                R_cam2tool, t_cam2tool = cv2.calibrateHandEye(
+                    robot_Rs, robot_ts, target_Rs, target_ts, method=method
+                )
+        base_stem = f"{out_base.stem}_{name}"
+        base_out = out_base.with_stem(base_stem)
+        T = TransformUtils.build_transform(R_cam2tool, t_cam2tool)
+        save_transform(base_out, T)
+        cam_Rs, cam_ts = self._camera_poses(robot_Rs, robot_ts, R_cam2tool, t_cam2tool)
+        robot_Rss, robot_tss = self._camera_poses(
+            robot_Rs, robot_ts, R_cam2tool, t_cam2tool, invert=True
+        )
+        rot_err, trans_err = handeye_errors(
+            robot_Rs, robot_ts, target_Rs, target_ts, R_cam2tool, t_cam2tool
+        )
+        t_rmse = float(np.sqrt(np.mean(trans_err**2)))
+        r_rmse = float(np.sqrt(np.mean(rot_err**2)))
+        trans_errors = np.linalg.norm(np.array(robot_tss) - np.array(cam_ts), axis=1)
+        rot_errors = np.array(
+            [rotation_angle(Rr.T @ Rc) for Rr, Rc in zip(robot_Rss, cam_Rs)]
+        )
+        align_t_rmse = float(np.sqrt(np.mean(trans_errors**2)))
+        align_r_rmse = float(np.sqrt(np.mean(rot_errors**2)))
+        if self.visualize:
+            plot_file = viz_dir / f"{base_stem}_poses{IMAGE_EXT}"
+            plot_poses(robot_Rs, robot_ts, cam_Rs, cam_ts, plot_file)
+        return name, t_rmse, r_rmse, align_t_rmse, align_r_rmse
+
+    def _log_summary(
+        self, summary: list[tuple[str, float, float, float, float]], out_base: Path
+    ) -> None:
+        """Log results for all methods."""
+        self.logger.info("Summary of hand-eye calibration and pose alignment errors:")
+        self.logger.info(
+            "Method     | T. RMSE [m] | R. RMSE [deg] | Align T. RMSE [m] | Align R. RMSE [deg]"
+        )
+        self.logger.info(
+            "-----------|-------------|---------------|-------------------|--------------------"
+        )
+        for name, t_rmse, r_rmse, a_t_rmse, a_r_rmse in summary:
+            self.logger.info(
+                f"{name:<10} |  {t_rmse:>9.6f}  |  {r_rmse:>11.4f}  |  {a_t_rmse:>15.6f}  |  {a_r_rmse:>17.4f}"
+            )
+        self.logger.info(
+            f"Hand-eye results saved to {out_base.relative_to(Path.cwd())}"
+        )
+
+    def _run_all_methods(
+        self,
+        methods_to_run: list[tuple[int | str, str]],
+        robot_Rs: List[np.ndarray],
+        robot_ts: List[np.ndarray],
+        target_Rs: List[np.ndarray],
+        target_ts: List[np.ndarray],
+        out_base: Path,
+        viz_dir: Path,
+    ) -> list[tuple[str, float, float, float, float]]:
+        """Execute each calibration method and collect results."""
+        summary = []
+        for method, method_name in methods_to_run:
+            self.logger.info(f"Running hand-eye method: {method_name.upper()}")
+            self.logger.debug(
+                f"robot_Rs: {len(robot_Rs)}, robot_ts: {len(robot_ts)}, "
+                f"target_Rs: {len(target_Rs)}, target_ts: {len(target_ts)}"
+            )
+            result = self._run_method(
+                method,
+                method_name,
+                robot_Rs,
+                robot_ts,
+                target_Rs,
+                target_ts,
+                out_base,
+                viz_dir,
+            )
+            summary.append(result)
+        return summary
 
     def calibrate(
         self,
@@ -311,79 +396,16 @@ class HandEyeCalibrator:
                 if method_const is None:
                     raise ValueError(f"Unknown hand-eye method: {self.method}")
                 methods_to_run = [(method_const, self.method)]
-            summary = []
-            for method, method_name in methods_to_run:
-                self.logger.info(f"Running hand-eye method: {method_name.upper()}")
-                self.logger.info(
-                    f"robot_Rs: {len(robot_Rs)}, robot_ts: {len(robot_ts)}, "
-                    f"target_Rs: {len(target_Rs)}, target_ts: {len(target_ts)}"
-                )
-                if method_name == "svd":
-                    R_cam2tool, t_cam2tool = calibrate_handeye_svd(
-                        robot_Rs, robot_ts, target_Rs, target_ts
-                    )
-                else:
-                    R_cam2tool, t_cam2tool = cv2.calibrateHandEye(
-                        robot_Rs, robot_ts, target_Rs, target_ts, method=method
-                    )
-
-                base_stem = f"{out_base.stem}_{method_name}"
-                base_out = out_base.with_stem(base_stem)
-
-                T = TransformUtils.build_transform(R_cam2tool, t_cam2tool)
-                save_transform(base_out, T)
-
-                # cam_Rs, cam_ts = self._compute_camera_poses(
-                #     target_Rs, target_ts, R_cam2tool, t_cam2tool
-                # )
-                cam_Rs, cam_ts = self._compute_camera_poses(
-                    robot_Rs, robot_ts, R_cam2tool, t_cam2tool
-                )
-                robot_Rss, robot_tss = self._compute_camera_poses_inv(
-                    robot_Rs, robot_ts, R_cam2tool, t_cam2tool
-                )
-
-                rot_err, trans_err = handeye_errors(
-                    robot_Rs, robot_ts, target_Rs, target_ts, R_cam2tool, t_cam2tool
-                )
-
-                t_rmse = float(np.sqrt(np.mean(trans_err**2)))
-                r_rmse = float(np.sqrt(np.mean(rot_err**2)))
-
-                trans_errors = np.linalg.norm(
-                    np.array(robot_tss) - np.array(cam_ts), axis=1
-                )
-                rot_errors = np.array(
-                    [_rotation_angle(Rr.T @ Rc) for Rr, Rc in zip(robot_Rss, cam_Rs)]
-                )
-                align_t_rmse = float(np.sqrt(np.mean(trans_errors**2)))
-                align_r_rmse = float(np.sqrt(np.mean(rot_errors**2)))
-
-                summary.append(
-                    (method_name, t_rmse, r_rmse, align_t_rmse, align_r_rmse)
-                )
-
-                if self.visualize:
-                    plot_file = viz_dir / f"{base_stem}_poses{IMAGE_EXT}"
-                    plot_poses(robot_Rs, robot_ts, cam_Rs, cam_ts, plot_file)
-
-            self.logger.info(
-                "Summary of hand-eye calibration and pose alignment errors:"
+            summary = self._run_all_methods(
+                methods_to_run,
+                robot_Rs,
+                robot_ts,
+                target_Rs,
+                target_ts,
+                out_base,
+                viz_dir,
             )
-            self.logger.info(
-                "Method     | T. RMSE [m] | R. RMSE [deg] | Align T. RMSE [m] | Align R. RMSE [deg]"
-            )
-            self.logger.info(
-                "-----------|-------------|---------------|-------------------|--------------------"
-            )
-            for name, t_rmse, r_rmse, a_t_rmse, a_r_rmse in summary:
-                self.logger.info(
-                    f"{name:<10} |  {t_rmse:>9.6f}  |  {r_rmse:>11.4f}  |  {a_t_rmse:>15.6f}  |  {a_r_rmse:>17.4f}"
-                )
-
-            self.logger.info(
-                f"Hand-eye results saved to {out_base.relative_to(Path.cwd())}"
-            )
+            self._log_summary(summary, out_base)
             return out_base
         except Exception as exc:
             self.logger.error(f"Hand-eye calibration failed: {exc}")

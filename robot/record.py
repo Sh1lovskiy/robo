@@ -17,7 +17,7 @@ from robot.controller import RobotController
 from utils.error_tracker import CameraError
 from utils.keyboard import GlobalKeyListener
 from utils.logger import Logger, LoggerType
-from utils.settings import handeye
+from utils.settings import handeye, IMAGE_EXT, DEPTH_EXT
 from vision.opencv_utils import OpenCVUtils
 from vision.camera import (
     CameraBase,
@@ -55,8 +55,8 @@ class FrameSaver:
     def save(self, idx: int, color: np.ndarray, depth: np.ndarray) -> None:
         """Persist color and depth images to ``out_dir``."""
         os.makedirs(self.out_dir, exist_ok=True)
-        cv2.imwrite(os.path.join(self.out_dir, f"{idx:03d}_rgb.png"), color)
-        np.save(os.path.join(self.out_dir, f"{idx:03d}_depth.npy"), depth)
+        cv2.imwrite(os.path.join(self.out_dir, f"{idx:03d}_rgb{IMAGE_EXT}"), color)
+        np.save(os.path.join(self.out_dir, f"{idx:03d}_depth{DEPTH_EXT}"), depth)
         self.logger.info(f"Saved frame {idx}")
 
 
@@ -315,8 +315,8 @@ class PoseRecorder:
         filtered = self.depth_filter.filter(depth) if self.depth_filter else depth
         if self.frame_saver:
             self.frame_saver.save(int(idx), color, filtered)
-        rgb_path = os.path.join(self.captures_dir, f"{idx}_rgb.png")
-        depth_path = os.path.join(self.captures_dir, f"{idx}_depth.npy")
+        rgb_path = os.path.join(self.captures_dir, f"{idx}_rgb{IMAGE_EXT}")
+        depth_path = os.path.join(self.captures_dir, f"{idx}_depth{DEPTH_EXT}")
         os.makedirs(self.captures_dir, exist_ok=True)
         cv2.imwrite(rgb_path, color)
         np.save(depth_path, filtered)

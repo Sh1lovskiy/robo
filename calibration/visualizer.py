@@ -12,15 +12,9 @@ import plotly.graph_objects as go
 from utils.logger import Logger, LoggerType
 from utils.error_tracker import ErrorTracker
 from utils.settings import DEFAULT_INTERACTIVE
-from utils.geometry import TransformUtils
+from utils.geometry import TransformUtils, rotation_angle
 
 logger: LoggerType = Logger.get_logger("calibration.visualizer")
-
-
-def _rotation_angle(R: np.ndarray) -> float:
-    """Return the angle of rotation represented by ``R`` in degrees."""
-    angle = np.arccos(np.clip((np.trace(R) - 1) / 2.0, -1.0, 1.0))
-    return float(np.degrees(angle))
 
 
 def _plot_interactive(robot_ts: np.ndarray, cam_ts: np.ndarray, file: Path) -> None:
@@ -33,7 +27,7 @@ def _plot_interactive(robot_ts: np.ndarray, cam_ts: np.ndarray, file: Path) -> N
             z=robot_ts[:, 2],
             mode="markers+text",
             name="robot TCP",
-            marker=dict(size=5, color="red"),
+            marker=dict(size=5, color="red", opacity=0.5),
             text=[f"R{i}" for i in range(len(robot_ts))],
             textposition="top center",
         )
@@ -45,7 +39,7 @@ def _plot_interactive(robot_ts: np.ndarray, cam_ts: np.ndarray, file: Path) -> N
             z=cam_ts[:, 2],
             mode="markers+text",
             name="camera",
-            marker=dict(size=5, color="blue"),
+            marker=dict(size=5, color="blue", opacity=0.5),
             text=[f"C{i}" for i in range(len(cam_ts))],
             textposition="top center",
         )
@@ -173,7 +167,7 @@ def plot_poses(
 
         trans_errors = np.linalg.norm(robot_ts - cam_ts, axis=1)
         rot_errors = np.array(
-            [_rotation_angle(Rr.T @ Rc) for Rr, Rc in zip(robot_Rs, cam_Rs)]
+            [rotation_angle(Rr.T @ Rc) for Rr, Rc in zip(robot_Rs, cam_Rs)]
         )
         trans_rmse = float(np.sqrt(np.mean(trans_errors**2)))
         rot_rmse = float(np.sqrt(np.mean(rot_errors**2)))

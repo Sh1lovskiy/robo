@@ -94,7 +94,7 @@ def find_aruco(
         )
         corners, ids, _ = detector.detectMarkers(gray)
         if ids is None or len(ids) == 0:
-            logger.warning("No ArUco markers found")
+            logger.debug("No ArUco markers found")
             return None
         logger.debug(f"Detected {len(ids)} markers")
         return corners, ids
@@ -110,6 +110,32 @@ def draw_markers(
     """Return ``image`` overlaid with detected ArUco markers."""
     vis = image.copy()
     cv2.aruco.drawDetectedMarkers(vis, corners, ids)
+    return vis
+
+
+def draw_charuco(
+    image: np.ndarray,
+    corners: np.ndarray,
+    ids: np.ndarray,
+    marker_corners: np.ndarray | None = None,
+    marker_ids: np.ndarray | None = None,
+) -> np.ndarray:
+    """Return ``image`` with detected Charuco corners and marker outlines."""
+    vis = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR) if image.ndim == 2 else image.copy()
+    if marker_corners is not None and marker_ids is not None:
+        vis = cv2.aruco.drawDetectedMarkers(vis, marker_corners, marker_ids)
+    for i, pt in enumerate(corners):
+        pos = tuple(int(x) for x in pt.ravel())
+        cv2.circle(vis, pos, 3, (0, 255, 0), -1)
+        cv2.putText(
+            vis,
+            str(ids[i][0]),
+            pos,
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (0, 0, 255),
+            2,
+        )
     return vis
 
 
@@ -231,7 +257,9 @@ def detect_charuco(
         obj_points = board.getChessboardCorners()[ids_remapped.flatten()].copy()
 
         if visualize:
-            _show_charuco(img, corners, ids_remapped, marker_corners, marker_ids)
+            vis = draw_charuco(img, corners, ids_remapped, marker_corners, marker_ids)
+            cv2.imshow("Charuco Detection", vis)
+            cv2.waitKey(1)
 
         return Detection(
             corners, obj_points, ids_remapped if enforce_ascending_ids else ids
@@ -251,15 +279,7 @@ def _show_charuco(
     marker_ids: np.ndarray | None,
 ) -> None:
     """Visualize Charuco detection in an OpenCV window."""
-    vis = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR) if img.ndim == 2 else img.copy()
-    if marker_corners is not None and marker_ids is not None:
-        vis = cv2.aruco.drawDetectedMarkers(vis, marker_corners, marker_ids)
-    for i, pt in enumerate(corners):
-        pos = tuple(int(x) for x in pt.ravel())
-        cv2.circle(vis, pos, 3, (0, 255, 0), -1)
-        cv2.putText(
-            vis, str(ids[i][0]), pos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2
-        )
+    vis = draw_charuco(img, corners, ids, marker_corners, marker_ids)
     window_name = "Charuco Detection"
     cv2.imshow(window_name, vis)
     closed = False

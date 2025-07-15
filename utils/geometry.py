@@ -14,6 +14,7 @@ import numpy as np
 from .logger import Logger
 
 __all__ = [
+    "TransformUtils",
     "load_extrinsics",
     "pixel_to_camera",
     "pixel_to_camera_depth",
@@ -27,8 +28,14 @@ __all__ = [
     "euler_to_matrix",
     "invert_transform",
     "make_transform",
-    "TransformUtils",
+    "rotation_angle",
 ]
+
+
+def rotation_angle(R: np.ndarray) -> float:
+    """Return the angle of rotation represented by ``R`` in degrees."""
+    angle = np.arccos(np.clip((np.trace(R) - 1) / 2.0, -1.0, 1.0))
+    return float(np.degrees(angle))
 
 
 def euler_to_matrix(
@@ -204,7 +211,6 @@ def estimate_board_points_3d(
     )
     if pts_rgb is not None:
         return pts_rgb
-
     ok, rvec, tvec = cv2.solvePnP(object_points, charuco_corners, K_rgb, dist_rgb)
     if not ok:
         return None
