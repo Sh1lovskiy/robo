@@ -23,18 +23,22 @@ class RobotRunner:
         default_factory=lambda: Logger.get_logger("calibration.robot_runner")
     )
 
-    def generate_grid(self) -> list[np.ndarray]:
+    def generate_grid(self) -> list[list[float]]:
         """Generate a grid of TCP poses within workspace limits."""
         (x_min, x_max), (y_min, y_max), (z_min, z_max) = grid_calib.workspace_limits
         step = grid_calib.grid_step
 
         poses = [
-            np.array([x, y, z, *grid_calib.tool_orientation])
+            [
+                float(x),
+                float(y),
+                float(z),
+                *[float(a) for a in grid_calib.tool_orientation],
+            ]
             for x in np.arange(x_min, x_max, step)
             for y in np.arange(y_min, y_max, step)
             for z in np.arange(z_min, z_max, step)
         ]
-
         self.logger.debug(f"Generated {len(poses)} grid poses")
         return poses
 
