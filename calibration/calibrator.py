@@ -5,7 +5,7 @@ import random
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -25,11 +25,14 @@ from utils.error_tracker import ErrorTracker
 from utils.transform import TransformUtils
 from .metrics import handeye_errors, svd_transform
 
-from .pattern import CalibrationPattern
+from .pattern import CalibrationPattern, CharucoPattern, PatternDetection
 from .utils import save_camera_params, save_transform, timestamp
 from utils.cloud_utils import load_depth
 from utils.geometry import load_extrinsics, estimate_board_points_3d
+from .detector import detect_charuco, _show_charuco
 from .visualizer import plot_poses, plot_reprojection_errors, _rotation_angle
+from utils.settings import DEFAULT_DEPTH_INTRINSICS
+import utils.settings as settings
 
 
 @dataclass
@@ -80,7 +83,9 @@ class IntrinsicCalibrator:
             save_camera_params(out_base, K, dist, rms)
             viz_file = paths.CAPTURES_DIR / "viz" / f"{out_base.stem}_reproj{IMAGE_EXT}"
 
-            plot_reprojection_errors(per_view, viz_file)
+            plot_reprojection_errors(
+                per_view, viz_file, interactive=settings.DEFAULT_INTERACTIVE
+            )
             self.logger.info(
                 f"Intrinsics saved to {out_base.relative_to(Path.cwd())} (RMS={rms:.6f})"
             )
@@ -114,60 +119,80 @@ class HandEyeCalibrator:
         K_rgb, dist = intrinsics_rgb
         targets_R: List[np.ndarray] = []
         targets_t: List[np.ndarray] = []
-        visualize_path = random.choice(images)
 
         if use_extrinsics:
             R_d2rgb, t_d2rgb = load_extrinsics(Path("d415_extr.json"), "depth", "rgb")
-
+        visualize_path = random.choice(images) if self.visualize else None
         for img_path in Logger.progress(images, desc="hand-eye"):
             img = cv2.imread(str(img_path))
             if img is None:
                 self.logger.error(f"Failed to read {img_path}")
                 continue
 
-            detection = pattern.detect(img)
+            detection = pattern.detect(img, visualize=(img_path == visualize_path))
             if detection is None:
                 self.logger.warning(f"Pattern not detected in {img_path}")
                 continue
 
-            depth_path = img_path.parent / f"{img_path.stem.replace('_rgb', '')}_depth.npy"
+            depth_path = (
+                img_path.parent / f"{img_path.stem.replace('_rgb', '')}_depth.npy"
+            )
             depth = load_depth(str(depth_path))
 
-            if use_extrinsics:
-                pts_cam = estimate_board_points_3d(
-                    detection.corners,
-                    depth,
-                    detection.object_points,
-                    K_rgb,
-                    dist,
-                    K_depth,
-                    R_d2rgb,
-                    t_d2rgb,
-                    depth_scale=DEPTH_SCALE,
-                )
-            else:
-                pts_cam = None
-
-            if pts_cam is not None:
-                try:
-                    R, t = svd_transform(detection.object_points, pts_cam)
-                except Exception as exc:
-                    self.logger.warning(f"SVD failed: {exc}; falling back to PnP")
-                    pose = pattern.estimate_pose(detection, K_rgb, dist)
-                    if pose is None:
-                        continue
-                    R, t = pose
-            else:
-                pose = pattern.estimate_pose(detection, K_rgb, dist)
-                if pose is None:
-                    self.logger.warning(f"Pose estimation failed for {img_path}")
-                    continue
-                R, t = pose
+            pose = self._estimate_target_pose(
+                pattern,
+                detection,
+                depth,
+                K_rgb,
+                dist,
+                K_depth,
+                R_d2rgb if use_extrinsics else None,
+                t_d2rgb if use_extrinsics else None,
+                use_extrinsics,
+            )
+            if pose is None:
+                self.logger.warning(f"Pose estimation failed for {img_path}")
+                continue
+            R, t = pose
 
             targets_R.append(R)
             targets_t.append(t)
 
         return targets_R, targets_t
+
+    def _estimate_target_pose(
+        self,
+        pattern: CalibrationPattern,
+        detection: PatternDetection,
+        depth_map: np.ndarray,
+        K_rgb: np.ndarray,
+        dist: np.ndarray,
+        K_depth: np.ndarray | None,
+        R_d2rgb: np.ndarray | None,
+        t_d2rgb: np.ndarray | None,
+        use_extrinsics: bool,
+    ) -> Optional[tuple[np.ndarray, np.ndarray]]:
+        if use_extrinsics and R_d2rgb is not None and t_d2rgb is not None:
+            pts_cam = estimate_board_points_3d(
+                detection.corners,
+                depth_map,
+                detection.object_points,
+                K_rgb,
+                dist,
+                K_depth,
+                R_d2rgb,
+                t_d2rgb,
+                depth_scale=DEPTH_SCALE,
+            )
+        else:
+            pts_cam = None
+
+        if pts_cam is not None:
+            try:
+                return svd_transform(detection.object_points, pts_cam)
+            except Exception as exc:
+                self.logger.warning(f"SVD failed: {exc}; falling back to PnP")
+        return pattern.estimate_pose(detection, K_rgb, dist)
 
     def _compute_camera_poses(
         self,
@@ -234,9 +259,7 @@ class HandEyeCalibrator:
         try:
             robot_Rs, robot_ts = JSONPoseLoader.load_poses(str(poses_file))
             K_rgb, dist = intrinsics
-            K_depth = np.array(
-                [[616.365, 0, 318.268], [0, 616.202, 243.215], [0, 0, 1]]
-            )  # TODO import from  camera
+            K_depth = DEFAULT_DEPTH_INTRINSICS
             target_Rs, target_ts = self._gather_target_poses(
                 images, pattern, (K_rgb, dist), K_depth=K_depth, use_extrinsics=True
             )

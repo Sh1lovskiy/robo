@@ -40,7 +40,7 @@ class CharucoBoardConfig:
 
 
 @dataclass(frozen=True)
-class ArucoConfig:
+class ArucoBoardConfig:
     """Single ArUco marker configuration."""
 
     marker_length: float
@@ -83,7 +83,7 @@ def find_checkerboard(
 
 
 def find_aruco(
-    img: np.ndarray, cfg: ArucoConfig
+    img: np.ndarray, cfg: ArucoBoardConfig
 ) -> Optional[tuple[List[np.ndarray], np.ndarray]]:
     """Detect ArUco markers and return their corners and ids."""
     logger.info("Detecting ArUco markers")
@@ -102,6 +102,15 @@ def find_aruco(
         logger.error(f"Aruco detection failed: {exc}")
         ErrorTracker.report(exc)
         return None
+
+
+def draw_markers(
+    image: np.ndarray, corners: list[np.ndarray], ids: np.ndarray
+) -> np.ndarray:
+    """Return ``image`` overlaid with detected ArUco markers."""
+    vis = image.copy()
+    cv2.aruco.drawDetectedMarkers(vis, corners, ids)
+    return vis
 
 
 @dataclass

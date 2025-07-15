@@ -11,14 +11,16 @@ import numpy as np
 from .detector import (
     CheckerboardConfig,
     CharucoBoardConfig,
+    ArucoBoardConfig,
     detect_charuco,
     find_checkerboard,
     create_checkerboard_points,
+    find_aruco,
+    draw_markers,
 )
 from utils.logger import Logger, LoggerType
 from utils.error_tracker import ErrorTracker
 import utils
-from calibration.aruco import ArucoBoardConfig, ArucoPattern
 
 
 def get_dictionary_name(dictionary: cv2.aruco_Dictionary) -> str:
@@ -268,6 +270,71 @@ class CharucoPattern(CalibrationPattern):
             self.logger.error(f"Pose estimation error: {exc}")
             ErrorTracker.report(exc)
             return None
+
+
+class ArucoPattern(CalibrationPattern):
+    """Calibration pattern for a single ArUco marker."""
+
+    config: ArucoBoardConfig
+
+    def __init__(self, config: ArucoBoardConfig) -> None:
+        super().__init__()
+        self.config = config
+        self.logger = Logger.get_logger("calibration.aruco")
+        self.board = cv2.aruco.GridBoard(
+            (1, 1), self.config.marker_length, self.config.marker_length * 0.5, self.config.dictionary
+        )
+        self.detector = cv2.aruco.ArucoDetector(
+            self.config.dictionary, cv2.aruco.DetectorParameters()
+        )
+
+    def detect(self, image: np.ndarray, visualize: bool = False) -> Optional[PatternDetection]:
+        result = find_aruco(image, self.config)
+        if result is None:
+            return None
+        corners, ids = result
+        if visualize:
+            draw_markers(image, corners, ids)
+        det = PatternDetection(np.asarray(corners, dtype=np.float32), ids)
+        self.add_detection(det)
+        return det
+
+    def calibrate_camera(
+        self, image_size: Tuple[int, int]
+    ) -> tuple[np.ndarray, np.ndarray, float, np.ndarray]:
+        corners = [d.corners for d in self.detections]
+        ids = [d.ids for d in self.detections]
+        ret, K, dist, rvecs, tvecs = cv2.aruco.calibrateCameraAruco(
+            corners, ids, self.board, image_size, None, None
+        )
+        errors: List[float] = []
+        obj_points = self.board.objPoints
+        for c_set, id_set, rv, tv in zip(corners, ids, rvecs, tvecs):
+            pts = []
+            img = []
+            for c, mid in zip(c_set, id_set.flatten()):
+                pts.extend(obj_points[mid][0])
+                img.extend(c.reshape(4, 2))
+            pts = np.asarray(pts, dtype=np.float32)
+            img = np.asarray(img, dtype=np.float32)
+            proj, _ = cv2.projectPoints(pts, rv, tv, K, dist)
+            diff = np.linalg.norm(img - proj.reshape(-1, 2), axis=1)
+            errors.append(float(np.sqrt(np.mean(np.square(diff)))))
+        self.clear()
+        return K, dist, ret, np.asarray(errors)
+
+    def estimate_pose(
+        self, detection: PatternDetection, K: np.ndarray, dist: np.ndarray
+    ) -> Optional[tuple[np.ndarray, np.ndarray]]:
+        if detection.ids is None:
+            return None
+        rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(
+            detection.corners, self.config.marker_length, K, dist
+        )
+        if rvec is None or tvec is None:
+            return None
+        R, _ = cv2.Rodrigues(rvec[0])
+        return R, tvec[0].reshape(3)
 
 
 def create_pattern(name: str) -> CalibrationPattern:

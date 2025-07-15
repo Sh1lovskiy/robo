@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -159,6 +160,12 @@ class GridCalibCfg:
 grid_calib = GridCalibCfg()
 
 DEPTH_SCALE = 0.001
+
+# Default depth camera intrinsics
+DEFAULT_DEPTH_INTRINSICS = np.array(
+    [[616.365, 0.0, 318.268], [0.0, 616.202, 243.215], [0.0, 0.0, 1.0]],
+    dtype=np.float32,
+)
 
 
 @dataclass(frozen=True)

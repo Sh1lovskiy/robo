@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 import matplotlib.pyplot as plt
+import mpld3
 import numpy as np
 import plotly.graph_objects as go
 
@@ -116,7 +117,9 @@ def _plot_static(robot_ts: np.ndarray, cam_ts: np.ndarray, file: Path) -> None:
     logger.info(f"Static pose plot saved to {file.relative_to(file.cwd())}")
 
 
-def plot_reprojection_errors(errors: Sequence[float], file: Path) -> None:
+def plot_reprojection_errors(
+    errors: Sequence[float], file: Path, interactive: bool = DEFAULT_INTERACTIVE
+) -> None:
     """Plot per-frame reprojection RMS error."""
     logger.info("Plotting intrinsic calibration reprojection errors...")
     fig, ax = plt.subplots()
@@ -129,9 +132,16 @@ def plot_reprojection_errors(errors: Sequence[float], file: Path) -> None:
     ax.legend()
     file.parent.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
-    fig.savefig(file)
+    if interactive:
+        html_file = file.with_suffix(".html")
+        html_file.write_text(mpld3.fig_to_html(fig))
+        logger.info(
+            f"Saved reprojection plot to {html_file.relative_to(html_file.cwd())}"
+        )
+    else:
+        fig.savefig(file)
+        logger.info(f"Saved reprojection error plot to {file.relative_to(file.cwd())}")
     plt.close(fig)
-    logger.info(f"Saved reprojection error plot to {file.relative_to(file.cwd())}")
 
 
 def plot_poses(
