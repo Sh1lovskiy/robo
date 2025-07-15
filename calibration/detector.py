@@ -3,7 +3,7 @@ from __future__ import annotations
 """Calibration pattern detectors and pose estimation helpers."""
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import cv2
 import numpy as np
@@ -39,77 +39,19 @@ class CharucoBoardConfig:
         )
 
 
-@dataclass(frozen=True)
-class ArucoBoardConfig:
-    """Single ArUco marker configuration."""
-
-    marker_length: float
-    dictionary: cv2.aruco_Dictionary
-
-
-def create_checkerboard_points(cfg: CheckerboardConfig) -> np.ndarray:
-    """Return 3D object points for the checkerboard."""
-    objp = np.zeros((cfg.size[0] * cfg.size[1], 3), np.float32)
-    grid = np.mgrid[0 : cfg.size[0], 0 : cfg.size[1]]
-    objp[:, :2] = grid.T.reshape(-1, 2)
-    objp *= cfg.square_size
-    return objp
-
-
-def find_checkerboard(
-    img: np.ndarray, cfg: CheckerboardConfig
-) -> Optional[tuple[np.ndarray, np.ndarray]]:
-    """Detect a checkerboard and return 2D corners and 3D object points."""
-    logger.info("Detecting checkerboard")
-    try:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        ret, corners = cv2.findChessboardCorners(gray, cfg.size, None)
-        if not ret:
-            logger.warning("Checkerboard not found")
-            return None
-        term = (
-            cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER,
-            30,
-            0.001,
-        )
-        cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), term)
-        objp = create_checkerboard_points(cfg)
-        logger.info("Checkerboard detected")
-        return corners, objp
-    except Exception as exc:
-        logger.error(f"Checkerboard detection failed: {exc}")
-        ErrorTracker.report(exc)
-        return None
-
-
-def find_aruco(
-    img: np.ndarray, cfg: ArucoBoardConfig
-) -> Optional[tuple[List[np.ndarray], np.ndarray]]:
-    """Detect ArUco markers and return their corners and ids."""
-    logger.debug("Detecting ArUco markers")
-    try:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        detector = cv2.aruco.ArucoDetector(
-            cfg.dictionary, cv2.aruco.DetectorParameters()
-        )
-        corners, ids, _ = detector.detectMarkers(gray)
-        if ids is None or len(ids) == 0:
-            logger.debug("No ArUco markers found")
-            return None
-        logger.debug(f"Detected {len(ids)} markers")
-        return corners, ids
-    except Exception as exc:
-        logger.error(f"Aruco detection failed: {exc}")
-        ErrorTracker.report(exc)
-        return None
-
-
-def draw_markers(
-    image: np.ndarray, corners: list[np.ndarray], ids: np.ndarray
-) -> np.ndarray:
-    """Return ``image`` overlaid with detected ArUco markers."""
+def draw_markers(image, corners, ids):
+    """
+    Draw ArUco markers on the image for visualization.
+    corners: list of N (4,2) arrays (as returned by detectMarkers, not vstack)
+    ids:     (N,1) or (N,) array
+    """
     vis = image.copy()
-    cv2.aruco.drawDetectedMarkers(vis, corners, ids)
+    if ids is not None and len(ids) > 0:
+        cv2.aruco.drawDetectedMarkers(vis, corners, ids)
+    else:
+        cv2.aruco.drawDetectedMarkers(vis, corners)
+    cv2.namedWindow("Aruco Detection", cv2.WINDOW_NORMAL)
+    cv2.imshow("Aruco Detection", vis)
     return vis
 
 
@@ -157,6 +99,72 @@ def pose_from_detection(
         raise RuntimeError("solvePnP failed")
     R, _ = cv2.Rodrigues(rvec)
     return R, tvec.reshape(3)
+
+
+@dataclass(frozen=True)
+class ArucoBoardConfig:
+    """Single ArUco marker configuration."""
+
+    marker_length: float
+    dictionary: cv2.aruco_Dictionary
+
+
+def create_checkerboard_points(cfg: CheckerboardConfig) -> np.ndarray:
+    """Return 3D object points for the checkerboard."""
+    objp = np.zeros((cfg.size[0] * cfg.size[1], 3), np.float32)
+    grid = np.mgrid[0 : cfg.size[0], 0 : cfg.size[1]]
+    objp[:, :2] = grid.T.reshape(-1, 2)
+    objp *= cfg.square_size
+    return objp
+
+
+def find_aruco(
+    img: np.ndarray, cfg: ArucoBoardConfig
+) -> Optional[tuple[np.ndarray, np.ndarray, np.ndarray, list]]:
+    """
+    Detect ArUco markers and compute their object points.
+    Returns:
+        corners: (N*4, 2) — all marker corners (as 2D points, order: marker0-pt0..pt3, marker1-pt0..pt3...)
+        ids:     (N, 1)   — marker ids
+        obj_pts: (N*4, 3) — corresponding 3D object points for each corner
+    """
+    logger.debug("Detecting ArUco markers")
+    try:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        detector = cv2.aruco.ArucoDetector(
+            cfg.dictionary, cv2.aruco.DetectorParameters()
+        )
+        marker_corners, ids, _ = detector.detectMarkers(gray)
+        if ids is None or len(ids) == 0:
+            logger.debug("No ArUco markers found")
+            return None
+
+        # For each detected marker, get its 3D corner coordinates in the board frame
+        all_corners = []
+        all_obj_pts = []
+        for i, id_ in enumerate(ids.flatten()):
+            # By convention: top-left, top-right, bottom-right, bottom-left
+            # For 1x1 GridBoard, marker at (0, 0)
+            # obj is the coordinates of the four marker corners in the pattern coord's system
+            obj = np.array(
+                [
+                    [0, 0, 0],
+                    [cfg.marker_length, 0, 0],
+                    [cfg.marker_length, cfg.marker_length, 0],
+                    [0, cfg.marker_length, 0],
+                ],
+                dtype=np.float32,
+            )
+            all_obj_pts.append(obj)
+            all_corners.append(marker_corners[i].reshape(4, 2))
+        # Stack everything for solvePnP
+        corners = np.vstack(all_corners)  # (N*4,2)
+        obj_points = np.vstack(all_obj_pts)  # (N*4,3)
+        return corners, ids, obj_points, marker_corners
+    except Exception as exc:
+        logger.error(f"Aruco detection failed: {exc}")
+        ErrorTracker.report(exc)
+        return None
 
 
 _CHARUCO_CACHE: dict[tuple, np.ndarray] = {}

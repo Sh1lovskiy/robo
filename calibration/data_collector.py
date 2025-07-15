@@ -13,8 +13,8 @@ import numpy as np
 from utils.logger import Logger, LoggerType
 from utils.error_tracker import ErrorTracker
 from utils.settings import paths, IMAGE_EXT, DEPTH_EXT
-from .camera_runner import CameraRunner
-from .robot_runner import RobotRunner
+from .runner_camera import CameraRunner
+from .runner_robot import RobotRunner
 from .utils import timestamp
 
 
