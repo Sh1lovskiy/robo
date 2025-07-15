@@ -7,7 +7,6 @@ from .detector import (
     Detection,
     pose_from_detection,
     detect_charuco,
-    find_checkerboard,
     find_aruco,
     draw_markers,
 )
@@ -41,7 +40,6 @@ __all__ = [
     "Detection",
     "pose_from_detection",
     "detect_charuco",
-    "find_checkerboard",
     "load_depth",
     "board_center_from_depth",
     "load_extrinsics",

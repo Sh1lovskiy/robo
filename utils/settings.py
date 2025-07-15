@@ -34,6 +34,7 @@ class Paths:
     CAPTURES_DIR: Path = BASE_DIR / "calib"
     # RESULTS_DIR: Path = BASE_DIR / "calibration" / "results1"
     RESULTS_DIR: Path = BASE_DIR / "calib_res"
+    VIZ_DIR: Path = BASE_DIR / "calib_viz"
     CLOUD_DIR: Path = BASE_DIR / "clouds"
     LOG_DIR: Path = BASE_DIR / "logs"
     CAMERA_INTR: Path = BASE_DIR / "data" / "results1980"
@@ -93,7 +94,7 @@ charuco = CharucoDefaults()
 
 @dataclass(frozen=True)
 class ArucoDefaults:
-    marker_length: float = 0.5
+    marker_length: float = 0.05
     dictionary: int = cv2.aruco.DICT_5X5_100
 
 
@@ -115,7 +116,7 @@ class HandEyeCfg:
     method: str = "ALL"
     analyze_corners: bool = False
     visualize: bool = False
-    robot_poses_file: str = str(paths.CAPTURES_DIR / "poses.json")
+    robot_poses_file = next(paths.CAPTURES_DIR.glob("*.json"))
     images_dir: str = str(paths.CAPTURES_DIR)
     charuco_xml: str = str(paths.CAMERA_INTR / "charuco_cam.xml")
     charuco_txt: str = str(paths.CAMERA_INTR / "charuco_cam.txt")

@@ -87,9 +87,27 @@ def pixel_to_camera(pixel: np.ndarray, depth: float, K: np.ndarray) -> np.ndarra
 def pixel_to_camera_depth(
     pixel: np.ndarray, depth: float, K_depth: np.ndarray
 ) -> np.ndarray:
-    """Project depth pixel ``pixel`` into the depth camera frame."""
-    x = (pixel[0] - K_depth[0, 2]) * depth / K_depth[0, 0]
-    y = (pixel[1] - K_depth[1, 2]) * depth / K_depth[1, 1]
+    """
+    Back-project a pixel with depth value into 3D coordinates in the depth camera frame.
+
+    Parameters:
+        pixel:     (x, y) pixel coordinates in the depth image (can be float or int).
+        depth:     Depth value (in meters or millimeters, depending on camera calibration).
+        K_depth:   3x3 intrinsic matrix of the depth camera.
+
+    Returns:
+        np.ndarray: 3D point [X, Y, Z] in the depth camera coordinate system.
+    """
+    # Unpack pixel coordinates
+    u, v = pixel
+
+    # Calculate 3D X, Y coordinates using the pinhole camera model
+    # x = (u - cx) * depth / fx
+    # y = (v - cy) * depth / fy
+    x = (u - K_depth[0, 2]) * depth / K_depth[0, 0]
+    y = (v - K_depth[1, 2]) * depth / K_depth[1, 1]
+
+    # Return the 3D point in the depth camera coordinate system
     return np.array([x, y, depth], dtype=np.float64)
 
 
@@ -100,12 +118,36 @@ def rgb_to_depth_pixel(
     K_depth: np.ndarray,
     R_depth2rgb: np.ndarray,
     t_depth2rgb: np.ndarray,
-) -> Tuple[float, float]:
-    """Return depth pixel coordinates corresponding to ``(x_rgb, y_rgb)``."""
+) -> tuple[float, float]:
+    """
+    Convert a pixel from the RGB image to the corresponding pixel in the depth image.
+
+    Parameters:
+        x_rgb, y_rgb: Pixel coordinates in the RGB image.
+        K_rgb:       3x3 intrinsic matrix of the RGB camera.
+        K_depth:     3x3 intrinsic matrix of the depth camera.
+        R_depth2rgb: 3x3 rotation matrix from depth to RGB camera.
+        t_depth2rgb: 3x1 translation vector from depth to RGB camera.
+
+    Returns:
+        (x_depth, y_depth): Corresponding subpixel coordinates in the depth image.
+    """
+    # Convert the RGB pixel to homogeneous coordinates
     pt_rgb = np.array([x_rgb, y_rgb, 1.0])
+
+    # Back-project to a normalized 3D ray in the RGB camera frame
     ray_rgb = np.linalg.inv(K_rgb) @ pt_rgb
+
+    # Transform the ray into the depth camera frame
+    # (Apply rotation and translation from depth to RGB, in reverse)
+    # Apply extrinsics/offset depth
     ray_depth = R_depth2rgb.T @ (ray_rgb - t_depth2rgb)
+
+    # Project the point onto the depth image plane (intrinsic transform)
+    # Normalize so that the third (z) coordinate is 1
     pt_depth = K_depth @ (ray_depth / ray_depth[2])
+
+    # Return the (x, y) pixel coordinates in the depth image as floats
     return float(pt_depth[0]), float(pt_depth[1])
 
 
@@ -118,49 +160,6 @@ def board_center_from_depth(
     return pixel_to_camera(center, z, K)
 
 
-def board_points_from_depth_with_extrinsics(
-    corners_rgb: np.ndarray,
-    depth_map: np.ndarray,
-    K_depth: np.ndarray,
-    K_rgb: np.ndarray,
-    R_depth2rgb: np.ndarray,
-    t_depth2rgb: np.ndarray,
-    depth_scale: float,
-) -> Optional[np.ndarray]:
-    """Map RGB ``corners_rgb`` to 3-D points using depth map and extrinsics."""
-    pts_rgb = []
-    for x_rgb, y_rgb in corners_rgb.reshape(-1, 2):
-        x_depth, y_depth = rgb_to_depth_pixel(
-            x_rgb, y_rgb, K_rgb, K_depth, R_depth2rgb, t_depth2rgb
-        )
-        ix, iy = int(round(x_depth)), int(round(y_depth))
-        if iy < 0 or iy >= depth_map.shape[0] or ix < 0 or ix >= depth_map.shape[1]:
-            return None
-        z = float(depth_map[iy, ix]) * depth_scale
-        if not np.isfinite(z) or z <= 0:
-            return None
-        pt_depth = pixel_to_camera_depth(np.array([x_depth, y_depth]), z, K_depth)
-        pt_rgb = R_depth2rgb @ pt_depth + t_depth2rgb
-        pts_rgb.append(pt_rgb)
-    return np.asarray(pts_rgb)
-
-
-def board_points_from_depth(
-    corners: np.ndarray, depth: np.ndarray, K: np.ndarray
-) -> Optional[np.ndarray]:
-    """Return 3-D coordinates of ``corners`` using ``depth`` map."""
-    pts_3d = []
-    for x, y in corners.reshape(-1, 2):
-        ix, iy = int(round(x)), int(round(y))
-        if iy < 0 or iy >= depth.shape[0] or ix < 0 or ix >= depth.shape[1]:
-            return None
-        z = float(depth[iy, ix])
-        if not np.isfinite(z) or z <= 0:
-            return None
-        pts_3d.append(pixel_to_camera(np.array([x, y]), z, K))
-    return np.asarray(pts_3d)
-
-
 def map_rgb_corners_to_depth(
     corners_rgb: np.ndarray,
     depth_map: np.ndarray,
@@ -170,21 +169,48 @@ def map_rgb_corners_to_depth(
     t_depth2rgb: np.ndarray,
     depth_scale: float = 0.001,
 ) -> Optional[np.ndarray]:
-    """Convert RGB corner pixels to 3-D points using ``depth_map``."""
+    """
+    Convert detected RGB image corner coordinates to 3D points using the depth map and camera extrinsics.
+
+    Parameters:
+        corners_rgb:   Array of shape (N, 2), RGB pixel coordinates of corners.
+        depth_map:     2D array of depth values (same size as depth image).
+        K_rgb:         3x3 intrinsic matrix of the RGB camera.
+        K_depth:       3x3 intrinsic matrix of the depth camera.
+        R_depth2rgb:   3x3 rotation matrix from depth camera to RGB camera.
+        t_depth2rgb:   3x1 translation vector from depth to RGB camera.
+        depth_scale:   Scaling factor to convert raw depth to meters (default: 0.001).
+
+    Returns:
+        np.ndarray of shape (N, 3): 3D points in the RGB camera frame,
+        or None if any mapping fails.
+    """
     pts_rgb = []
     for x_rgb, y_rgb in corners_rgb.reshape(-1, 2):
+        # Project the RGB corner to the corresponding depth pixel coordinates
         x_d, y_d = rgb_to_depth_pixel(
             x_rgb, y_rgb, K_rgb, K_depth, R_depth2rgb, t_depth2rgb
         )
+        # Convert to integer indices for depth lookup
         ix, iy = int(round(x_d)), int(round(y_d))
+
         if iy < 0 or iy >= depth_map.shape[0] or ix < 0 or ix >= depth_map.shape[1]:
             return None
+        # Get the depth value and scale to meters
         z = float(depth_map[iy, ix]) * depth_scale
         if not np.isfinite(z) or z <= 0:
             return None
+
+        # Back-project the depth pixel to 3D point in the depth camera frame
         pt_depth = pixel_to_camera_depth(np.array([x_d, y_d]), z, K_depth)
+
+        # Transform point from depth camera frame to RGB camera frame
         pt_rgb = R_depth2rgb @ pt_depth + t_depth2rgb
+
+        # Store the 3D point
         pts_rgb.append(pt_rgb)
+
+    # Return all points as (N, 3) array
     return np.asarray(pts_rgb)
 
 

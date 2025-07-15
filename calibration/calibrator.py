@@ -85,11 +85,10 @@ class IntrinsicCalibrator:
             K, dist, rms, per_view = pattern.calibrate_camera(img_size)
             out_base = paths.RESULTS_DIR / f"camera_{timestamp()}"
             save_camera_params(out_base, K, dist, rms)
-            # viz_file = paths.CAPTURES_DIR / "viz" / f"{out_base.stem}_reproj{IMAGE_EXT}"
-            viz_file = "viz" / f"{out_base.stem}_reproj{IMAGE_EXT}"
+            intr_viz_file = paths.VIZ_DIR / f"{out_base.stem}_reproj{IMAGE_EXT}"
 
             plot_reprojection_errors(
-                per_view, viz_file, interactive=settings.DEFAULT_INTERACTIVE
+                per_view, intr_viz_file, interactive=settings.DEFAULT_INTERACTIVE
             )
             self.logger.info(
                 f"Intrinsics saved to {out_base.relative_to(Path.cwd())} (RMS={rms:.6f})"
@@ -125,10 +124,12 @@ class HandEyeCalibrator:
         t_d2rgb: np.ndarray | None,
         use_extrinsics: bool,
     ) -> Optional[tuple[np.ndarray, np.ndarray]]:
-        # If the pattern is ArucoPattern, do not use SVD/depth (only for multi-point boards)
-        if pattern.__class__.__name__ == "ArucoPattern":
-            return pattern.estimate_pose(detection, K_rgb, dist)
-
+        """
+        Estimate the pose of the pattern (any type), prioritizing 3D reconstruction from depth.
+        Fallback to 2D PnP only if necessary.
+        """
+        pts_cam = None
+        # Try to estimate 3D points using depth, if possible
         if use_extrinsics and R_d2rgb is not None and t_d2rgb is not None:
             pts_cam = estimate_board_points_3d(
                 detection.corners,
@@ -144,11 +145,12 @@ class HandEyeCalibrator:
         else:
             pts_cam = None
 
-        if pts_cam is not None:
+        if pts_cam is not None and len(pts_cam) >= 4:
             try:
                 return svd_transform(detection.object_points, pts_cam)
             except Exception as exc:
                 self.logger.warning(f"SVD failed: {exc}; falling back to PnP")
+        # Fallback to PnP if 3D reconstruction fails
         return pattern.estimate_pose(detection, K_rgb, dist)
 
     def _depth_for_image(self, img_path: Path) -> Path | None:
@@ -187,10 +189,10 @@ class HandEyeCalibrator:
         warnings = []
         detected = 0
         not_detected = 0
-
         for idx, img_path in enumerate(Logger.progress(images, desc="hand-eye")):
             if idx >= len(robot_Rs_all):
                 break
+            relative_path = Path(img_path).resolve().relative_to(Path.cwd())
             img = cv2.imread(str(img_path))
             if img is None:
                 warnings.append(f"Failed to read {img_path}")
@@ -199,13 +201,13 @@ class HandEyeCalibrator:
 
             detection = pattern.detect(img, visualize=(img_path == visualize_path))
             if detection is None:
-                warnings.append(f"Pattern not detected in {img_path}")
+                warnings.append(f"Pattern not detected in {relative_path}")
                 not_detected += 1
                 continue
 
             depth_path = self._depth_for_image(img_path)
             if depth_path is None:
-                warnings.append(f"No depth file found for {img_path}")
+                warnings.append(f"No depth file found for {relative_path}")
                 not_detected += 1
                 continue
             depth = load_depth(str(depth_path))
@@ -276,6 +278,7 @@ class HandEyeCalibrator:
         viz_dir: Path,
     ) -> tuple[str, float, float, float, float]:
         """Execute one hand-eye solver and compute error metrics."""
+
         if name == "svd":
             R_cam2tool, t_cam2tool = calibrate_handeye_svd(
                 robot_Rs, robot_ts, target_Rs, target_ts
@@ -386,7 +389,7 @@ class HandEyeCalibrator:
                 ErrorTracker.report(exc)
                 return
 
-            viz_dir = paths.CAPTURES_DIR / "viz"
+            handeye_viz_dir = paths.VIZ_DIR
             out_base = paths.RESULTS_DIR / f"handeye_{timestamp()}"
 
             if self.method == "all":
@@ -403,7 +406,7 @@ class HandEyeCalibrator:
                 target_Rs,
                 target_ts,
                 out_base,
-                viz_dir,
+                handeye_viz_dir,
             )
             self._log_summary(summary, out_base)
             return out_base

@@ -68,7 +68,9 @@ def _plot_interactive(robot_ts: np.ndarray, cam_ts: np.ndarray, file: Path) -> N
     file = file.with_suffix(".html")
     file.parent.mkdir(parents=True, exist_ok=True)
     fig.write_html(str(file))
-    logger.info(f"Interactive pose plot saved to {file.relative_to(file.cwd())}")
+    logger.info(
+        f"Interactive pose plot saved to {file.resolve().relative_to(Path.cwd())}"
+    )
 
 
 def _plot_static(robot_ts: np.ndarray, cam_ts: np.ndarray, file: Path) -> None:

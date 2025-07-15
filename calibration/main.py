@@ -14,7 +14,7 @@ from utils.error_tracker import ErrorTracker
 from .pattern import create_pattern
 from .data_collector import DataCollector
 from .calibrator import IntrinsicCalibrator, HandEyeCalibrator
-from .robot_runner import RobotRunner
+from .runner_robot import RobotRunner
 
 
 def _parse_args() -> argparse.Namespace:
@@ -52,14 +52,13 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--pattern",
-        choices=["charuco", "aruco", "chess"],
+        choices=["charuco", "aruco"],
         default="charuco",
         metavar="PATTERN",
         help=(
             "Calibration pattern type:\n"
             "  'charuco' : Charuco board (default)\n"
             "  'aruco'   : ArUco marker grid\n"
-            "  'chess'   : classic chessboard"
         ),
     )
     parser.add_argument(
