@@ -27,8 +27,8 @@ from .metrics import handeye_errors, svd_transform
 
 from .pattern import CalibrationPattern
 from .utils import save_camera_params, save_transform, timestamp
-from .extractor import load_depth
-from geometry import load_extrinsics, estimate_board_points_3d
+from utils.cloud_utils import load_depth
+from utils.geometry import load_extrinsics, estimate_board_points_3d
 from .visualizer import plot_poses, plot_reprojection_errors, _rotation_angle
 
 
@@ -130,7 +130,8 @@ class HandEyeCalibrator:
                 self.logger.warning(f"Pattern not detected in {img_path}")
                 continue
 
-            depth = load_depth(img_path)
+            depth_path = img_path.parent / f"{img_path.stem.replace('_rgb', '')}_depth.npy"
+            depth = load_depth(str(depth_path))
 
             if use_extrinsics:
                 pts_cam = estimate_board_points_3d(
