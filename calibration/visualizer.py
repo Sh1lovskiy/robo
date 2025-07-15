@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 from utils.logger import Logger, LoggerType
 from utils.error_tracker import ErrorTracker
 from utils.settings import DEFAULT_INTERACTIVE
-from utils.transform import TransformUtils
+from utils.geometry import TransformUtils
 
 logger: LoggerType = Logger.get_logger("calibration.visualizer")
 
