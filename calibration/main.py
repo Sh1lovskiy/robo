@@ -8,6 +8,7 @@ from typing import List
 
 import random
 from utils import paths, handeye, logging, load_camera_params, IMAGE_EXT
+import utils.settings as settings
 from utils.logger import Logger
 from utils.error_tracker import ErrorTracker
 import cv2
@@ -18,68 +19,48 @@ from .data_collector import DataCollector
 from .calibrator import IntrinsicCalibrator, HandEyeCalibrator
 from .robot_runner import RobotRunner
 
-import argparse
-
 
 def _parse_args() -> argparse.Namespace:
-    """Return parsed command line arguments with beautiful help."""
+    """Return parsed command line arguments."""
     parser = argparse.ArgumentParser(
-        prog="main.py",
-        description=(
-            "Robotics calibration CLI\n\n"
-            "Example: python -m calibration.main --mode both --collect --calib --visualize"
-        ),
-        formatter_class=argparse.RawTextHelpFormatter,
-        usage=(
-            "main.py [-h] --mode [intr|handeye|both]\n"
-            "       [--pattern charuco|aruco|chess]\n"
-            "       [--collect]\n"
-            "       [--calib]\n"
-            "       [--method svd|tsai|park|horaud|andreff|daniilidis|all]\n"
-            "       [--visualize]\n"
-            "       [--count COUNT]\n"
-            "       [--dataset PATH]"
-        ),
+        prog="main.py", formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        "--mode",
-        required=True,
-        metavar="[intr|handeye|both]",
-        help="Calibration mode",
+        "--mode", required=True, metavar="[intr|handeye|both]", help="Calibration mode"
     )
     parser.add_argument(
         "--pattern",
         metavar="[charuco|aruco|chess]",
         default="charuco",
-        help="Calibration pattern type (default: charuco)",
+        help="Pattern type",
     )
     parser.add_argument(
-        "--collect",
-        action="store_true",
-        help="Capture new images/poses before calibration",
+        "--collect", action="store_true", help="Capture new data before calibration"
     )
-    parser.add_argument(
-        "--calib",
-        action="store_true",
-        help="Run calibration after collection or on existing data",
-    )
+    parser.add_argument("--calib", action="store_true", help="Run calibration steps")
     parser.add_argument(
         "--method",
         choices=["svd", "tsai", "park", "horaud", "andreff", "daniilidis", "all"],
         default="all",
-        help="Hand-eye calibration method to use",
+        help="Hand-eye method",
     )
     parser.add_argument(
         "--visualize",
-        action="store_true",
-        help="Enable pose plot and corner visualization",
+        choices=["html"],
+        default=None,
+        metavar="FORMAT",
+        help="Save plots as HTML",
+    )
+    parser.add_argument("--corners", action="store_true", help="Show Charuco corners")
+    parser.add_argument(
+        "--full", action="store_true", help="Enable all visualization options"
     )
     parser.add_argument(
         "--count",
         type=int,
         default=20,
         metavar="COUNT",
-        help="Number of images to capture (default: 20)",
+        help="Number of images to capture",
     )
     parser.add_argument(
         "--dataset",
@@ -98,6 +79,10 @@ def _load_images(directory: Path) -> List[Path]:
 def main() -> None:
     """Entry point for the calibration command line interface."""
     args = _parse_args()
+    html_out = args.visualize == "html" or args.full
+    show_corners = args.corners or args.full
+    settings.DEFAULT_INTERACTIVE = html_out
+
     logger = Logger.get_logger("calibration.cli")
     logger.info("Robotics calibration CLI")
     Logger.configure(logging.level, paths.LOG_DIR, logging.json)
@@ -132,11 +117,9 @@ def main() -> None:
     else:
         K, dist = load_camera_params(handeye.charuco_xml)
 
-    # if args.visualize and images:
-
     if args.mode in ("handeye", "both") and args.calib:
         assert poses_file is not None
-        he = HandEyeCalibrator(method=args.method, visualize=args.visualize)
+        he = HandEyeCalibrator(method=args.method, visualize=show_corners)
         he.calibrate(poses_file, images, pattern, (K, dist))
 
 

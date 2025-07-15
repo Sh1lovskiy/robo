@@ -164,12 +164,5 @@ class RealSenseD415(CameraBase):
 
 
 def load_depth_intrinsics_from_camera() -> np.ndarray:
-    """Return the depth stream intrinsics matrix using ``pyrealsense2``."""
-    pipeline = rs.pipeline()
-    cfg = rs.config()
-    cfg.enable_stream(rs.stream.depth, camera.depth_width, camera.depth_height, rs.format.z16, camera.fps)
-    profile = pipeline.start(cfg)
-    stream = profile.get_stream(rs.stream.depth).as_video_stream_profile()
-    intr = stream.get_intrinsics()
-    pipeline.stop()
-    return np.array([[intr.fx, 0, intr.ppx], [0, intr.fy, intr.ppy], [0, 0, 1]], dtype=np.float32)
+    """Fetch RealSense depth camera intrinsics using pyrealsense2."""
+    ...
