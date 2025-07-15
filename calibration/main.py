@@ -6,15 +6,17 @@ import argparse
 from pathlib import Path
 from typing import List
 
+import random
 from utils import paths, handeye, logging, load_camera_params, IMAGE_EXT
 from utils.logger import Logger
 from utils.error_tracker import ErrorTracker
+import cv2
+import numpy as np
 
 from .pattern import create_pattern
 from .data_collector import DataCollector
 from .calibrator import IntrinsicCalibrator, HandEyeCalibrator
 from .robot_runner import RobotRunner
-
 
 import argparse
 
@@ -70,7 +72,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--visualize",
         action="store_true",
-        help="Plot robot and camera poses after calibration",
+        help="Enable pose plot and corner visualization",
     )
     parser.add_argument(
         "--count",
@@ -129,6 +131,8 @@ def main() -> None:
         K, dist = intr_result.camera_matrix, intr_result.dist_coeffs
     else:
         K, dist = load_camera_params(handeye.charuco_xml)
+
+    # if args.visualize and images:
 
     if args.mode in ("handeye", "both") and args.calib:
         assert poses_file is not None
