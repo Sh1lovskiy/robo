@@ -8,7 +8,7 @@ custom pipelines or accessed through the provided CLI tools.
 """
 
 from .camera import CameraBase, RealSenseD415
-from utils.transform import TransformUtils
+from utils.geometry import TransformUtils
 from .pointcloud.generator import PointCloudGenerator
 from .pointcloud.aggregator import RGBDAggregator
 
