@@ -11,7 +11,11 @@ import numpy as np
 
 from utils.logger import Logger
 from utils.error_tracker import ErrorTracker
-from utils.io import save_json as _save_json, save_camera_params_xml, save_camera_params_txt
+from utils.io import (
+    save_json as _save_json,
+    save_camera_params_xml,
+    save_camera_params_txt,
+)
 
 logger = Logger.get_logger("calibration.utils")
 

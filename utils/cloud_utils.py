@@ -10,7 +10,7 @@ from typing import Tuple
 import numpy as np
 
 from utils.logger import Logger, LoggerType
-from utils.settings import DEPTH_SCALE
+from utils.settings import DEPTH_SCALE, IMAGE_EXT, DEPTH_EXT
 
 
 def load_handeye_txt(path: str) -> Tuple[np.ndarray, np.ndarray]:
@@ -41,8 +41,16 @@ def load_depth(depth_path: str, depth_scale: float = DEPTH_SCALE) -> np.ndarray:
 
 def get_image_pairs(data_dir: str) -> list[tuple[str, str]]:
     """Return matched RGB/depth image file pairs in ``data_dir``."""
-    rgb_list = sorted(glob.glob(os.path.join(data_dir, "*_rgb.*")))
-    depth_list = sorted(glob.glob(os.path.join(data_dir, "*_depth.*")))
+    rgb_list = sorted(
+        f
+        for f in glob.glob(os.path.join(data_dir, f"*{IMAGE_EXT}"))
+        if f.endswith(IMAGE_EXT)
+    )
+    depth_list = sorted(
+        f
+        for f in glob.glob(os.path.join(data_dir, f"*{DEPTH_EXT}"))
+        if f.endswith(DEPTH_EXT)
+    )
     if len(rgb_list) != len(depth_list):
         raise RuntimeError("RGB and depth image count mismatch")
     return list(zip(rgb_list, depth_list))

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, TypeVar, cast
@@ -92,3 +93,45 @@ class Logger:
         global _log_dir
         _log_dir = Path(log_dir)
         Logger._configure(level, json_format)
+
+
+class CaptureStderrToLogger:
+    """
+    Context manager: перехватывает C/C++ stderr (fd=2) и пишет всё в твой логгер.
+    """
+
+    def __init__(self, logger):
+        self.logger = logger
+        self.pipe_read = None
+        self.pipe_write = None
+        self.thread = None
+        self._old_stderr_fd = None
+
+    def _reader(self):
+        with os.fdopen(self.pipe_read, "r", errors="replace") as f:
+            for line in f:
+                line = line.rstrip()
+                if line:
+                    self.logger.warning(f"[STDERR] {line}")
+
+    def __enter__(self):
+        # Save original stderr fd
+        self._old_stderr_fd = os.dup(2)
+        # Create pipe
+        self.pipe_read, self.pipe_write = os.pipe()
+        # Redirect stderr to pipe
+        os.dup2(self.pipe_write, 2)
+        # Start thread that reads from pipe and writes to logger
+        self.thread = threading.Thread(target=self._reader, daemon=True)
+        self.thread.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # Flush and restore stderr
+        sys.stderr.flush()
+        os.dup2(self._old_stderr_fd, 2)
+        os.close(self.pipe_write)
+        os.close(self._old_stderr_fd)
+        # Let thread finish reading
+        if self.thread:
+            self.thread.join(timeout=0.2)
