@@ -109,7 +109,7 @@ class HandEyeCalibrator:
         pattern: CalibrationPattern,
         intrinsics_rgb: tuple[np.ndarray, np.ndarray],
         K_depth: np.ndarray | None = None,
-        use_extrinsics: bool = False,
+        use_extrinsics: bool = True,
     ) -> tuple[List[np.ndarray], List[np.ndarray]]:
         K_rgb, dist = intrinsics_rgb
         targets_R: List[np.ndarray] = []
@@ -125,7 +125,7 @@ class HandEyeCalibrator:
                 self.logger.error(f"Failed to read {img_path}")
                 continue
 
-            detection = pattern.detect(img, visualize=(img_path == visualize_path))
+            detection = pattern.detect(img)
             if detection is None:
                 self.logger.warning(f"Pattern not detected in {img_path}")
                 continue
@@ -235,7 +235,7 @@ class HandEyeCalibrator:
             K_rgb, dist = intrinsics
             K_depth = np.array(
                 [[616.365, 0, 318.268], [0, 616.202, 243.215], [0, 0, 1]]
-            )
+            )  # TODO import from  camera
             target_Rs, target_ts = self._gather_target_poses(
                 images, pattern, (K_rgb, dist), K_depth=K_depth, use_extrinsics=True
             )
