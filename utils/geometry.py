@@ -197,7 +197,7 @@ def map_rgb_corners_to_depth(
         if iy < 0 or iy >= depth_map.shape[0] or ix < 0 or ix >= depth_map.shape[1]:
             return None
         # Get the depth value and scale to meters
-        z = float(depth_map[iy, ix]) * depth_scale
+        z = int(depth_map[iy, ix]) * depth_scale
         if not np.isfinite(z) or z <= 0:
             return None
 
@@ -223,7 +223,7 @@ def estimate_board_points_3d(
     K_depth: np.ndarray,
     R_depth2rgb: np.ndarray,
     t_depth2rgb: np.ndarray,
-    depth_scale: float = 0.001,
+    depth_scale: float = 0.0001,
 ) -> Optional[np.ndarray]:
     """Return 3-D board points using the depth map or fall back to PnP."""
     pts_rgb = map_rgb_corners_to_depth(

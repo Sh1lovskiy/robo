@@ -144,7 +144,8 @@ class HandEyeCalibrator:
             )
         else:
             pts_cam = None
-
+        # TODO cv2.aruco.estimatePoseSingleMarkers
+        # try without pose eval
         if pts_cam is not None and len(pts_cam) >= 4:
             try:
                 return svd_transform(detection.object_points, pts_cam)
