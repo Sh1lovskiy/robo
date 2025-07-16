@@ -237,6 +237,8 @@ def estimate_board_points_3d(
     )
     if pts_rgb is not None:
         return pts_rgb
+    if len(object_points) < 6 or len(charuco_corners) < 6:
+        return None
     ok, rvec, tvec = cv2.solvePnP(object_points, charuco_corners, K_rgb, dist_rgb)
     if not ok:
         return None

@@ -2734,12 +2734,12 @@ class RPC:
     @xmlrpc_timeout
     def GetActualTCPPose(self, flag=1):
         flag = int(flag)
-        # _error = self.robot.GetActualTCPPose(flag)
-        # error = _error[0]
-        # if error == 0:
-        #     return error, [_error[1], _error[2], _error[3], _error[4], _error[5], _error[6]]
-        # else:
-        #     return error
+        _error = self.robot.GetActualTCPPose(flag)
+        error = _error[0]
+        if error == 0:
+            return error, [_error[1], _error[2], _error[3], _error[4], _error[5], _error[6]]
+        else:
+            return error
         return 0, [
             self.robot_state_pkg.tl_cur_pos[0],
             self.robot_state_pkg.tl_cur_pos[1],

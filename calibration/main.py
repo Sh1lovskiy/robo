@@ -131,6 +131,8 @@ def main() -> None:
         robot = RobotRunner()
     else:
         robot = None
+    # TODO json poses save before? and after for saved images
+    # TODO saving into calib_handeye_aruco imgs poses.json
     collector = DataCollector(robot=robot)
     pattern = create_pattern(args.pattern)
     images: List[Path] = []
@@ -146,7 +148,7 @@ def main() -> None:
             images = _load_images(args.dataset or paths.CAPTURES_DIR)
         else:
             images = _load_images(args.dataset or Path(handeye.images_dir))
-            poses_file = Path(handeye.robot_poses_file)
+            poses_file = Path(next(handeye.robot_poses_file))
 
     run_intr = args.mode in ("intr", "both")
     run_handeye = args.mode in ("handeye", "both")

@@ -25,17 +25,21 @@ from utils.logger import CaptureStderrToLogger, Logger, LoggerType
 from utils.error_tracker import ErrorTracker
 from .metrics import handeye_errors, svd_transform
 
-from .pattern import CalibrationPattern, PatternDetection
+from .pattern import CalibrationPattern, PatternDetection, ArucoPattern
 from .utils import save_camera_params, save_transform, timestamp
 from utils.cloud_utils import load_depth
 from utils.geometry import (
     TransformUtils,
-    load_extrinsics,
     estimate_board_points_3d,
 )
 from .visualizer import plot_poses, plot_reprojection_errors
 from utils.geometry import rotation_angle
-from utils.settings import DEFAULT_DEPTH_INTRINSICS, DEPTH_EXT
+from utils.settings import (
+    INTRINSICS_DEPTH_MATRIX,
+    EXTR_DEPTH_TO_COLOR_ROT,
+    EXTR_DEPTH_TO_COLOR_TRANS,
+    DEPTH_EXT,
+)
 import utils.settings as settings
 
 
@@ -77,7 +81,7 @@ class IntrinsicCalibrator:
                     continue
                 img_size = (img.shape[1], img.shape[0])
                 if pattern.detect(img) is None:
-                    self.logger.warning(f"Pattern not detected in {img_path}")
+                    self.debug.warning(f"Pattern not detected in {img_path}")
             if not pattern.detections or img_size is None:
                 return ErrorTracker.report(
                     RuntimeError("No valid detections for intrinsic calibration")
@@ -112,55 +116,142 @@ class HandEyeCalibrator:
         self.visualize = visualize
         self.logger = logger or Logger.get_logger("calibration.handeye")
 
+    # ------------------------------------------------------------------
+    # Pose estimation helpers
+    # ------------------------------------------------------------------
+    def _pose_from_depth(
+        self,
+        detection: PatternDetection,
+        depth_map: np.ndarray,
+        K_rgb: np.ndarray,
+        dist_rgb: np.ndarray,
+        K_depth: np.ndarray | None,
+        R_d2rgb: np.ndarray | None,
+        t_d2rgb: np.ndarray | None,
+    ) -> Optional[tuple[np.ndarray, np.ndarray]]:
+        """Return pose using depth based 3-D reconstruction if possible."""
+
+        if (
+            detection.object_points is None
+            or K_depth is None
+            or R_d2rgb is None
+            or t_d2rgb is None
+        ):
+            return None
+
+        pts_cam = estimate_board_points_3d(
+            detection.corners,
+            depth_map,
+            detection.object_points,
+            K_rgb,
+            dist_rgb,
+            K_depth,
+            R_d2rgb,
+            t_d2rgb,
+            depth_scale=DEPTH_SCALE,
+        )
+
+        if pts_cam is None or len(pts_cam) < 4:
+            return None
+
+        try:
+            return svd_transform(detection.object_points, pts_cam)
+        except Exception as exc:
+            self.logger.warning(f"Depth-based SVD failed: {exc}")
+            return None
+
+    def _aruco_pose(
+        self,
+        pattern: CalibrationPattern,
+        detection: PatternDetection,
+        K: np.ndarray,
+        dist: np.ndarray,
+    ) -> Optional[tuple[np.ndarray, np.ndarray]]:
+        """Estimate pose for an ``ArucoPattern`` using OpenCV helpers."""
+
+        try:
+            corners = detection.corners
+            if isinstance(corners, np.ndarray) and corners.ndim == 2:
+                n = len(detection.ids) if detection.ids is not None else 1
+                corners = [corners[i * 4 : (i + 1) * 4].reshape(4, 2) for i in range(n)]
+            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
+                corners,
+                getattr(pattern, "config", None).marker_length,
+                K,
+                dist,
+            )
+            if rvecs is None or tvecs is None:
+                return None
+            R, _ = cv2.Rodrigues(rvecs[0])
+            return R, tvecs[0].reshape(3)
+        except Exception as exc:
+            self.logger.warning(f"Aruco pose failed: {exc}")
+            return None
+
+    def _solve_pnp(
+        self,
+        detection: PatternDetection,
+        K: np.ndarray,
+        dist: np.ndarray,
+    ) -> Optional[tuple[np.ndarray, np.ndarray]]:
+        """Generic ``solvePnP`` fallback."""
+
+        if detection.object_points is None:
+            return None
+        ok, rvec, tvec = cv2.solvePnP(
+            detection.object_points, detection.corners, K, dist
+        )
+        if not ok:
+            return None
+        R, _ = cv2.Rodrigues(rvec)
+        return R, tvec.reshape(3)
+
     def _estimate_target_pose(
         self,
         pattern: CalibrationPattern,
         detection: PatternDetection,
         depth_map: np.ndarray,
-        K_rgb: np.ndarray,
+        K: np.ndarray,
         dist: np.ndarray,
         K_depth: np.ndarray | None,
         R_d2rgb: np.ndarray | None,
         t_d2rgb: np.ndarray | None,
         use_extrinsics: bool,
     ) -> Optional[tuple[np.ndarray, np.ndarray]]:
-        """
-        Estimate the pose of the pattern (any type), prioritizing 3D reconstruction from depth.
-        Fallback to 2D PnP only if necessary.
-        """
-        pts_cam = None
-        # Try to estimate 3D points using depth, if possible
-        if use_extrinsics and R_d2rgb is not None and t_d2rgb is not None:
-            pts_cam = estimate_board_points_3d(
-                detection.corners,
+        """Estimate board pose prioritizing depth measurements when available."""
+
+        if detection.ids is None or detection.corners is None:
+            return None
+
+        if use_extrinsics:
+            pose = self._pose_from_depth(
+                detection,
                 depth_map,
-                detection.object_points,
-                K_rgb,
+                K,
                 dist,
                 K_depth,
                 R_d2rgb,
                 t_d2rgb,
-                depth_scale=DEPTH_SCALE,
             )
+            if pose is not None:
+                return pose
+
+        if isinstance(pattern, ArucoPattern):
+            pose = self._aruco_pose(pattern, detection, K, dist)
         else:
-            pts_cam = None
-        # TODO cv2.aruco.estimatePoseSingleMarkers
-        # try without pose eval
-        if pts_cam is not None and len(pts_cam) >= 4:
-            try:
-                return svd_transform(detection.object_points, pts_cam)
-            except Exception as exc:
-                self.logger.warning(f"SVD failed: {exc}; falling back to PnP")
-        # Fallback to PnP if 3D reconstruction fails
-        return pattern.estimate_pose(detection, K_rgb, dist)
+            pose = pattern.estimate_pose(detection, K, dist)
+            if pose is None:
+                pose = self._solve_pnp(detection, K, dist)
+
+        return pose
 
     def _depth_for_image(self, img_path: Path) -> Path | None:
         """Return associated depth file for ``img_path`` or ``None``."""
-        base = img_path.stem.replace("_rgb", "")
-        candidates = list(img_path.parent.glob(f"{base}*_depth{DEPTH_EXT}"))
+        candidates = list(img_path.parent.glob(f"{img_path.stem}*{DEPTH_EXT}"))
+
         if candidates:
             return candidates[0]
-        fallback = img_path.parent / f"{base}_depth{DEPTH_EXT}"
+        fallback = img_path.parent / f"{img_path}{DEPTH_EXT}"
         return fallback if fallback.exists() else None
 
     def _gather_target_poses(
@@ -184,7 +275,8 @@ class HandEyeCalibrator:
         targets_t: List[np.ndarray] = []
 
         if use_extrinsics:
-            R_d2rgb, t_d2rgb = load_extrinsics(Path("d415_extr.json"), "depth", "rgb")
+            R_d2rgb = np.asarray(EXTR_DEPTH_TO_COLOR_ROT, dtype=np.float64)
+            t_d2rgb = np.asarray(EXTR_DEPTH_TO_COLOR_TRANS, dtype=np.float64)
         visualize_path = random.choice(images) if self.visualize else None
 
         warnings = []
@@ -375,7 +467,7 @@ class HandEyeCalibrator:
         try:
             robot_Rs_all, robot_ts_all = JSONPoseLoader.load_poses(str(poses_file))
             K_rgb, dist = intrinsics
-            K_depth = DEFAULT_DEPTH_INTRINSICS
+            K_depth = np.asarray(INTRINSICS_DEPTH_MATRIX, dtype=np.float64)
             robot_Rs, robot_ts, target_Rs, target_ts = self._gather_target_poses(
                 images,
                 pattern,

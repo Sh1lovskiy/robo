@@ -63,6 +63,8 @@ def save_camera_params(base: Path, K: np.ndarray, dist: np.ndarray, rms: float) 
     """Save camera intrinsics to ``base`` (.txt, .json and .xml)."""
     logger.info(f"Saving camera parameters to {base}")
     try:
+        base.parent.mkdir(parents=True, exist_ok=True)
+
         txt = base.with_suffix(".txt")
         xml = base.with_suffix(".xml")
         save_camera_params_txt(str(txt), K, dist, rms)

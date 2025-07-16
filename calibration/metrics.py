@@ -87,22 +87,41 @@ def svd_transform(A: np.ndarray, B: np.ndarray) -> tuple[np.ndarray, np.ndarray]
     """Return rigid transform from ``A`` to ``B`` using SVD."""
     try:
         assert A.shape == B.shape
+        dim = A.shape[1]
         centroid_A = A.mean(axis=0)
         centroid_B = B.mean(axis=0)
+        # centroid_A = centroid_A.reshape(-1, dim)
+        # centroid_B = centroid_B.reshape(-1, dim)
         AA = A - centroid_A
         BB = B - centroid_B
         H = AA.T @ BB
+        rank = np.linalg.matrix_rank(H)
+        # find rotation
         U, _, Vt = np.linalg.svd(H)
         R = Vt.T @ U.T
-        if np.linalg.det(R) < 0:
-            Vt[2, :] *= -1
-            R = Vt.T @ U.T
-        t = -R @ centroid_A + centroid_B
+
+        det = np.linalg.det(R)
+        if det < 0:
+            print(f"det(R) = {det}, reflection detected!, correcting for it ...")
+            S = np.eye(dim)
+            S[-1, -1] = -1
+            R = Vt.T @ S @ U.T
+        t = R @ centroid_A.T + centroid_B.T
+
         return R, t
     except Exception as exc:
         logger.error(f"SVD transform failed: {exc}")
         ErrorTracker.report(exc)
         raise
+
+
+def rotation_angle(R: np.ndarray) -> float:
+    """
+    Returns the rotation angle (in degrees) from a rotation matrix.
+    """
+    trace = np.trace(R)
+    angle = np.arccos(np.clip((trace - 1) / 2, -1, 1))
+    return np.degrees(angle)
 
 
 def handeye_errors(
@@ -113,42 +132,50 @@ def handeye_errors(
     R_cam2tool: np.ndarray,
     t_cam2tool: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Return per-pair rotation and translation errors.
-
-    Parameters
-    ----------
-    robot_Rs, robot_ts
-        Poses of the robot tool with respect to the base frame.
-    target_Rs, target_ts
-        Poses of the calibration board with respect to the camera frame.
-    R_cam2tool, t_cam2tool
-        Estimated camera-to-tool transformation ``X``.
-
-    Returns
-    -------
-    np.ndarray, np.ndarray
-        Arrays of rotation error in degrees and translation error in metres for
-        each motion pair used in the AX = XB formulation.
     """
-    errors_rot: List[float] = []
-    errors_trans: List[float] = []
-    X = np.eye(4)
-    X[:3, :3] = R_cam2tool
-    X[:3, 3] = t_cam2tool.flatten()
-    for i in range(len(robot_Rs) - 1):
-        # Relative motions between consecutive poses
-        A = np.eye(4)
-        A[:3, :3] = robot_Rs[i + 1] @ robot_Rs[i].T
-        A[:3, 3] = robot_ts[i + 1] - A[:3, :3] @ robot_ts[i]
+    Compute per-sample hand-eye calibration errors:
+      - Translational error (meters)
+      - Rotational error (degrees)
 
-        B = np.eye(4)
-        B[:3, :3] = target_Rs[i + 1] @ target_Rs[i].T
-        B[:3, 3] = target_ts[i + 1] - B[:3, :3] @ target_ts[i]
-        left = A @ X
-        right = X @ B
-        dR = left[:3, :3] @ right[:3, :3].T
-        angle = np.arccos(np.clip((np.trace(dR) - 1) / 2.0, -1.0, 1.0))
-        dt = np.linalg.norm(left[:3, 3] - right[:3, 3])
-        errors_rot.append(np.degrees(angle))
-        errors_trans.append(dt)
-    return np.array(errors_rot), np.array(errors_trans)
+    For each frame:
+        T_robot * T_cam2tool ≈ T_target
+
+    Returns:
+        trans_errors: np.ndarray, shape (N,)
+        rot_errors: np.ndarray, shape (N,)
+    """
+    N = len(robot_Rs)
+    trans_errors = []
+    rot_errors = []
+
+    # Build camera-to-tool transformation
+    T_cam2tool = np.eye(4)
+    T_cam2tool[:3, :3] = R_cam2tool
+    T_cam2tool[:3, 3] = t_cam2tool.ravel()
+
+    for Rr, tr, Rt, tt in zip(robot_Rs, robot_ts, target_Rs, target_ts):
+        # Robot base to tool
+        T_robot = np.eye(4)
+        T_robot[:3, :3] = Rr
+        T_robot[:3, 3] = tr.ravel()
+
+        # Target/base to pattern
+        T_target = np.eye(4)
+        T_target[:3, :3] = Rt
+        T_target[:3, 3] = tt.ravel()
+
+        # Predicted camera pose in robot base: T_pred = T_robot @ T_cam2tool
+        T_pred = T_robot @ T_cam2tool
+
+        # Compare predicted to target
+        delta_T = np.linalg.inv(T_target) @ T_pred
+
+        # Translational error
+        trans_err = np.linalg.norm(delta_T[:3, 3])
+        trans_errors.append(trans_err)
+
+        # Rotational error (degrees)
+        rot_err = rotation_angle(delta_T[:3, :3])
+        rot_errors.append(rot_err)
+
+    return np.array(trans_errors), np.array(rot_errors)

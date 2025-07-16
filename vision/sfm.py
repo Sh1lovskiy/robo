@@ -71,7 +71,7 @@ class RGBDSFM:
         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
             c_img,
             d_img,
-            depth_scale=1.0,
+            depth_scale=0.001,
             depth_trunc=self.config.depth_trunc,
             convert_rgb_to_intensity=False,
         )

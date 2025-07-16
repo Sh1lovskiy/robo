@@ -63,7 +63,7 @@ def _add_restart_args(parser: argparse.ArgumentParser) -> None:
 
 def _run_restart(args: argparse.Namespace) -> None:
     """Restart the robot connection using the provided parameters."""
-    controller = RobotController(robot=args.ip)
+    controller = RobotController(cfg=robot, ip=args.ip)
     ok = controller.restart(delay=args.delay, attempts=args.attempts)
     if ok:
         controller.logger.info("Robot restart completed successfully")

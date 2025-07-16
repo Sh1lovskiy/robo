@@ -153,12 +153,13 @@ class RobotController:
             ErrorTracker.report(exc)
             return None
 
-    def restart(self, delay: float = 0.2, attempts: int = 3) -> bool:
+    def restart(self, delay: float = 0.05, attempts: int = 3) -> bool:
         self.logger.info(f"Restarting robot at {self.ip}")
         try:
             self.disable()
             self.robot.CloseRPC()
             time.sleep(delay)
+            self.robot = RPC(ip=self.ip)
             return self.connect(attempts=attempts, delay=delay)
         except Exception as exc:
             self.logger.error("Restart failed")

@@ -2,14 +2,13 @@ from __future__ import annotations
 
 """Capture synchronized robot poses and camera frames for calibration."""
 
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Tuple
 
 import cv2
-import json
 import numpy as np
-
 from utils.logger import Logger, LoggerType
 from utils.error_tracker import ErrorTracker
 from utils.settings import paths, IMAGE_EXT, DEPTH_EXT
@@ -36,12 +35,12 @@ class DataCollector:
         # Generate and save grid
         grid_poses = self.robot.generate_grid()
         grid_file = self.robot.save_poses(grid_poses)
-
+        # TODO check json save path
         # Read saved poses for execution
-        with open(grid_file) as f:
-            all_targets = [v["tcp_coords"] for v in json.load(f).values()]
+        # with open(grid_file) as f:
+        #     all_targets = [v["tcp_coords"] for v in json.load(f).values()]
 
-        if not all_targets:
+        if not grid_poses:
             self.logger.warning("No target poses found in saved grid file")
             return [], Path()
 
@@ -52,8 +51,10 @@ class DataCollector:
 
         try:
             self.camera.camera.start()
-
-            for idx, target in enumerate(Logger.progress(all_targets, desc="capture")):
+            self.robot.controller.enable()
+            self.robot.controller.connect()
+            # self.robot.run_grid()
+            for idx, target in enumerate(Logger.progress(grid_poses, desc="capture")):
                 self._capture_pose(idx, target, out_dir, images, collected_poses)
 
             if not collected_poses:
@@ -82,16 +83,15 @@ class DataCollector:
         """Move robot to ``target`` and capture one frame."""
         target_np = np.array(target, dtype=np.float64)
         self.logger.info(f"[{idx}] Moving to pose: {target}")
-        self.robot.controller.enable()
-        self.robot.controller.connect()
         if not self.robot.controller.move_linear(target_np):
-            self.logger.error(f"Move failed to: {target}")
+            self.logger.error(f"Move failed to: {target_np}")
             return
-        self.robot.controller.wait_motion_done()
+        # self.robot.controller.wait_motion_done()
         pose = self.robot.controller.get_tcp_pose()
-        if pose is None:
-            self.logger.error("Pose read failed")
-            return
+        time.sleep(0.5)
+        # if pose is None:
+        #     self.logger.error("Pose read failed")
+        #     return
         color, depth = self.camera.camera.get_frames()
         if color is None:
             self.logger.error("Image capture failed")
@@ -99,10 +99,10 @@ class DataCollector:
         base = out_dir / f"frame_{timestamp()}_{idx:04d}"
         cv2.imwrite(str(base.with_suffix(IMAGE_EXT)), color)
         if depth is not None:
-            cv2.imwrite(str(base.with_suffix(DEPTH_EXT)), depth)
+            np.save(str(base.with_suffix(DEPTH_EXT)), depth)
         self.logger.info(f"Saved image: {base.with_suffix(IMAGE_EXT)}")
         images.append(base.with_suffix(IMAGE_EXT))
-        collected_poses.append(pose)
+        collected_poses.append(target_np)
 
     def collect_images(self, count: int) -> List[Path]:
         """Capture ``count`` images without robot."""

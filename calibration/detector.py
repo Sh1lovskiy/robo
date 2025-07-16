@@ -240,7 +240,7 @@ def detect_charuco(
         corners, ids, marker_corners, marker_ids = detector.detectBoard(gray)
 
         if corners is None or ids is None or len(ids) < 4:
-            logger.warning("Charuco board not found")
+            logger.debug("Charuco board not found")
             return None
 
         key = (
