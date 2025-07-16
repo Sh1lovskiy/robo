@@ -130,7 +130,13 @@ def _run_aggregate(args: argparse.Namespace) -> None:
     logger.info(f"{len(Rs)} poses loaded from {data_dir}/poses.json.")
     img_pairs = get_image_pairs(data_dir)
     logger.info(f"Found {len(img_pairs)} RGB/depth image pairs in {data_dir}.")
-    R_depth2rgb, t_depth2rgb = load_extrinsics_json(extrinsics_txt, logger)
+    if os.path.exists(extrinsics_txt):
+        R_depth2rgb, t_depth2rgb = load_extrinsics_json(extrinsics_txt, logger)
+    else:
+        logger.warning("Extrinsics file not found, using defaults from settings")
+        from utils.settings import EXTR_DEPTH_TO_COLOR_ROT, EXTR_DEPTH_TO_COLOR_TRANS
+        R_depth2rgb = np.array(EXTR_DEPTH_TO_COLOR_ROT)
+        t_depth2rgb = np.array(EXTR_DEPTH_TO_COLOR_TRANS)
     aggregator = RGBDAggregator(logger)
     aligner = "open3d" if args.icp else args.aligner
     points, colors = aggregator.aggregate(
