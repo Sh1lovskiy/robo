@@ -49,20 +49,16 @@ Thumbs.db
 # -----------------
 # Logs
 # -----------------
-*.log
+.logs/
 logs/
 
 # -----------------
 # Calibration, clouds, patterns (for calibration), graphics and other data artifacts
 # -----------------
-calib/
-calib_aruco_old/
-calib_charuco_sun/
-cam_full.py
-storage/
-captures/
+.calib_data/
+calib_data/
+.data/
 data/
-tmp/
 
 # -----------------
 # Image/data files
@@ -73,8 +69,6 @@ tmp/
 *.txt
 *.json
 *.ply
-laser_on_esp32.py
-vis_eq.py
 
 # -----------------
 # Env files

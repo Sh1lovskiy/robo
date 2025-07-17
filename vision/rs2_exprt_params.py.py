@@ -15,7 +15,7 @@ def get_intrinsics_as_dict(intrinsics):
     }
 
 
-def main(out_json="realsense_params.json"):
+def main(out_json="rs_params.json"):
     # 1. run pipeline
     pipeline = rs.pipeline()
     config = rs.config()
