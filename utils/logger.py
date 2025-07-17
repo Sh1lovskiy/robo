@@ -13,18 +13,19 @@ from loguru import logger as _logger
 from loguru._logger import Logger as LoguruLogger
 from tqdm.auto import tqdm
 
-LoggerType = LoguruLogger
+# Импортируй logging из settings.py!
+from utils.settings import logging as LOGCFG
 
+LoggerType = LoguruLogger
 T = TypeVar("T")
 
 _is_configured = False
-_log_dir = Path("logs")
+_log_dir = LOGCFG.log_dir
 _log_file = None
-PROGRESS_BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]"
 
 
 class Logger:
-    """Project-wide logger wrapper using loguru."""
+    """Project-wide logger wrapper using loguru and global config."""
 
     @staticmethod
     def _configure(level: str, json_format: bool) -> None:
@@ -34,29 +35,34 @@ class Logger:
         os.makedirs(_log_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         _log_file = _log_dir / f"{timestamp}.log.json"
-        LOG_FORMAT = (
-            "<green>{time:YYYY-MM-DD HH:mm:ss}</green>"
-            "[<level>{level}</level>]"
-            "[<cyan>{file}</cyan>:<cyan>{line}</cyan>]"
-            # "[PID:{process}] - <level>{message}</level>"
-            "<level>{message}</level>"
+        _logger.add(
+            sys.stdout,
+            level=level,
+            serialize=False,
+            format=LOGCFG.log_format,
         )
-        _logger.add(sys.stdout, level=level, serialize=False, format=LOG_FORMAT)
         _logger.add(
             _log_file,
             level=level,
             serialize=json_format,
-            format="{time:YYYY-MM-DD HH:mm:ss}[{level}][{file}:{line}]{message}",
+            format=LOGCFG.log_file_format,
         )
         _is_configured = True
 
+    @staticmethod
     def get_logger(
-        name: str, level: str = "INFO", json_format: bool = True
+        name: str, level: str = None, json_format: bool = None
     ) -> LoguruLogger:
-        """Return a configured loguru logger bound to ``name``."""
+        """
+        Return a configured loguru logger bound to ``name``.
+        If level or json_format are not specified, uses global config.
+        """
         global _is_configured
         if not _is_configured:
-            Logger._configure(level, json_format)
+            Logger._configure(
+                level or LOGCFG.level,
+                json_format if json_format is not None else LOGCFG.json,
+            )
         return _logger.bind(module=name)
 
     @staticmethod
@@ -73,7 +79,7 @@ class Logger:
                 desc=desc,
                 total=total,
                 leave=False,
-                bar_format=PROGRESS_BAR_FORMAT,
+                bar_format=LOGCFG.progress_bar_format,
             ),
         )
 
@@ -87,17 +93,20 @@ class Logger:
 
     @staticmethod
     def configure(
-        level: str = "INFO", log_dir: str | Path = "logs", json_format: bool = True
+        level: str = None, log_dir: str | Path = None, json_format: bool = None
     ) -> None:
         """Manually configure the logger with given settings."""
         global _log_dir
-        _log_dir = Path(log_dir)
-        Logger._configure(level, json_format)
+        _log_dir = Path(log_dir) if log_dir is not None else LOGCFG.log_dir
+        Logger._configure(
+            level or LOGCFG.level,
+            json_format if json_format is not None else LOGCFG.json,
+        )
 
 
 class CaptureStderrToLogger:
     """
-    Context manager: перехватывает C/C++ stderr (fd=2) и пишет всё в твой логгер.
+    Context manager: redirects C/C++ stderr (fd=2) to the provided logger.
     """
 
     def __init__(self, logger):

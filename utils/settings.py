@@ -6,15 +6,18 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+# Root directory for the project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Common file name extensions
+# Common file name extensions for project data
 IMAGE_EXT = ".png"
 DEPTH_EXT = ".npy"
 
-# Default plotting behaviour
+# Global flag: use interactive plotting by default (e.g. for matplotlib)
 DEFAULT_INTERACTIVE = True
 
+# List of supported hand-eye calibration methods.
+# Each item is a tuple: (OpenCV method constant or custom, readable string)
 HAND_EYE_METHODS = [
     (cv2.CALIB_HAND_EYE_TSAI, "tsai"),
     (cv2.CALIB_HAND_EYE_PARK, "park"),
@@ -24,50 +27,104 @@ HAND_EYE_METHODS = [
     ("svd", "svd"),
 ]
 
+# Dictionary: string name → OpenCV constant or method identifier
 HAND_EYE_MAP = {name: method for method, name in HAND_EYE_METHODS}
 
 
 @dataclass(frozen=True)
 class Paths:
-    """Convenient bundle of frequently used project paths."""
+    """
+    Dataclass aggregating all important filesystem paths used in the project.
+    These paths are used for organizing captures, results, logs, etc.
+    """
 
     CAPTURES_EXTR_DIR: Path = BASE_DIR / "calib"
     CAPTURES_DIR: Path = CAPTURES_EXTR_DIR / "imgs"
-    # RESULTS_DIR: Path = BASE_DIR / "calibration" / "results1"
+    # RESULTS_DIR: Path = BASE_DIR / "calibration" / "results1" # Example alternative
     RESULTS_DIR: Path = CAPTURES_EXTR_DIR / "calib_res"
     VIZ_DIR: Path = CAPTURES_EXTR_DIR / "calib_viz"
-    CLOUD_DIR: Path = BASE_DIR / "clouds"
-    LOG_DIR: Path = BASE_DIR / "logs"
-    CAMERA_INTR: Path = BASE_DIR / "data" / "results1980"
+    CLOUD_DIR: Path = BASE_DIR / ".clouds"
+    LOG_DIR: Path = BASE_DIR / ".logs"
+    CAMERA_INTR: Path = BASE_DIR / ".data" / "results1980"
 
 
+# Singleton for access to all important paths
 paths = Paths()
 
 
 @dataclass(frozen=True)
+class LoggingCfg:
+    """
+    Logging configuration for the project.
+
+    - level: Log level ("INFO", "DEBUG", etc.)
+    - json: Enable/disable structured JSON logging.
+    - log_dir: Directory where log files are stored.
+    - log_format: Console log output format.
+    - log_file_format: File log output format.
+    - progress_bar_format: TQDM progress bar format.
+    """
+
+    level: str = "INFO"
+    json: bool = True
+    log_dir: Path = Path(".logs")
+    log_format: str = (
+        "<green>{time:YYYY-MM-DD HH:mm:ss}</green>"
+        "[<level>{level}</level>]"
+        "[<cyan>{file}</cyan>:<cyan>{line}</cyan>]"
+        "<level>{message}</level>"
+    )
+    log_file_format: str = "{time:YYYY-MM-DD HH:mm:ss}[{level}][{file}:{line}]{message}"
+    progress_bar_format: str = (
+        "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]"
+    )
+
+
+logging = LoggingCfg()
+
+
+@dataclass(frozen=True)
 class RobotCfg:
+    """
+    Robot connection and operation parameters.
+    Includes IP, tool and frame identifiers, speed, and safety timeouts.
+    """
+
     ip: str = "192.168.58.2"
     tool_id: int = 0
     user_frame_id: int = 0
     velocity: float = 35.0
-    emergency_delay: float = 0.5
-    restart_delay: float = 0.5
+    emergency_delay: float = 0.5  # seconds
+    restart_delay: float = 0.5  # seconds
 
 
+# Singleton robot configuration
 robot = RobotCfg()
 
 
 @dataclass(frozen=True)
-class CheckerboardDefaults:
-    size: tuple[int, int] = (7, 6)
-    square_size: float = 0.02
+class ArucoDefaults:
+    """
+    Default parameters for ArUco marker grid boards.
+    """
+
+    marker_length: float = 0.05  # Marker side in meters
+    dictionary: int = cv2.aruco.DICT_5X5_100
 
 
-checkerboard = CheckerboardDefaults()
+aruco = ArucoDefaults()
 
 
 @dataclass(frozen=True)
 class CharucoDefaults:
+    """
+    Default parameters for Charuco calibration boards (hybrid ArUco+checkerboard).
+    - squares: (columns, rows)
+    - square_size: length of each square (meters)
+    - marker_size: side length of ArUco markers (meters)
+    - dictionary: OpenCV dictionary constant
+    """
+
     squares: tuple[int, int] = (8, 5)
     square_size: float = 0.035
     marker_size: float = 0.026
@@ -78,19 +135,17 @@ charuco = CharucoDefaults()
 
 
 @dataclass(frozen=True)
-class ArucoDefaults:
-    marker_length: float = 0.05
-    dictionary: int = cv2.aruco.DICT_5X5_100
-
-
-aruco = ArucoDefaults()
-
-
-@dataclass(frozen=True)
 class HandEyeCfg:
+    """
+    Hand-eye calibration configuration parameters.
+    Includes Charuco board parameters, allowed outliers,
+    min corners, input/output paths, etc.
+    """
+
     square_numbers: tuple[int, int] = (5, 8)
     square_length: float = 0.035
     marker_length: float = 0.026
+    # Supported Charuco dictionaries for hand-eye
     CHARUCO_DICT_MAP = {
         "5X5_50": cv2.aruco.DICT_5X5_50,
         "5X5_100": cv2.aruco.DICT_5X5_100,
@@ -101,6 +156,7 @@ class HandEyeCfg:
     method: str = "ALL"
     analyze_corners: bool = False
     visualize: bool = False
+    # File pattern for robot poses, e.g. 'calib/*.json'
     robot_poses_file = paths.CAPTURES_EXTR_DIR.glob("*.json")
     images_dir: str = str(paths.CAPTURES_DIR)
     charuco_xml: str = str(paths.CAMERA_INTR / "charuco_cam.xml")
@@ -112,33 +168,21 @@ handeye = HandEyeCfg()
 
 
 @dataclass(frozen=True)
-class LoggingCfg:
-    level: str = "INFO"
-    json: bool = True
-
-
-logging = LoggingCfg()
-
-
-@dataclass(frozen=True)
 class GridCalibCfg:
-    """Workspace sampling parameters for explicit hand-eye calibration."""
+    """
+    Grid-based workspace sampling for hand-eye calibration.
+    Defines the limits, grid step, orientation, and output.
+    """
 
     calibration_type: str = "EYE_IN_HAND"
     workspace_limits: tuple[
         tuple[float, float], tuple[float, float], tuple[float, float]
     ] = (
-        (-70.0, 50.0),
-        (-250.0, -130.0),
-        (300.0, 400.0),
+        (-70.0, 50.0),  # X range in mm
+        (-250.0, -130.0),  # Y range in mm
+        (300.0, 400.0),  # Z range in mm
     )
     grid_step: float = 50.0
-    reference_point_offset: tuple[float, float, float, float] = (
-        0.7,
-        0.0,
-        0.05,
-        1.0,
-    )
     tool_orientation: tuple[float, float, float] = (180.0, 0.0, 180.0)
     charuco_xml: str = str(paths.CAMERA_INTR / "charuco_cam.xml")
     calib_output_dir: str = str(paths.RESULTS_DIR)
@@ -149,18 +193,27 @@ grid_calib = GridCalibCfg()
 
 @dataclass(frozen=True)
 class CameraIntrinsics:
+    """
+    Intrinsic camera parameters for pinhole/radial models.
+    """
+
     width: int
     height: int
-    ppx: float
-    ppy: float
-    fx: float
-    fy: float
-    model: str
-    coeffs: tuple[float, float, float, float, float]
+    ppx: float  # Principal point X (cx)
+    ppy: float  # Principal point Y (cy)
+    fx: float  # Focal length X
+    fy: float  # Focal length Y
+    model: str  # Distortion model name
+    coeffs: tuple[float, float, float, float, float]  # Distortion coefficients
 
 
 @dataclass(frozen=True)
 class CameraExtrinsics:
+    """
+    Extrinsic calibration parameters (rotation and translation)
+    Rotation: 3x3 matrix, translation: 3-vector (usually meters).
+    """
+
     rotation: tuple[
         tuple[float, float, float],
         tuple[float, float, float],
@@ -169,12 +222,19 @@ class CameraExtrinsics:
     translation: tuple[float, float, float]
 
 
+# Default RealSense depth scale (meters per unit)
 DEPTH_SCALE = 0.0010000000474974513
 
 
 @dataclass(frozen=True)
 class D415_Cfg:
-    """Resolution and frame rate parameters."""
+    """
+    Intel RealSense D415 camera configuration:
+    - frame size (color/depth)
+    - frame rate
+    - depth scale
+    - alignment mode
+    """
 
     rgb_width: int = 1280
     rgb_height: int = 720
@@ -185,7 +245,11 @@ class D415_Cfg:
     align_to_color: bool = True
 
 
+# Singleton RealSense D415 configuration
 camera = D415_Cfg()
+
+
+# Intrinsics for depth stream (example values for RealSense)
 INTRINSICS_DEPTH = CameraIntrinsics(
     width=1280,
     height=720,
@@ -197,6 +261,7 @@ INTRINSICS_DEPTH = CameraIntrinsics(
     coeffs=(0.0, 0.0, 0.0, 0.0, 0.0),
 )
 
+# Intrinsics for color stream
 INTRINSICS_COLOR = CameraIntrinsics(
     width=1280,
     height=720,
@@ -208,6 +273,7 @@ INTRINSICS_COLOR = CameraIntrinsics(
     coeffs=(0.0, 0.0, 0.0, 0.0, 0.0),
 )
 
+# 3x3 Camera intrinsic matrices for depth and color streams
 INTRINSICS_DEPTH_MATRIX = (
     (INTRINSICS_DEPTH.fx, 0.0, INTRINSICS_DEPTH.ppx),
     (0.0, INTRINSICS_DEPTH.fy, INTRINSICS_DEPTH.ppy),
@@ -220,12 +286,12 @@ INTRINSICS_COLOR_MATRIX = (
     (0.0, 0.0, 1.0),
 )
 
+# R|t for depth-to-color and color-to-depth (extrinsics)
 EXTR_DEPTH_TO_COLOR_ROT = (
     (0.9999984502792358, 0.0017436681082472205, -3.4469805541448295e-05),
     (-0.001743800356052816, 0.9999892115592957, -0.004307812545448542),
     (2.6958035959978588e-05, 0.004307866096496582, 0.999990701675415),
 )
-
 EXTR_DEPTH_TO_COLOR_TRANS = (
     0.015152666717767715,
     0.00015625852392986417,
@@ -237,18 +303,23 @@ EXTR_COLOR_TO_DEPTH_ROT = (
     (0.0017436681082472205, 0.9999892115592957, 0.004307866096496582),
     (-3.4469805541448295e-05, -0.004307812545448542, 0.999990701675415),
 )
-
 EXTR_COLOR_TO_DEPTH_TRANS = (
     -0.015152933076024055,
     -0.00013194428174756467,
     0.0004888746771030128,
 )
 
+# Numpy version of default depth camera intrinsics (convenience for OpenCV)
 DEFAULT_DEPTH_INTRINSICS = np.array(INTRINSICS_DEPTH_MATRIX, dtype=np.float32)
 
 
 @dataclass(frozen=True)
 class CloudCfg:
+    """
+    Configuration for point cloud region-of-interest cropping.
+    Each axis can have (min, max) limits in meters.
+    """
+
     roi_limits: dict[str, tuple[float, float]] = field(
         default_factory=lambda: {
             "x": (-0.6, -0.1),
