@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List
 
 import cv2
+import numpy as np
 
 from utils.logger import Logger, LoggerType
 from utils.error_tracker import ErrorTracker
@@ -40,7 +41,7 @@ class CameraRunner:
                 base = out_dir / f"img_{timestamp()}_{i:04d}"
                 cv2.imwrite(str(base.with_suffix(IMAGE_EXT)), color)
                 if depth is not None:
-                    cv2.imwrite(str(base.with_suffix(DEPTH_EXT)), depth)
+                    np.save(str(base.with_suffix(DEPTH_EXT)), depth)
                 paths_list.append(base.with_suffix(IMAGE_EXT))
                 self.logger.debug(f"Frame saved: {base.with_suffix(IMAGE_EXT)}")
             self.logger.info(f"Captured {len(paths_list)} frames")

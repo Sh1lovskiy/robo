@@ -11,10 +11,12 @@ from .realsense_d415 import (
     D415FilterConfig,
     RealSenseD415,
 )
+from utils.settings import D415_Cfg
 
 __all__ = [
     "CameraBase",
     "D415CameraSettings",
     "D415FilterConfig",
     "RealSenseD415",
+    "D415_Cfg",
 ]

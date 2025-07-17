@@ -11,18 +11,10 @@ from .detector import (
     draw_markers,
 )
 from .pattern import ArucoPattern
-from .handeye import (
-    calibrate_opencv,
-    calibrate_svd,
-    calibrate_svd_points,
-    HandEyeResult,
-)
+from .comparison import HandEyeComparison
 from utils.cloud_utils import load_depth
 from utils.geometry import (
     load_extrinsics,
-    map_rgb_corners_to_depth,
-    estimate_board_points_3d,
-    board_center_from_depth,
 )
 
 
@@ -32,17 +24,11 @@ __all__ = [
     "ArucoPattern",
     "find_aruco",
     "draw_markers",
-    "HandEyeResult",
-    "calibrate_opencv",
-    "calibrate_svd",
-    "calibrate_svd_points",
+    "HandEyeComparison",
     "CheckerboardConfig",
     "Detection",
     "pose_from_detection",
     "detect_charuco",
     "load_depth",
-    "board_center_from_depth",
     "load_extrinsics",
-    "map_rgb_corners_to_depth",
-    "estimate_board_points_3d",
 ]

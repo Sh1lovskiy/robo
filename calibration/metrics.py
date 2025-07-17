@@ -108,6 +108,8 @@ def svd_transform(A: np.ndarray, B: np.ndarray) -> tuple[np.ndarray, np.ndarray]
             R = Vt.T @ S @ U.T
         t = R @ centroid_A.T + centroid_B.T
 
+        transformed = (R @ A[:2].T).T + t
+        logger.debug(f"SVD transform sample: {transformed.tolist()}")
         return R, t
     except Exception as exc:
         logger.error(f"SVD transform failed: {exc}")
