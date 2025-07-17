@@ -93,9 +93,8 @@ class RobotCfg:
     ip: str = "192.168.58.2"
     tool_id: int = 0
     user_frame_id: int = 0
-    velocity: float = 35.0
-    emergency_delay: float = 0.5  # seconds
-    restart_delay: float = 0.5  # seconds
+    velocity: float = 35.0  # % of max speed: [0, 100]
+    restart_delay: float = 0.5  # sec
 
 
 # Singleton robot configuration
@@ -134,6 +133,7 @@ class CharucoDefaults:
 charuco = CharucoDefaults()
 
 
+# TODO mb add CharucoDefaults class and ArucoDefaults, clarify refrences
 @dataclass(frozen=True)
 class HandEyeCfg:
     """
@@ -241,6 +241,7 @@ class D415_Cfg:
     depth_width: int = 1280
     depth_height: int = 720
     fps: int = 30
+    # TODO clarify depth_scale import and del DEPTH_SCALE
     depth_scale: float = DEPTH_SCALE
     align_to_color: bool = True
 
@@ -273,6 +274,7 @@ INTRINSICS_COLOR = CameraIntrinsics(
     coeffs=(0.0, 0.0, 0.0, 0.0, 0.0),
 )
 
+# TODO think about the format
 # 3x3 Camera intrinsic matrices for depth and color streams
 INTRINSICS_DEPTH_MATRIX = (
     (INTRINSICS_DEPTH.fx, 0.0, INTRINSICS_DEPTH.ppx),
