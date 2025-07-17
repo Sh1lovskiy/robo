@@ -160,6 +160,7 @@ def find_aruco(
         # Stack everything for solvePnP
         corners = np.vstack(all_corners)  # (N*4,2)
         obj_points = np.vstack(all_obj_pts)  # (N*4,3)
+        logger.debug(f"Aruco corners sample: {corners[:2].tolist()}")
         return corners, ids, obj_points, marker_corners
     except Exception as exc:
         logger.error(f"Aruco detection failed: {exc}")
@@ -263,6 +264,10 @@ def detect_charuco(
         )
 
         obj_points = board.getChessboardCorners()[ids_remapped.flatten()].copy()
+
+        logger.debug(
+            f"Charuco corners sample: {corners.reshape(-1, 2)[:2].tolist()}"
+        )
 
         if visualize:
             vis = draw_charuco(img, corners, ids_remapped, marker_corners, marker_ids)

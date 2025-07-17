@@ -13,7 +13,8 @@ from utils.error_tracker import ErrorTracker
 
 from .pattern import create_pattern
 from .data_collector import DataCollector
-from .calibrator import IntrinsicCalibrator, HandEyeCalibrator
+from .calibrator import IntrinsicCalibrator
+from .comparison import HandEyeComparison
 from .runner_robot import RobotRunner
 
 
@@ -143,6 +144,8 @@ def main() -> None:
             images = collector.collect_images(args.count)
         else:
             images, poses_file = collector.collect_handeye()
+            if poses_file:
+                logger.debug(f"Poses saved at {poses_file}")
     else:
         if args.mode == "intr":
             images = _load_images(args.dataset or paths.CAPTURES_DIR)
@@ -165,7 +168,7 @@ def main() -> None:
 
     if run_handeye:
         assert poses_file is not None
-        he = HandEyeCalibrator(method=args.method, visualize=show_corners)
+        he = HandEyeComparison(visualize=show_corners)
         he.calibrate(poses_file, images, pattern, (K, dist))
 
 

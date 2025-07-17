@@ -31,11 +31,11 @@ def load_handeye_txt(path: str) -> Tuple[np.ndarray, np.ndarray]:
     return np.array(R), t
 
 
-def load_depth(depth_path: str, depth_scale: float = DEPTH_SCALE) -> np.ndarray:
+def load_depth(depth_path: str) -> np.ndarray:
     """Load depth map converting integer arrays to meters."""
     depth = np.load(depth_path)
     if np.issubdtype(depth.dtype, np.integer):
-        depth = depth.astype(np.float32) * depth_scale
+        depth = depth.astype(np.uint16)
     return depth
 
 

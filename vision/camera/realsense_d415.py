@@ -9,7 +9,7 @@ import numpy as np
 import pyrealsense2 as rs
 
 from utils.logger import Logger, LoggerType
-from utils.settings import camera
+from utils.settings import D415_Cfg, camera
 from .camera_base import CameraBase
 
 
@@ -38,15 +38,30 @@ class D415FilterConfig:
 
 
 class RealSenseD415(CameraBase):
-    """Wrapper around ``pyrealsense2`` exposing tuned settings."""
+    """RealSense D415 RGB-D camera driver."""
 
     def __init__(
         self,
-        stream_cfg: camera | None = None,
+        stream_cfg: D415_Cfg | None = None,
         settings: D415CameraSettings | None = None,
         filters: D415FilterConfig | None = None,
         logger: LoggerType | None = None,
     ) -> None:
+        """Create a new camera instance.
+
+        Parameters
+        ----------
+        stream_cfg:
+            Optional streaming configuration.  If ``None`` the global
+            :data:`utils.settings.camera` is used.
+        settings:
+            Manual exposure and laser options.
+        filters:
+            Post-processing filter configuration.
+        logger:
+            Logger to use for all messages.
+        """
+
         self.stream_cfg = stream_cfg or camera
         self.settings = settings or D415CameraSettings()
         self.filters = filters or D415FilterConfig()
@@ -60,6 +75,8 @@ class RealSenseD415(CameraBase):
         self._init_config()
 
     def _init_config(self) -> None:
+        """Pre-configure the pipeline with the desired streams."""
+
         cfg = self.stream_cfg
         self.config.enable_stream(
             rs.stream.depth,
@@ -77,6 +94,8 @@ class RealSenseD415(CameraBase):
         )
 
     def start(self) -> None:
+        """Start streaming from the camera."""
+
         config = rs.config()
         config.enable_stream(
             rs.stream.depth,
@@ -100,7 +119,7 @@ class RealSenseD415(CameraBase):
         if self.depth_sensor is None or self.rgb_sensor is None:
             raise RuntimeError("Required sensors not found")
         self._apply_settings()
-        self.depth_scale = camera.depth_scale
+        self.depth_scale = float(self.depth_sensor.get_depth_scale())
         self.logger.info(f"Depth scale: {self.depth_scale:.6f} m/unit")
         if self.stream_cfg.align_to_color:
             self.align = rs.align(rs.stream.color)
@@ -118,7 +137,21 @@ class RealSenseD415(CameraBase):
         self.rgb_sensor.set_option(rs.option.gain, float(s.rgb_gain))
 
     def _setup_filters(self) -> None:
-        pass
+        """Initialize depth post-processing filters."""
+
+        cfg = self.filters
+        self.decimation = rs.decimation_filter()
+        self.decimation.set_option(rs.option.filter_magnitude, cfg.decimation)
+
+        self.spatial = rs.spatial_filter()
+        self.spatial.set_option(rs.option.filter_smooth_alpha, cfg.spatial_alpha)
+        self.spatial.set_option(rs.option.filter_smooth_delta, cfg.spatial_delta)
+
+        self.temporal = rs.temporal_filter()
+        self.temporal.set_option(rs.option.filter_smooth_alpha, cfg.temporal_alpha)
+        self.temporal.set_option(rs.option.filter_smooth_delta, cfg.temporal_delta)
+
+        self.hole_filling = rs.hole_filling_filter(cfg.hole_filling)
 
     def _log_device_info(self, device: rs.device) -> None:
         name = device.get_info(rs.camera_info.name)
@@ -136,20 +169,31 @@ class RealSenseD415(CameraBase):
         self.logger.debug(f"Extrinsics depth→color R={R.tolist()} t={t.tolist()}")
 
     def stop(self) -> None:
+        """Stop camera streaming."""
+
         if self.started:
             self.pipeline.stop()
             self.started = False
 
     def set_projector(self, enable: bool) -> None:
+        """Enable or disable the infrared projector."""
+
         power = self.settings.max_projector_power if enable else 0
         self.depth_sensor.set_option(rs.option.laser_power, float(power))
 
     def _process_depth(self, frame: rs.frame) -> rs.frame:
+        """Apply post-processing filters to a depth frame."""
+        frame = self.decimation.process(frame)
+        frame = self.spatial.process(frame)
+        frame = self.temporal.process(frame)
+        frame = self.hole_filling.process(frame)
         return frame
 
     def get_frames(
         self, aligned: bool = True
     ) -> Tuple[np.ndarray | None, np.ndarray | None]:
+        """Return the next color and depth frame pair."""
+
         assert self.started, "Camera not started"
         frames = self.pipeline.wait_for_frames()
         if aligned and self.align:
@@ -164,5 +208,20 @@ class RealSenseD415(CameraBase):
 
 
 def load_depth_intrinsics_from_camera() -> np.ndarray:
-    """Fetch RealSense depth camera intrinsics using pyrealsense2."""
-    ...
+    """Return depth intrinsics as a 3x3 matrix from a temporary pipeline."""
+
+    pipeline = rs.pipeline()
+    cfg = rs.config()
+    cfg.enable_stream(rs.stream.depth)
+    cfg.enable_stream(rs.stream.color)
+    profile = pipeline.start(cfg)
+    try:
+        depth_stream = profile.get_stream(rs.stream.depth).as_video_stream_profile()
+        intr = depth_stream.get_intrinsics()
+        K = np.array(
+            [[intr.fx, 0.0, intr.ppx], [0.0, intr.fy, intr.ppy], [0.0, 0.0, 1.0]],
+            dtype=np.float64,
+        )
+        return K
+    finally:
+        pipeline.stop()

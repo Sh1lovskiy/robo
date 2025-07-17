@@ -113,6 +113,10 @@ class ArucoPattern(CalibrationPattern):
 
         corners, ids, obj_points, marker_corners = result
 
+        self.logger.debug(
+            f"Aruco detection corners sample: {corners.reshape(-1, 2)[:2].tolist()}"
+        )
+
         if visualize:
             vis_image = image.copy()
             draw_markers(vis_image, marker_corners, ids)
@@ -161,6 +165,11 @@ class ArucoPattern(CalibrationPattern):
         if rvec is None or tvec is None:
             return None
         R, _ = cv2.Rodrigues(rvec[0])
+        if detection.object_points is not None:
+            pts = (R @ detection.object_points[:2].T).T + tvec[0].reshape(3)
+            self.logger.debug(
+                f"Aruco transformed points sample: {pts.tolist()}"
+            )
         return R, tvec[0].reshape(3)
 
 
@@ -218,6 +227,9 @@ class CharucoPattern(CalibrationPattern):
             ids=result.ids,
             object_points=result.obj_points,
         )
+        self.logger.debug(
+            f"Charuco detection corners sample: {result.corners.reshape(-1, 2)[:2].tolist()}"
+        )
         self.add_detection(det)
         return det
 
@@ -272,6 +284,11 @@ class CharucoPattern(CalibrationPattern):
                 self.logger.warning("Pose estimation failed")
                 return None
             R, _ = cv2.Rodrigues(rvec)
+            if detection.object_points is not None:
+                pts = (R @ detection.object_points.T).T + tvec.reshape(3)
+                self.logger.debug(
+                    f"Charuco transformed points sample: {pts[:2].tolist()}"
+                )
             return R, tvec.reshape(3)
         except Exception as exc:
             self.logger.error(f"Pose estimation error: {exc}")

@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 # Root dir
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -271,16 +272,22 @@ INTRINSICS_COLOR = CameraIntrinsics(
 
 # 3x3 Camera intrinsic matrices for depth and color streams
 # TODO think about the format
-INTRINSICS_DEPTH_MATRIX = (
-    (INTRINSICS_DEPTH.fx, 0.0, INTRINSICS_DEPTH.ppx),
-    (0.0, INTRINSICS_DEPTH.fy, INTRINSICS_DEPTH.ppy),
-    (0.0, 0.0, 1.0),
+INTRINSICS_DEPTH_MATRIX = np.array(
+    [
+        [INTRINSICS_DEPTH.fx, 0.0, INTRINSICS_DEPTH.ppx],
+        [0.0, INTRINSICS_DEPTH.fy, INTRINSICS_DEPTH.ppy],
+        [0.0, 0.0, 1.0],
+    ],
+    dtype=np.float64,
 )
 
-INTRINSICS_COLOR_MATRIX = (
-    (INTRINSICS_COLOR.fx, 0.0, INTRINSICS_COLOR.ppx),
-    (0.0, INTRINSICS_COLOR.fy, INTRINSICS_COLOR.ppy),
-    (0.0, 0.0, 1.0),
+INTRINSICS_COLOR_MATRIX = np.array(
+    [
+        [INTRINSICS_COLOR.fx, 0.0, INTRINSICS_COLOR.ppx],
+        [0.0, INTRINSICS_COLOR.fy, INTRINSICS_COLOR.ppy],
+        [0.0, 0.0, 1.0],
+    ],
+    dtype=np.float64,
 )
 
 # R|t for depth-to-color and color-to-depth (extrinsics)
@@ -324,3 +331,34 @@ class CloudCfg:
 
 
 cloud = CloudCfg()
+
+__all__ = [
+    "Paths",
+    "LoggingCfg",
+    "RobotCfg",
+    "ArucoDefaults",
+    "CharucoDefaults",
+    "HandEyeCfg",
+    "GridCalibCfg",
+    "D415_Cfg",
+    "CameraIntrinsics",
+    "CameraExtrinsics",
+    "DEPTH_SCALE",
+    "paths",
+    "logging",
+    "robot",
+    "aruco",
+    "charuco",
+    "handeye",
+    "grid_calib",
+    "camera",
+    "cloud",
+    "IMAGE_EXT",
+    "DEPTH_EXT",
+    "INTRINSICS_DEPTH_MATRIX",
+    "INTRINSICS_COLOR_MATRIX",
+    "EXTR_DEPTH_TO_COLOR_ROT",
+    "EXTR_DEPTH_TO_COLOR_TRANS",
+    "EXTR_COLOR_TO_DEPTH_ROT",
+    "EXTR_COLOR_TO_DEPTH_TRANS",
+]

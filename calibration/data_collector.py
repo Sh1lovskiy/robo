@@ -36,6 +36,10 @@ class DataCollector:
         grid_poses = self.robot.generate_grid()
         grid_file = self.robot.save_poses(grid_poses)
         # TODO check json save path
+        if not grid_file.exists():
+            self.logger.error("Grid pose file was not created")
+        else:
+            self.logger.debug(f"Grid poses saved to {grid_file}")
         # Read saved poses for execution
         # with open(grid_file) as f:
         #     all_targets = [v["tcp_coords"] for v in json.load(f).values()]
@@ -46,7 +50,7 @@ class DataCollector:
 
         images: List[Path] = []
         collected_poses: List[List[float]] = []
-        out_dir = paths.CAPTURES_DIR
+        out_dir = paths.CAPTURES_DIR / f"handeye_{timestamp()}"
         out_dir.mkdir(parents=True, exist_ok=True)
 
         try:
@@ -61,6 +65,12 @@ class DataCollector:
 
             self.logger.info("Hand-eye data collection finished")
             poses_file = self.robot.save_poses(collected_poses)
+            new_pose_path = out_dir / poses_file.name
+            try:
+                poses_file.rename(new_pose_path)
+                poses_file = new_pose_path
+            except Exception as exc:
+                self.logger.warning(f"Could not move poses file: {exc}")
             return images, poses_file
 
         except Exception as exc:
@@ -98,7 +108,10 @@ class DataCollector:
         # TODO save calib folder with params in name without timestamp, with
         # pattern_mounth_day_hour_min_imgsNumber in calib_data folder
         # and refactor utils/settings.py Paths class for this saving
-        base = out_dir / f"frame_{timestamp()}_{idx:04d}"
+        # TODO save calib folder with params in name without timestamp, with
+        # pattern_mounth_day_hour_min_imgsNumber in calib_data folder
+        # and refactor utils/settings.py Paths class for this saving
+        base = out_dir / f"frame_{idx:04d}"
         cv2.imwrite(str(base.with_suffix(IMAGE_EXT)), color)
         if depth is not None:
             np.save(str(base.with_suffix(DEPTH_EXT)), depth)
