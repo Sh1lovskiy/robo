@@ -4,20 +4,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import cv2
-import numpy as np
 
-# Root directory for the project
+# Root dir
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Common file name extensions for project data
+# Common file name extensions for project data (frames saving from RealSense2 cam)
 IMAGE_EXT = ".png"
 DEPTH_EXT = ".npy"
 
-# Global flag: use interactive plotting by default (e.g. for matplotlib)
+# Global flag: use interactive plotting by default
 DEFAULT_INTERACTIVE = True
 
 # List of supported hand-eye calibration methods.
-# Each item is a tuple: (OpenCV method constant or custom, readable string)
 HAND_EYE_METHODS = [
     (cv2.CALIB_HAND_EYE_TSAI, "tsai"),
     (cv2.CALIB_HAND_EYE_PARK, "park"),
@@ -27,7 +25,7 @@ HAND_EYE_METHODS = [
     ("svd", "svd"),
 ]
 
-# Dictionary: string name → OpenCV constant or method identifier
+# Dictionary: string name → OpenCV constant identifier
 HAND_EYE_MAP = {name: method for method, name in HAND_EYE_METHODS}
 
 
@@ -40,7 +38,7 @@ class Paths:
 
     CAPTURES_EXTR_DIR: Path = BASE_DIR / "calib"
     CAPTURES_DIR: Path = CAPTURES_EXTR_DIR / "imgs"
-    # RESULTS_DIR: Path = BASE_DIR / "calibration" / "results1" # Example alternative
+    # RESULTS_DIR: Path = BASE_DIR / "calibration" / "results1"
     RESULTS_DIR: Path = CAPTURES_EXTR_DIR / "calib_res"
     VIZ_DIR: Path = CAPTURES_EXTR_DIR / "calib_viz"
     CLOUD_DIR: Path = BASE_DIR / ".clouds"
@@ -48,7 +46,6 @@ class Paths:
     CAMERA_INTR: Path = BASE_DIR / ".data" / "results1980"
 
 
-# Singleton for access to all important paths
 paths = Paths()
 
 
@@ -97,7 +94,6 @@ class RobotCfg:
     restart_delay: float = 0.5  # sec
 
 
-# Singleton robot configuration
 robot = RobotCfg()
 
 
@@ -145,7 +141,6 @@ class HandEyeCfg:
     square_numbers: tuple[int, int] = (5, 8)
     square_length: float = 0.035
     marker_length: float = 0.026
-    # Supported Charuco dictionaries for hand-eye
     CHARUCO_DICT_MAP = {
         "5X5_50": cv2.aruco.DICT_5X5_50,
         "5X5_100": cv2.aruco.DICT_5X5_100,
@@ -156,8 +151,7 @@ class HandEyeCfg:
     method: str = "ALL"
     analyze_corners: bool = False
     visualize: bool = False
-    # File pattern for robot poses, e.g. 'calib/*.json'
-    robot_poses_file = paths.CAPTURES_EXTR_DIR.glob("*.json")
+    robot_poses_file = paths.CAPTURES_EXTR_DIR.glob("*.json")  # 'calib/*.json'
     images_dir: str = str(paths.CAPTURES_DIR)
     charuco_xml: str = str(paths.CAMERA_INTR / "charuco_cam.xml")
     charuco_txt: str = str(paths.CAMERA_INTR / "charuco_cam.txt")
@@ -178,9 +172,9 @@ class GridCalibCfg:
     workspace_limits: tuple[
         tuple[float, float], tuple[float, float], tuple[float, float]
     ] = (
-        (-70.0, 50.0),  # X range in mm
-        (-250.0, -130.0),  # Y range in mm
-        (300.0, 400.0),  # Z range in mm
+        (-70.0, 50.0),  # X, mm
+        (-250.0, -130.0),  # Y, mm
+        (300.0, 400.0),  # Z, mm
     )
     grid_step: float = 50.0
     tool_orientation: tuple[float, float, float] = (180.0, 0.0, 180.0)
@@ -199,12 +193,12 @@ class CameraIntrinsics:
 
     width: int
     height: int
-    ppx: float  # Principal point X (cx)
-    ppy: float  # Principal point Y (cy)
-    fx: float  # Focal length X
-    fy: float  # Focal length Y
-    model: str  # Distortion model name
-    coeffs: tuple[float, float, float, float, float]  # Distortion coefficients
+    ppx: float  # principal point X (cx)
+    ppy: float  # principal point Y (cy)
+    fx: float  # focal length X
+    fy: float  # focal length Y
+    model: str  # distortion model name
+    coeffs: tuple[float, float, float, float, float]  # distortion coeffs
 
 
 @dataclass(frozen=True)
@@ -241,7 +235,8 @@ class D415_Cfg:
     depth_width: int = 1280
     depth_height: int = 720
     fps: int = 30
-    # TODO clarify depth_scale import and del DEPTH_SCALE
+    # TODO clarify depth_scale import at all python pakages
+    # and del DEPTH_SCALE anywhere
     depth_scale: float = DEPTH_SCALE
     align_to_color: bool = True
 
@@ -250,7 +245,7 @@ class D415_Cfg:
 camera = D415_Cfg()
 
 
-# Intrinsics for depth stream (example values for RealSense)
+# Intrinsics for depth stream
 INTRINSICS_DEPTH = CameraIntrinsics(
     width=1280,
     height=720,
@@ -274,8 +269,8 @@ INTRINSICS_COLOR = CameraIntrinsics(
     coeffs=(0.0, 0.0, 0.0, 0.0, 0.0),
 )
 
-# TODO think about the format
 # 3x3 Camera intrinsic matrices for depth and color streams
+# TODO think about the format
 INTRINSICS_DEPTH_MATRIX = (
     (INTRINSICS_DEPTH.fx, 0.0, INTRINSICS_DEPTH.ppx),
     (0.0, INTRINSICS_DEPTH.fy, INTRINSICS_DEPTH.ppy),
@@ -310,9 +305,6 @@ EXTR_COLOR_TO_DEPTH_TRANS = (
     -0.00013194428174756467,
     0.0004888746771030128,
 )
-
-# Numpy version of default depth camera intrinsics (convenience for OpenCV)
-DEFAULT_DEPTH_INTRINSICS = np.array(INTRINSICS_DEPTH_MATRIX, dtype=np.float32)
 
 
 @dataclass(frozen=True)

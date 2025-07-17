@@ -384,6 +384,7 @@ class HandEyeCalibrator:
         base_stem = f"{out_base.stem}_{name}"
         base_out = out_base.with_stem(base_stem)
         T = TransformUtils.build_transform(R_cam2tool, t_cam2tool)
+        # TODO save folder with timestamp only, not .txt files
         save_transform(base_out, T)
         cam_Rs, cam_ts = self._camera_poses(robot_Rs, robot_ts, R_cam2tool, t_cam2tool)
         robot_Rss, robot_tss = self._camera_poses(
@@ -408,21 +409,18 @@ class HandEyeCalibrator:
     def _log_summary(
         self, summary: list[tuple[str, float, float, float, float]], out_base: Path
     ) -> None:
-        """Log results for all methods."""
-        self.logger.info("Summary of hand-eye calibration and pose alignment errors:")
-        self.logger.info(
-            "Method     | T. RMSE [m] | R. RMSE [deg] | Align T. RMSE [m] | Align R. RMSE [deg]"
-        )
-        self.logger.info(
-            "-----------|-------------|---------------|-------------------|--------------------"
-        )
+        """Log results for all methods in a single log record."""
+        lines = [
+            "Summary of hand-eye calibration and pose alignment errors:",
+            "Method     | T. RMSE [m] | R. RMSE [deg] | Align T. RMSE [m] | Align R. RMSE [deg]",
+            "-----------|-------------|---------------|-------------------|--------------------",
+        ]
         for name, t_rmse, r_rmse, a_t_rmse, a_r_rmse in summary:
-            self.logger.info(
+            lines.append(
                 f"{name:<10} |  {t_rmse:>9.6f}  |  {r_rmse:>11.4f}  |  {a_t_rmse:>15.6f}  |  {a_r_rmse:>17.4f}"
             )
-        self.logger.info(
-            f"Hand-eye results saved to {out_base.relative_to(Path.cwd())}"
-        )
+        lines.append(f"Hand-eye results saved to {out_base.relative_to(Path.cwd())}")
+        self.logger.info("\n".join(lines))
 
     def _run_all_methods(
         self,
@@ -468,6 +466,16 @@ class HandEyeCalibrator:
             robot_Rs_all, robot_ts_all = JSONPoseLoader.load_poses(str(poses_file))
             K_rgb, dist = intrinsics
             K_depth = np.asarray(INTRINSICS_DEPTH_MATRIX, dtype=np.float64)
+            # TODO logger.debug only first two conreners of any pattern on each step
+            # ASAP from opencv detect and after any transform to calibrateHandEye
+            # and with transform from calibrateHandEye
+            # in each step in this files below:
+            # calibration/calibrator.py
+            # calibration/detector.py
+            # calibration/pattern.py
+            # calibration/metrics.py
+            # calibration/handeye.py
+            # utils/geometry.py
             robot_Rs, robot_ts, target_Rs, target_ts = self._gather_target_poses(
                 images,
                 pattern,
