@@ -56,7 +56,6 @@ class DataCollector:
             # self.robot.run_grid()
             for idx, target in enumerate(Logger.progress(grid_poses, desc="capture")):
                 self._capture_pose(idx, target, out_dir, images, collected_poses)
-
             if not collected_poses:
                 self.logger.warning("No valid robot poses collected!")
 
@@ -96,6 +95,9 @@ class DataCollector:
         if color is None:
             self.logger.error("Image capture failed")
             return
+        # TODO save calib folder with params in name without timestamp, with
+        # pattern_mounth_day_hour_min_imgsNumber in calib_data folder
+        # and refactor utils/settings.py Paths class for this saving
         base = out_dir / f"frame_{timestamp()}_{idx:04d}"
         cv2.imwrite(str(base.with_suffix(IMAGE_EXT)), color)
         if depth is not None:
