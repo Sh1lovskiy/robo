@@ -13,7 +13,6 @@ from loguru import logger as _logger
 from loguru._logger import Logger as LoguruLogger
 from tqdm.auto import tqdm
 
-# Импортируй logging из settings.py!
 from utils.settings import logging as LOGCFG
 
 LoggerType = LoguruLogger
