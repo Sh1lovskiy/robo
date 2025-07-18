@@ -262,12 +262,18 @@ INTRINSICS_DEPTH = CameraIntrinsics(
 INTRINSICS_COLOR = CameraIntrinsics(
     width=1280,
     height=720,
-    ppx=636.4371337890625,
-    ppy=363.9315490722656,
-    fx=911.01806640625,
-    fy=909.2081909179688,
+    fx=922.1192656114683,
+    fy=926.5733034002656,
+    ppx=635.5098688405669,
+    ppy=339.22998506754635,
     model="distortion.inverse_brown_conrady",
-    coeffs=(0.0, 0.0, 0.0, 0.0, 0.0),
+    coeffs=(
+        0.14276977476919803,
+        -0.37253190781644513,
+        -0.002400175306122351,
+        0.005829250084910286,
+        0.23582308984644337,
+    ),
 )
 
 # 3x3 Camera intrinsic matrices for depth and color streams

@@ -15,6 +15,7 @@ from utils.error_tracker import ErrorTracker
 from utils.settings import (
     EXTR_COLOR_TO_DEPTH_ROT,
     EXTR_COLOR_TO_DEPTH_TRANS,
+    INTRINSICS_COLOR_MATRIX,
     INTRINSICS_DEPTH_MATRIX,
     EXTR_DEPTH_TO_COLOR_ROT,
     EXTR_DEPTH_TO_COLOR_TRANS,
@@ -35,7 +36,7 @@ from .visualizer import plot_poses
 
 
 def rigid_transform_3D(A, B):
-    # A, B: Nx3 (correspondence)
+    # A, B: Nx3
     centroid_A = np.mean(A, axis=0)
     centroid_B = np.mean(B, axis=0)
     AA = A - centroid_A
@@ -51,10 +52,13 @@ def rigid_transform_3D(A, B):
 
 
 def solve_pnp_obj_to_3d(model_points, points_3d):
-    # 3D-3D (Procrustes)
     mask = ~np.isnan(points_3d).any(axis=1)
     if np.sum(mask) < 4:
         return None, None
+    if model_points.size > 0:
+        Logger.get_logger("calibration.comparison").debug(
+            f"[solve_pnp_obj_to_3d] First model={model_points[0].tolist()}, meas={points_3d[0].tolist()}"
+        )
     R_, t_ = rigid_transform_3D(model_points[mask], points_3d[mask])
     return R_, t_
 
@@ -68,13 +72,12 @@ class HandEyeComparison:
         default_factory=lambda: Logger.get_logger("calibration.comparison")
     )
 
-    # ------------------------------------------------------------------
-    # Pose estimation helpers
-    # ------------------------------------------------------------------
     def _pose_pnp(
         self, obj: np.ndarray, img: np.ndarray, K: np.ndarray, dist: np.ndarray
     ) -> tuple[np.ndarray | None, np.ndarray | None]:
-        """Estimate pose using OpenCV PnP."""
+        if obj.shape[0] < 6:
+            self.logger.warning(f"Skipping PnP: only {obj.shape[0]} correspondences")
+            return None, None
         return solve_pnp_obj_to_img(obj, img, K, dist)
 
     def _pose_svd(
@@ -94,22 +97,29 @@ class HandEyeComparison:
         K_rgb: np.ndarray,
         K_depth: np.ndarray,
     ) -> np.ndarray:
-        R = np.asarray(EXTR_COLOR_TO_DEPTH_ROT, dtype=np.float64)
-        t = np.asarray(EXTR_COLOR_TO_DEPTH_TRANS, dtype=np.float64)
-        self.logger.info(
+        R_c2d = np.asarray(EXTR_COLOR_TO_DEPTH_ROT, dtype=np.float64)
+        t_c2d = np.asarray(EXTR_COLOR_TO_DEPTH_TRANS, dtype=np.float64)
+        R_d2c = np.asarray(EXTR_DEPTH_TO_COLOR_ROT, dtype=np.float64)
+        t_d2c = np.asarray(EXTR_DEPTH_TO_COLOR_TRANS, dtype=np.float64)
+        self.logger.debug(
             f"[_depth_points] Input: corners shape={corners.shape}, depth shape={depth.shape}"
         )
+        self.logger.debug(f"[_depth_points] K_rgb:\n{K_rgb}")
+        self.logger.debug(f"[_depth_points] K_depth:\n{K_depth}")
+        self.logger.debug(f"[_depth_points] Extrinsics R_d2c:\n{R_d2c}\n t_d2c:{t_d2c}")
         pts_3d = get_3d_points_from_depth(
             corners,
             depth,
             K_rgb,
             K_depth,
-            R,
-            t,
+            R_c2d,
+            R_d2c,
+            t_c2d,
+            t_d2c,
             depth_scale=DEPTH_SCALE,
             logger=self.logger,
         )
-        self.logger.info(
+        self.logger.debug(
             f"[_depth_points] Output: 3D points shape={pts_3d.shape}, "
             f"sample: {pts_3d[:2]}"
         )
@@ -201,9 +211,6 @@ class HandEyeComparison:
         lines.append(f"Results saved to {out_dir.relative_to(Path.cwd())}")
         self.logger.info("\n".join(lines))
 
-    # ------------------------------------------------------------------
-    # Data collection
-    # ------------------------------------------------------------------
     def _collect(
         self,
         images: List[Path],
@@ -212,7 +219,16 @@ class HandEyeComparison:
         robot_Rs: List[np.ndarray],
         robot_ts: List[np.ndarray],
     ) -> Dict[str, Dict[str, List[np.ndarray]]]:
-        K_rgb, dist = intrinsics
+        K_rgb = np.asarray(INTRINSICS_COLOR_MATRIX, dtype=np.float64)
+        dist = np.array(
+            [
+                0.14276977476919803,
+                -0.37253190781644513,
+                -0.002400175306122351,
+                0.005829250084910286,
+                0.23582308984644337,
+            ]
+        )
         K_depth = np.asarray(INTRINSICS_DEPTH_MATRIX, dtype=np.float64)
         variants = {
             "pnp": {"robot_Rs": [], "robot_ts": [], "R": [], "t": []},
@@ -234,19 +250,19 @@ class HandEyeComparison:
             if not depth_file.exists():
                 continue
             depth = load_depth(str(depth_file))
-            # Получаем 3D точки — порядок совпадает с detection.corners/object_points
+            # get 3d points, order the same as detection.corners/object_points
             depth_pts = self._depth_points(detection.corners, depth, K_rgb, K_depth)
             mask = ~np.isnan(depth_pts).any(axis=1)
             if np.sum(mask) < 4:
                 continue
-            # Согласованные пары:
-            corners_valid = corners[mask]  # Kx2
-            self.logger.info(
+            # align pairs
+            corners_valid = corners[mask]  # Nx2
+            object_points_valid = object_points[mask]  # Nx3
+            depth_pts_valid = depth_pts[mask]  # Nx3
+            self.logger.debug(
                 f"[{img_path.name}] First valid point: corner RGB={corners_valid[0]}, "
                 f"object_point={object_points_valid[0]}, depth_3d={depth_pts_valid[0]}"
             )
-            object_points_valid = object_points[mask]  # Kx3
-            depth_pts_valid = depth_pts[mask]  # Kx3
             if (
                 corners_valid.shape[0] != object_points_valid.shape[0]
                 or corners_valid.shape[0] != depth_pts_valid.shape[0]
@@ -265,13 +281,16 @@ class HandEyeComparison:
                 object_points_in_rgb = (
                     R_pnp2d @ object_points_valid.T
                 ).T + t_pnp2d.flatten()
+                self.logger.debug(
+                    f"[PnP] Transformed first object point to RGB: {object_points_in_rgb[0]}"
+                )
                 variants["pnp"]["robot_Rs"].append(robot_Rs[idx])
                 variants["pnp"]["robot_ts"].append(robot_ts[idx])
                 variants["pnp"]["R"].append(R_pnp2d)
                 variants["pnp"]["t"].append(t_pnp2d)
 
-                # SVD 3D-3D: сопоставь object_points_in_rgb и depth_pts_valid, mask уже учтен!
-                pose_svd = rigid_transform_3D(object_points_in_rgb, depth_pts_valid)
+                # SVD 3D-3D: object_points_in_rgb to depth_pts_valid with mask
+                pose_svd = rigid_transform_3D(object_points_valid, depth_pts_valid)
                 if (
                     pose_svd is not None
                     and pose_svd[0] is not None
@@ -282,7 +301,6 @@ class HandEyeComparison:
                     variants["svd"]["R"].append(pose_svd[0])
                     variants["svd"]["t"].append(pose_svd[1])
 
-                # Procrustes "наоборот" (pnp_depth)
                 pose_pd = solve_pnp_obj_to_3d(depth_pts_valid, object_points_valid)
                 if (
                     pose_pd is not None
@@ -295,9 +313,6 @@ class HandEyeComparison:
                     variants["pnp_depth"]["t"].append(pose_pd[1])
         return variants
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
     def calibrate(
         self,
         poses_file: Path,

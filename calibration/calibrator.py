@@ -49,17 +49,12 @@ class IntrinsicCalibrator:
         """
         self.logger.info("Starting intrinsic calibration")
         try:
-            img_size: Tuple[int, int] | None = None
-            for img_path in Logger.progress(images, desc="intrinsic"):
-                img = cv2.imread(str(img_path))
-                if img is None:
-                    self.logger.error(f"Failed to read {img_path}")
-                    continue
-                img_size = (img.shape[1], img.shape[0])
-                if pattern.detect(img) is None:
-                    self.logger.warning(f"Pattern not detected in {img_path}")
+            img_paths = [str(p) for p in images]
+            corners, ids, img_size = pattern.detect_many(img_paths)
+
             if not pattern.detections or img_size is None:
                 raise RuntimeError("No valid detections for intrinsic calibration")
+
             K, dist, rms, per_view = pattern.calibrate_camera(img_size)
             out_base = paths.RESULTS_DIR / f"camera_{timestamp()}"
             save_camera_params(out_base, K, dist, rms)

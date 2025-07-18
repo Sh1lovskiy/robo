@@ -34,9 +34,10 @@ class CharucoBoardConfig:
 
     def create(self) -> cv2.aruco_CharucoBoard:
         """Return an OpenCV Charuco board."""
-        return cv2.aruco.CharucoBoard(
+        board = cv2.aruco.CharucoBoard(
             self.squares, self.square_size, self.marker_size, self.dictionary
         )
+        return board
 
 
 def draw_markers(image, corners, ids):
@@ -161,6 +162,10 @@ def find_aruco(
         corners = np.vstack(all_corners)  # (N*4,2)
         obj_points = np.vstack(all_obj_pts)  # (N*4,3)
         logger.debug(f"Aruco corners sample: {corners[:2].tolist()}")
+        # Log first correspondence for traceability
+        logger.info(
+            f"[find_aruco] Corner #0 pixel={corners[0].tolist()}, object={obj_points[0].tolist()}"
+        )
         return corners, ids, obj_points, marker_corners
     except Exception as exc:
         logger.error(f"Aruco detection failed: {exc}")
@@ -171,53 +176,42 @@ def find_aruco(
 _CHARUCO_CACHE: dict[tuple, np.ndarray] = {}
 
 
-def _compute_corr_map(
-    board: cv2.aruco_CharucoBoard, detector: cv2.aruco.CharucoDetector
-) -> np.ndarray:
-    """Compute ID reordering map for a Charuco board.
-
-    The OpenCV detector may return corner IDs in an orientation that does not
-    match the conventional bottom-left to top-right ordering.  A synthetic board
-    image is generated and passed through the detector to determine if the
-    detected ordering needs to be flipped along the vertical axis.  The returned
-    array maps detected IDs to the desired ascending order.
+def _compute_corr_map(board: cv2.aruco.CharucoBoard) -> dict[int, int]:
     """
-    try:
-        num_w, num_h = board.getChessboardSize()
-        num_int = (num_w - 1) * (num_h - 1)
-        corr = np.arange(num_int)
+    Compute mapping between charuco ID order and expected index order.
+    """
+    dictionary = board.getDictionary()
+    img = cv2.aruco.drawPlanarBoard(board, (1000, 1000), marginSize=10, borderBits=1)
+    gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    detector_params = cv2.aruco.DetectorParameters()
+    marker_corners, marker_ids, _ = cv2.aruco.detectMarkers(
+        gray, dictionary, parameters=detector_params
+    )
 
-        img = board.generateImage(outSize=(1000, 1000))
-        corners, ids, marker_corners, marker_ids = detector.detectBoard(img)
+    if marker_ids is None or len(marker_ids) == 0:
+        raise ValueError("Cannot detect markers on rendered board")
 
-        if corners is None or ids is None or len(ids) < 4:
-            logger.warning("Charuco correlation map: insufficient synthetic detection.")
-            return corr
+    retval, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
+        markerCorners=marker_corners,
+        markerIds=marker_ids,
+        image=gray,
+        board=board,
+    )
 
-        # Compute using Y-axis flip (compare first and last point)
-        first_y = corners[0][0][1]
-        last_y = corners[-1][0][1]
+    if not retval or charuco_corners is None or charuco_ids is None:
+        raise ValueError("Cannot interpolate charuco corners on rendered board")
 
-        if first_y < last_y:
-            for row_a in range((num_h - 1) // 2):
-                row_b = (num_h - 2) - row_a
-                sa = slice(row_a * (num_w - 1), (row_a + 1) * (num_w - 1))
-                sb = slice(row_b * (num_w - 1), (row_b + 1) * (num_w - 1))
-                corr[sa], corr[sb] = corr[sb].copy(), corr[sa].copy()
+    corr = {}
+    ref_corners = board.getChessboardCorners()
+    ref_corners_2d = ref_corners[:, :2]
+    # Match detected ids to expected corner order
+    for idx, id_ in enumerate(charuco_ids.flatten()):
+        detected_corner = charuco_corners[idx].flatten()
+        distances = np.linalg.norm(ref_corners_2d - detected_corner, axis=1)
+        ref_id = int(np.argmin(distances))
+        corr[id_] = ref_id
 
-        logger.debug(
-            f"Computed Charuco correlation map:\n"
-            f" - Shape: {corr.shape},\n"
-            f" - First remapped IDs: {corr[:min(28, len(corr))].tolist()}"
-        )
-        return corr
-
-    except Exception as exc:
-        logger.error(f"Failed to compute Charuco correlation map: {exc}")
-        ErrorTracker.report(exc)
-        return np.arange(
-            (board.getChessboardSize()[0] - 1) * (board.getChessboardSize()[1] - 1)
-        )
+    return corr
 
 
 def detect_charuco(
@@ -228,54 +222,77 @@ def detect_charuco(
     visualize: bool = False,
 ) -> Optional[Detection]:
     """
-    Detect Charuco board corners with optional ID remapping and visualization.
-
-    Returns:
-        Detection: corners, object points, remapped IDs
+    Detect Charuco board corners using detectMarkers + interpolateCornersCharuco.
+    Optionally remaps IDs and shows visualization.
     """
     try:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         board = cfg.create()
-        detector_params = cv2.aruco.CharucoParameters()
-        detector = cv2.aruco.CharucoDetector(board, detector_params)
-        corners, ids, marker_corners, marker_ids = detector.detectBoard(gray)
+        dictionary = cfg.dictionary
 
-        if corners is None or ids is None or len(ids) < 4:
-            logger.debug("Charuco board not found")
+        # Step 1: Detect ArUco markers
+        detector_params = cv2.aruco.DetectorParameters()
+        corners, ids, _ = cv2.aruco.detectMarkers(
+            gray, dictionary, parameters=detector_params
+        )
+
+        if ids is None or len(ids) == 0:
+            logger.debug("No ArUco markers detected")
             return None
 
+        # Step 2: Interpolate Charuco corners
+        retval, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
+            markerCorners=corners,
+            markerIds=ids,
+            image=gray,
+            board=board,
+        )
+
+        if (
+            not retval
+            or charuco_corners is None
+            or charuco_ids is None
+            or len(charuco_corners) < 4
+        ):
+            logger.debug("Charuco board interpolation failed or not enough corners")
+            return None
+
+        # Step 3: Remap IDs (if requested)
         key = (
             cfg.squares,
             cfg.square_size,
             cfg.marker_size,
-            tuple(cfg.dictionary.bytesList.flatten()),
+            tuple(dictionary.bytesList.flatten()),
         )
 
         if key not in _CHARUCO_CACHE:
-            corr = _compute_corr_map(board, detector)
+            corr = _compute_corr_map(board)
             _CHARUCO_CACHE[key] = corr
         else:
             corr = _CHARUCO_CACHE[key]
 
-        ids_remapped = np.array([[corr[idx[0]]] for idx in ids], dtype=np.int32)
-
-        logger.debug(
-            f"Remapping Charuco IDs: {ids.flatten().tolist()} → {ids_remapped.flatten().tolist()}"
-        )
+        ids_remapped = np.array([[corr[idx[0]]] for idx in charuco_ids], dtype=np.int32)
 
         obj_points = board.getChessboardCorners()[ids_remapped.flatten()].copy()
 
+        logger.debug(f"Charuco IDs: {charuco_ids.ravel().tolist()}")
+        logger.debug(f"Remapped IDs: {ids_remapped.ravel().tolist()}")
         logger.debug(
-            f"Charuco corners sample: {corners.reshape(-1, 2)[:2].tolist()}"
+            f"Charuco corners sample: {charuco_corners.reshape(-1, 2)[:2].tolist()}"
         )
 
         if visualize:
-            vis = draw_charuco(img, corners, ids_remapped, marker_corners, marker_ids)
-            cv2.imshow("Charuco Detection", vis)
-            cv2.waitKey(1)
+            vis_img = cv2.aruco.drawDetectedMarkers(img.copy(), corners, ids)
+            vis_img = cv2.aruco.drawDetectedCornersCharuco(
+                vis_img, charuco_corners, charuco_ids
+            )
+            cv2.imshow("Charuco Detection", cv2.resize(vis_img, (1280, 720)))
+            cv2.waitKey(0)
 
         return Detection(
-            corners, obj_points, ids_remapped if enforce_ascending_ids else ids
+            corners=charuco_corners,
+            obj_points=obj_points,
+            ids=charuco_ids,
         )
 
     except Exception as exc:

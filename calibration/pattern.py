@@ -167,9 +167,7 @@ class ArucoPattern(CalibrationPattern):
         R, _ = cv2.Rodrigues(rvec[0])
         if detection.object_points is not None:
             pts = (R @ detection.object_points[:2].T).T + tvec[0].reshape(3)
-            self.logger.debug(
-                f"Aruco transformed points sample: {pts.tolist()}"
-            )
+            self.logger.debug(f"Aruco transformed points sample: {pts.tolist()}")
         return R, tvec[0].reshape(3)
 
 
@@ -241,14 +239,19 @@ class CharucoPattern(CalibrationPattern):
         try:
             corners = [d.corners for d in self.detections]
             ids = [d.ids for d in self.detections]
+            if not corners or not ids:
+                raise RuntimeError("No valid Charuco detections collected")
+            K_init = np.eye(3, dtype=np.float64)
+            dist_init = np.zeros((5, 1), dtype=np.float64)
             ret, K, dist, rvecs, tvecs = cv2.aruco.calibrateCameraCharuco(
-                corners,
-                ids,
-                self.board,
-                image_size,
-                None,
-                None,
+                charucoCorners=corners,
+                charucoIds=ids,
+                board=self.board,
+                imageSize=image_size,
+                cameraMatrix=K_init,
+                distCoeffs=dist_init,
             )
+
             errors: List[float] = []
             obj_points = [d.object_points for d in self.detections]
             for objp, imgp, rv, tv in zip(obj_points, corners, rvecs, tvecs):
@@ -263,6 +266,7 @@ class CharucoPattern(CalibrationPattern):
             raise
         finally:
             self.clear()
+
 
     def estimate_pose(
         self, detection: PatternDetection, K: np.ndarray, dist: np.ndarray
