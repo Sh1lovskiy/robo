@@ -13,6 +13,11 @@ from utils.keyboard import GlobalKeyListener
 from utils.logger import Logger
 
 logger = Logger.get_logger("calibration.detector")
+np.set_printoptions(
+    suppress=True,
+    precision=6,
+    linewidth=200,
+)
 
 
 @dataclass(frozen=True)

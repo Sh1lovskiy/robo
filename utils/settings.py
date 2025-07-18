@@ -67,9 +67,9 @@ class LoggingCfg:
     json: bool = True
     log_dir: Path = Path(".logs")
     log_format: str = (
-        "<green>{time:YYYY-MM-DD HH:mm:ss}</green>"
-        "[<level>{level}</level>]"
-        "[<cyan>{file}</cyan>:<cyan>{line}</cyan>]"
+        "<green>{time:MM-DD HH:mm:ss}</green>"
+        "[<level>{level:.3}</level>]"
+        "[<cyan>{extra[module]:.16}</cyan>:<cyan>{line:<3}</cyan>]"
         "<level>{message}</level>"
     )
     log_file_format: str = "{time:YYYY-MM-DD HH:mm:ss}[{level}][{file}:{line}]{message}"
