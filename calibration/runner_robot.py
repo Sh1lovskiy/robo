@@ -27,19 +27,59 @@ class RobotRunner:
     def generate_grid(self) -> list[list[float]]:
         (x_min, x_max), (y_min, y_max), (z_min, z_max) = grid_calib.workspace_limits
         step = grid_calib.grid_step
-
         poses = []
         for x in np.arange(x_min, x_max, step):
             for y in np.arange(y_min, y_max, step):
                 for z in np.arange(z_min, z_max, step):
                     base_orient = list(grid_calib.tool_orientation)
-                    axis = random.randint(0, 2)
-                    angle = random.uniform(-25, 25)
+                    n_axes = random.choice([1, 2, 3])
+                    axes = random.sample([0, 1, 2], k=n_axes)
                     orient = base_orient.copy()
-                    orient[axis] += float(angle)
+                    for axis in axes:
+                        angle = random.uniform(-25, 25)
+                        orient[axis] += float(angle)
                     pose = [float(x), float(y), float(z), *orient]
                     poses.append(pose)
-        self.logger.debug(f"Generated {len(poses)} grid poses with random tilt")
+        self.logger.debug(
+            f"Generated {len(poses)} grid poses with random multi-axis tilt"
+        )
+        return poses
+
+    def generate_oriented_grid(
+        self,
+        n_poses_per_point: int = 3,
+        rx_base: float = 180.0,
+        ry_base: float = 0.0,
+        rz_base: float = 180.0,
+        rx_range: float = 20.0,
+        ry_range: float = 30.0,
+        rz_range: float = 30.0,
+        randomize: bool = True,
+        seed: int = 42,
+    ) -> list[list[float]]:
+        """Generate grid points with randomized orientations around a base."""
+        (x_min, x_max), (y_min, y_max), (z_min, z_max) = grid_calib.workspace_limits
+        step = grid_calib.grid_step
+
+        rng = np.random.default_rng(seed)
+        poses = []
+        for x in np.arange(x_min, x_max, step):
+            for y in np.arange(y_min, y_max, step):
+                for z in np.arange(z_min, z_max, step):
+                    for _ in range(n_poses_per_point):
+                        if randomize:
+                            rx = rx_base + rng.uniform(-rx_range, rx_range)
+                            ry = ry_base + rng.uniform(-ry_range, ry_range)
+                            rz = rz_base + rng.uniform(-rz_range, rz_range)
+                        else:
+                            rx, ry, rz = rx_base, ry_base, rz_base
+                        pose = [float(x), float(y), float(z), rx, ry, rz]
+                        poses.append(pose)
+        self.logger.debug(
+            f"Generated {len(poses)} grid poses with randomized orientations: "
+            f"base=({rx_base},{ry_base},{rz_base}), "
+            f"range=({rx_range},{ry_range},{rz_range})"
+        )
         return poses
 
     def save_poses(self, poses: List[List[float]]) -> Path:
