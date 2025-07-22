@@ -33,7 +33,11 @@ class DataCollector:
         self.logger.info("Collecting hand-eye data")
 
         # Generate and save grid
-        grid_poses = self.robot.generate_oriented_grid()
+        grid_poses = self.robot.generate_oriented_grid(
+            rx_range=15.0,
+            ry_range=15.0,
+            rz_range=15.0,
+        )
         grid_file = self.robot.save_poses(grid_poses)
         # TODO check json save path
         if not grid_file.exists():
@@ -50,7 +54,7 @@ class DataCollector:
 
         images: List[Path] = []
         collected_poses: List[List[float]] = []
-        out_dir = paths.CAPTURES_DIR / f"handeye_{timestamp()}"
+        out_dir = paths.CAPTURES_DIR
         out_dir.mkdir(parents=True, exist_ok=True)
 
         try:
@@ -97,11 +101,11 @@ class DataCollector:
             return
         # self.robot.controller.wait_motion_done()
         pose = self.robot.controller.get_tcp_pose()
-        time.sleep(0.5)
+        time.sleep(1.5)
         # if pose is None:
         #     self.logger.error("Pose read failed")
         #     return
-        color, depth = self.camera.camera.get_frames()
+        color, depth = self.camera.camera.get_frames(aligned=True)
         if color is None:
             self.logger.error("Image capture failed")
             return
