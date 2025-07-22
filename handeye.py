@@ -36,12 +36,12 @@ MARKER_LEN = 0.026  # length of ArUco markers [meters]
 # --- Depth/Overlay/Logging Parameters ---
 VERBOSE = True
 OVERLAY_ENABLED = True  # corner viz
-DISABLE_DEPTH_Z = False  # if True, disables use of depth for 3D
+DISABLE_DEPTH_Z = True  # if True, disables use of depth for 3D
 DEPTH_SCALE = 0.0010000000474974513  # multiply raw depth values to get meters
-WINDOW_SIZE = 66  # median window for local depth filtering [pxls]
+WINDOW_SIZE = 1  # median window for local depth filtering [pxls]
 
-POSE_ORTHO_TOL = 1e-2  # tolerance for orthogonality in rotation validation
-POSE_DET_TOL = 1e-2  # tolerance for determinant in rotation validation
+POSE_ORTHO_TOL = 1e-7  # tolerance for orthogonality in rotation validation
+POSE_DET_TOL = 1e-7  # tolerance for determinant in rotation validation
 MIN_ROT_ELEM = 1e-20  # min abs value for elements in a rotation validation
 
 CORNER_RADIUS = 7  # Overlay circle radius [pxls]
@@ -169,7 +169,7 @@ def load_robot_poses(json_path: Path) -> List[np.ndarray]:
     poses = []
     for idx, v in enumerate(data.values()):
         x, y, z, rx, ry, rz = v["tcp_coords"]  # Position (mm), orientation (deg)
-        t = np.array([x, y, z], dtype=float) / 1000.0  # Convert mm → meters
+        t = np.array([x, y, z], dtype=float) / 1000.0  # Convert mm -> meters
         # Convert extrinsic Euler angles (xyz, degrees) to rotation matrix
         Rmat = R.from_euler("xyz", [rx, ry, rz], degrees=True).as_matrix()
         # Compose 4x4 homogeneous transform: T_base_tcp
@@ -285,6 +285,36 @@ def project_rgb_to_depth(
     return np.array(out, dtype=np.float64)
 
 
+def backproject_rgb_corners_to_3d_aligned(
+    corners: np.ndarray,
+    depth_map: np.ndarray,
+    K_rgb: np.ndarray,
+    depth_scale: float,
+    window: int = 1,
+) -> np.ndarray:
+    """
+    Backproject Charuco corners to 3D using aligned depth (RGB and depth are pixel-wise aligned).
+    Returns (M,3) points in RGB camera frame (meters).
+    """
+    K_inv = np.linalg.inv(K_rgb)
+    points_3d = []
+    half = window // 2
+    h, w = depth_map.shape[:2]
+    for i, (u, v) in enumerate(corners):
+        u_int, v_int = int(round(u)), int(round(v))
+        u1, u2 = max(0, u_int - half), min(w, u_int + half + 1)
+        v1, v2 = max(0, v_int - half), min(h, v_int + half + 1)
+        win = depth_map[v1:v2, u1:u2]
+        vals = win[(win > 0) & np.isfinite(win)]
+        if vals.size == 0:
+            continue
+        z = float(np.median(vals)) * depth_scale
+        pt_h = np.array([u, v, 1.0], dtype=np.float64)
+        xyz = z * K_inv @ pt_h
+        points_3d.append(xyz)
+    return np.array(points_3d, dtype=np.float64)
+
+
 def backproject_rgb_corners_to_3d(
     corners: np.ndarray,
     depth_map: np.ndarray,
@@ -299,7 +329,7 @@ def backproject_rgb_corners_to_3d(
     and backproject to a 3D point in the RGB camera frame (right-handed, meters).
 
     Math/steps:
-      1. RGB px (u,v) -> normalized ray in RGB cam frame (using K_rgb^(-1))
+      1. RGB px (u, v) -> normalized ray in RGB cam frame (using K_rgb^(-1))
       2. Transform ray to depth camera: X_depth = R * ray_rgb + t
       3. Project to depth image, get (u_d, v_d) px
       4. Median depth in window -> Z [meters]
@@ -320,8 +350,8 @@ def backproject_rgb_corners_to_3d(
         pt_rgb = np.array([u, v, 1.0], dtype=np.float64)
         ray_rgb = K_rgb_inv @ pt_rgb
         ray_depth = R @ ray_rgb + t
-        ray_depth /= ray_depth[2]
-        pt_depth = K_depth @ ray_depth
+        ray_rgb /= ray_rgb[2]
+        pt_depth = K_depth @ ray_rgb
         u_d, v_d = int(pt_depth[0]), int(pt_depth[1])
         # ensure window is inside image
         u1, u2 = max(0, u_d - half), min(w, u_d + half + 1)
@@ -337,13 +367,13 @@ def backproject_rgb_corners_to_3d(
         # backproject depth image pixel to 3D (in depth camera frame)
         X = (pt_depth[0] - K_depth[0, 2]) * Z / K_depth[0, 0]
         Y = (pt_depth[1] - K_depth[1, 2]) * Z / K_depth[1, 1]
-        pt_depth_3d = np.array([X, Y, Z], dtype=np.float64)
+        pt_rgb_3d = np.array([X, Y, Z], dtype=np.float64)
         # transform back to RGB camera frame (inverse extrinsics)
-        pt_rgb_3d = R.T @ (pt_depth_3d - t)
+        # pt_rgb_3d = R.T @ (pt_depth_3d - t)
         if VERBOSE:
             log.debug(
                 f"[backproj][pt#{i}] RGB ({u:.1f},{v:.1f}) -> Depth px ({u_d},{v_d}), Z={Z:.3f} m, "
-                f"Depth3D: {pt_depth_3d}, RGB3D: {pt_rgb_3d}"
+                # f"Depth3D: {pt_depth_3d}, RGB3D: {pt_rgb_3d}"
             )
         points_3d.append(pt_rgb_3d)
     return np.array(points_3d, dtype=np.float64)
@@ -679,6 +709,33 @@ def filter_pose_pairs(
     return robot_T_final, target_T_final, reason_stats
 
 
+def analyze_board_surface(obj_pts: np.ndarray, pts_3d: np.ndarray) -> dict:
+    """
+    Оценка качества облака точек доски:
+    - RMS-отклонение от наилучшей плоскости
+    - Максимальное отклонение
+    - Средняя глубина (по Z)
+    """
+    if pts_3d.shape[0] < 3:
+        return {
+            "rms_plane": float("nan"),
+            "max_dev": float("nan"),
+            "mean_z": float("nan"),
+        }
+    # центрируем
+    xyz = pts_3d - np.mean(pts_3d, axis=0)
+    _, _, vh = np.linalg.svd(xyz)
+    normal = vh[-1]
+    dists = np.dot(xyz, normal)
+    rms_plane = np.sqrt(np.mean(dists**2))
+    max_dev = np.max(np.abs(dists))
+    return {
+        "rms_plane": float(rms_plane),
+        "max_dev": float(max_dev),
+        "mean_z": float(np.mean(pts_3d[:, 2])),
+    }
+
+
 # =============================================================================
 # 8. MAIN EXECUTION PIPELINE
 # =============================================================================
@@ -701,6 +758,10 @@ if __name__ == "__main__":
         BOARD_SIZE, SQUARE_LEN, MARKER_LEN, CHARUCO_DICT
     )
     log_versions_and_config(board)
+    import matplotlib.pyplot as plt
+
+    depth_dir = IMG_DIR.parent / "depth"
+    depth_dir.mkdir(exist_ok=True)
 
     # [3] Dataset loading (image/pose pairs)
     pairs = load_image_pairs(IMG_DIR)
@@ -710,122 +771,129 @@ if __name__ == "__main__":
 
     # [4] Corner detection, 3D/2D pairing, pose estimation
     n_mismatch = n_too_few = n_pnp_fail = n_rot_bad = 0
-    target_T: List[np.ndarray] = []
-    obj_pts_list: List[np.ndarray] = []
-    img_pts_list: List[np.ndarray] = []
-
+    target_T, obj_pts_list, img_pts_list = [], [], []
+    surf_stats_list = []
     for idx, (rgb_file, depth_file) in enumerate(pairs):
         img = cv2.imread(str(rgb_file))
         depth = np.load(depth_file)
         detection = detect_charuco_corners(img, board, detector)
         if detection is None:
-            if VERBOSE:
-                log.info(f"[main][{rgb_file.name}] Charuco detection failed.")
             continue
         img_pts, ids = detection
-        obj_pts = board.getChessboardCorners()[ids]
+        obj_pts = board.getChessboardCorners()[ids]  # (N,3) — board frame
         if DISABLE_DEPTH_Z:
             pts_3d = obj_pts
         else:
-            overlay_corners(
-                img,
-                img_pts,
-                ids,
-                "crn",
-                overlay_dir / f"{rgb_file.stem}_rgb.png",
-                is_depth=False,
+            pts_3d = backproject_rgb_corners_to_3d_aligned(
+                corners=img_pts, depth_map=depth, K_rgb=K_rgb, depth_scale=DEPTH_SCALE
             )
-            # for visual control
-            proj_pts = project_rgb_to_depth(img_pts, K_rgb, K_depth, rgb_to_depth)
-            # just draw dots with their cords on depth frames,
-            # without calculating/finding corresponding depth values
-            overlay_corners(
-                None,
-                proj_pts,
-                ids,
-                "crn",
-                overlay_dir / f"{rgb_file.stem}_depth.png",
-                is_depth=True,
-                depth_map=depth,
-            )
-            # for working with 3D coords below
-            pts_3d = backproject_rgb_corners_to_3d(
-                img_pts, depth, K_rgb, K_depth, rgb_to_depth, DEPTH_SCALE
-            )
-        if pts_3d.shape[0] != obj_pts.shape[0]:
-            n_mismatch += 1
-            if VERBOSE:
-                log.info(
-                    f"[main][{rgb_file.name}] 3D/2D mismatch: {pts_3d.shape[0]} vs {obj_pts.shape[0]}"
-                )
+        if pts_3d.shape[0] != obj_pts.shape[0] or pts_3d.shape[0] < 6:
             continue
-        if pts_3d.shape[0] < 6:
-            n_too_few += 1
-            if VERBOSE:
-                log.info(
-                    f"[main][{rgb_file.name}] Too few valid 3D points: {pts_3d.shape[0]}"
-                )
-            continue
+        # PnP: object (board frame), image pts, K, dist
+        stats = analyze_board_surface(obj_pts, pts_3d)
+        surf_stats_list.append(stats)
+        log.info(
+            f"[surface][{rgb_file.name}] RMS_plane={stats['rms_plane']:.5f} m, "
+            f"max_dev={stats['max_dev']:.5f} m, mean_z={stats['mean_z']:.5f} m"
+        )
         pose = estimate_pose_pnp(obj_pts, img_pts, K_rgb, dist_rgb)
-        if pose is None:
-            n_pnp_fail += 1
-            continue
-        if not is_valid_pose(pose):
-            n_rot_bad += 1
-            if VERBOSE:
-                log.info(f"[main][{rgb_file.name}] Invalid rotation in estimated pose.")
+        if pose is None or not is_valid_pose(pose):
             continue
         target_T.append(pose)
         obj_pts_list.append(obj_pts)
         img_pts_list.append(img_pts)
 
-    # [5] Filtering and pair matching
     robot_T_final, target_T_final, reason_stats = filter_pose_pairs(
         robot_T[: len(target_T)], target_T
     )
-    n_total = len(robot_T[: len(target_T)])
-    n_valid = len(robot_T_final)
-    n_dropped = n_total - n_valid
-    log.info(
-        f"Final pose pair count: {n_valid} valid / {n_total} total ({n_valid / n_total * 100:.1f}%)"
-    )
-    if n_dropped > 0:
-        log.info("Drop reasons (by count):")
-        for reason, count in sorted(reason_stats.items(), key=lambda x: -x[1]):
-            percent = count / n_dropped * 100 if n_dropped else 0
-            log.info(f"  - {reason:<18}: {count:3d} ({percent:5.1f}%)")
+    obj_pts_list_final = obj_pts_list[: len(target_T_final)]
+    img_pts_list_final = img_pts_list[: len(target_T_final)]
 
-    # [6] Metrics and error reporting
     mean_repr_err = compute_mean_reprojection_error(
-        target_T_final, obj_pts_list[:n_valid], img_pts_list[:n_valid], K_rgb, dist_rgb
+        target_T_final, obj_pts_list_final, img_pts_list_final, K_rgb, dist_rgb
     )
     log.info(f"Mean PnP reprojection error: {mean_repr_err:.4f} px")
+
     results: Dict[str, Any] = {
-        "num_valid_pairs": n_valid,
-        "num_total_pairs": n_total,
+        # "num_valid_pairs": n_valid,
+        # "num_total_pairs": n_total,
+        "mean_reprojection_error_px": mean_repr_err,
+    }
+    assert (
+        len(robot_T_final)
+        == len(target_T_final)
+        == len(obj_pts_list_final)
+        == len(img_pts_list_final)
+    )
+    if len(target_T_final) < 3:
+        log.error("Not enough valid pairs for hand-eye calibration")
+        sys.exit(1)
+    for i, (T_r, T_t) in enumerate(zip(robot_T_final, target_T_final)):
+        d_r = np.linalg.det(T_r[:3, :3])
+        d_t = np.linalg.det(T_t[:3, :3])
+        print(
+            f"{i}: det robot={d_r:.6f}, det target={d_t:.6f}, finite robot={np.isfinite(T_r).all()}, finite target={np.isfinite(T_t).all()}"
+        )
+
+    # [7] Hand-eye calibration and error summary
+    # if n_valid >= 3:
+    solutions = run_handeye_calibration(robot_T_final, target_T_final)
+    summary = compute_handeye_errors(robot_T_final, target_T_final, solutions)
+    log.info("Hand-eye calibration error summary (all methods):")
+    log.info("Method     |  T. RMSE [m]  |  R. RMSE [deg]")
+    log.info("-----------|---------------|----------------")
+    for n, t_err, r_err in summary:
+        log.info(f"{n:<10} |  {t_err:>10.6f}   |  {r_err:>13.4f}")
+    results["handeye_solutions"] = {
+        n: {
+            "R": solutions[n][0].tolist(),
+            "t": solutions[n][1].flatten().tolist(),
+            "t_rmse_m": t_err,
+            "r_rmse_deg": r_err,
+        }
+        for n, t_err, r_err in summary
+    }
+    # else:
+    #     log.error("Insufficient valid pose pairs for hand-eye calibration (need >2).")
+
+    # [8] Output YAML
+    save_yaml(IMG_DIR.parent / "handeye_res.yaml", results)
+
+    if len(target_T_final) < 3:
+        log.error("Not enough valid pairs for hand-eye calibration")
+        sys.exit(1)
+
+    mean_repr_err = compute_mean_reprojection_error(
+        target_T_final, obj_pts_list_final, img_pts_list_final, K_rgb, dist_rgb
+    )
+    log.info(f"Mean PnP reprojection error: {mean_repr_err:.4f} px")
+
+    results: Dict[str, Any] = {
+        # "num_valid_pairs": n_valid,
+        # "num_total_pairs": n_total,
         "mean_reprojection_error_px": mean_repr_err,
     }
 
     # [7] Hand-eye calibration and error summary
-    if n_valid >= 3:
-        solutions = run_handeye_calibration(robot_T_final, target_T_final)
-        summary = compute_handeye_errors(robot_T_final, target_T_final, solutions)
-        log.info("Hand-eye calibration error summary (all methods):")
-        log.info("Method     |  T. RMSE [m]  |  R. RMSE [deg]")
-        log.info("-----------|---------------|----------------")
-        for n, t_err, r_err in summary:
-            log.info(f"{n:<10} |  {t_err:>10.6f}   |  {r_err:>13.4f}")
-        results["handeye_solutions"] = {
-            n: {
-                "R": solutions[n][0].tolist(),
-                "t": solutions[n][1].flatten().tolist(),
-                "t_rmse_m": t_err,
-                "r_rmse_deg": r_err,
-            }
-            for n, t_err, r_err in summary
+    # if n_valid >= 3:
+    solutions = run_handeye_calibration(robot_T_final, target_T_final)
+    summary = compute_handeye_errors(robot_T_final, target_T_final, solutions)
+    log.info("Hand-eye calibration error summary (all methods):")
+    log.info("Method     |  T. RMSE [m]  |  R. RMSE [deg]")
+    log.info("-----------|---------------|----------------")
+    for n, t_err, r_err in summary:
+        log.info(f"{n:<10} |  {t_err:>10.6f}   |  {r_err:>13.4f}")
+    results["handeye_solutions"] = {
+        n: {
+            "R": solutions[n][0].tolist(),
+            "t": solutions[n][1].flatten().tolist(),
+            "t_rmse_m": t_err,
+            "r_rmse_deg": r_err,
         }
-    else:
-        log.error("Insufficient valid pose pairs for hand-eye calibration (need >2).")
+        for n, t_err, r_err in summary
+    }
+    # else:
+    #     log.error("Insufficient valid pose pairs for hand-eye calibration (need >2).")
 
     # [8] Output YAML
     save_yaml(IMG_DIR.parent / "handeye_res.yaml", results)

@@ -33,7 +33,7 @@ class DataCollector:
         self.logger.info("Collecting hand-eye data")
 
         # Generate and save grid
-        grid_poses = self.robot.generate_grid()
+        grid_poses = self.robot.generate_oriented_grid()
         grid_file = self.robot.save_poses(grid_poses)
         # TODO check json save path
         if not grid_file.exists():
