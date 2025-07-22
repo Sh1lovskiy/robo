@@ -29,15 +29,15 @@ POSES_JSON_PATTERN = "*.json"  # pattern for robot TCP pose logs (per image set)
 
 # --- Charuco Board Geometry ---
 CHARUCO_DICT = "DICT_5X5_100"  # Charuco dictionary name for ArUco detection
-BOARD_SIZE = (8, 5)  # (columns, rows) of internal chessboard
-SQUARE_LEN = 0.035  # length of board squares [meters]
-MARKER_LEN = 0.026  # length of ArUco markers [meters]
+BOARD_SIZE = (9, 6)  # (columns, rows) of internal chessboard
+SQUARE_LEN = 0.031  # length of board squares [meters]
+MARKER_LEN = 0.023  # length of ArUco markers [meters]
 
 # --- Depth/Overlay/Logging Parameters ---
 VERBOSE = True
 OVERLAY_ENABLED = True  # corner viz
 DISABLE_DEPTH_Z = True  # if True, disables use of depth for 3D
-DEPTH_SCALE = 0.0010000000474974513  # multiply raw depth values to get meters
+# DEPTH_SCALE = 0.0010000000474974513  # multiply raw depth values to get meters
 WINDOW_SIZE = 1  # median window for local depth filtering [pxls]
 
 POSE_ORTHO_TOL = 1e-7  # tolerance for orthogonality in rotation validation
@@ -73,7 +73,6 @@ def log_versions_and_config(board: aruco.CharucoBoard) -> None:
     NumPy: {np.__version__}
     Pipeline config:
         - DISABLE_DEPTH_Z: {DISABLE_DEPTH_Z}
-        - DEPTH_SCALE: {DEPTH_SCALE}
         - OVERLAY_ENABLED: {OVERLAY_ENABLED}
         - VERBOSE: {VERBOSE}
     Charuco BOARD:
@@ -289,7 +288,7 @@ def backproject_rgb_corners_to_3d_aligned(
     corners: np.ndarray,
     depth_map: np.ndarray,
     K_rgb: np.ndarray,
-    depth_scale: float,
+    # depth_scale: float,
     window: int = 1,
 ) -> np.ndarray:
     """
@@ -308,7 +307,8 @@ def backproject_rgb_corners_to_3d_aligned(
         vals = win[(win > 0) & np.isfinite(win)]
         if vals.size == 0:
             continue
-        z = float(np.median(vals)) * depth_scale
+        # z = float(np.median(vals)) * depth_scale
+        z = float(np.median(vals))
         pt_h = np.array([u, v, 1.0], dtype=np.float64)
         xyz = z * K_inv @ pt_h
         points_3d.append(xyz)
@@ -321,7 +321,7 @@ def backproject_rgb_corners_to_3d(
     K_rgb: np.ndarray,
     K_depth: np.ndarray,
     rgb_to_depth: np.ndarray,
-    depth_scale: float,
+    # depth_scale: float,
     window: int = WINDOW_SIZE,
 ) -> np.ndarray:
     """
@@ -363,7 +363,8 @@ def backproject_rgb_corners_to_3d(
                 log.info(f"[backproj][pt#{i}] No depth: ({u_d},{v_d})")
             continue
         depth_raw = float(np.median(valid))
-        Z = depth_raw * depth_scale
+        # Z = depth_raw * depth_scale
+        Z = depth_raw
         # backproject depth image pixel to 3D (in depth camera frame)
         X = (pt_depth[0] - K_depth[0, 2]) * Z / K_depth[0, 0]
         Y = (pt_depth[1] - K_depth[1, 2]) * Z / K_depth[1, 1]
@@ -785,7 +786,7 @@ if __name__ == "__main__":
             pts_3d = obj_pts
         else:
             pts_3d = backproject_rgb_corners_to_3d_aligned(
-                corners=img_pts, depth_map=depth, K_rgb=K_rgb, depth_scale=DEPTH_SCALE
+                corners=img_pts, depth_map=depth, K_rgb=K_rgb
             )
         if pts_3d.shape[0] != obj_pts.shape[0] or pts_3d.shape[0] < 6:
             continue

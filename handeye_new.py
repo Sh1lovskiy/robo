@@ -14,7 +14,7 @@ BOARD_SIZE = (8, 5)
 SQUARE_LEN = 0.035
 MARKER_LEN = 0.026
 DISABLE_DEPTH_Z = True
-DEPTH_SCALE = 0.0010000000474974513
+# DEPTH_SCALE = 0.0010000000474974513
 VERBOSE = True
 
 log = Logger.get_logger("handeye")
@@ -79,9 +79,7 @@ def detect_charuco_corners(img, board, detector):
     return char_corners.squeeze(1), char_ids.flatten()
 
 
-def backproject_rgb_corners_to_3d_aligned(
-    corners, depth_map, K_rgb, depth_scale, window=1
-):
+def backproject_rgb_corners_to_3d_aligned(corners, depth_map, K_rgb, window=1):
     K_inv = np.linalg.inv(K_rgb)
     points_3d = []
     half = window // 2
@@ -94,7 +92,8 @@ def backproject_rgb_corners_to_3d_aligned(
         vals = win[(win > 0) & np.isfinite(win)]
         if vals.size == 0:
             continue
-        z = float(np.median(vals)) * depth_scale
+        # z = float(np.median(vals)) * depth_scale
+        z = float(np.median(vals))
         pt_h = np.array([u, v, 1.0], float)
         xyz = z * K_inv @ pt_h
         points_3d.append(xyz)
@@ -377,9 +376,7 @@ if __name__ == "__main__":
         if DISABLE_DEPTH_Z:
             pts_3d = obj_pts
         else:
-            pts_3d = backproject_rgb_corners_to_3d_aligned(
-                img_pts, depth, K_rgb, DEPTH_SCALE
-            )
+            pts_3d = backproject_rgb_corners_to_3d_aligned(img_pts, depth, K_rgb)
         if pts_3d.shape[0] != obj_pts.shape[0] or pts_3d.shape[0] < 6:
             continue
         target_T.append(estimate_pose_pnp(obj_pts, img_pts, K_rgb, dist_rgb))

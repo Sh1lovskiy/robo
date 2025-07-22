@@ -121,9 +121,9 @@ class CharucoDefaults:
     - dictionary: OpenCV dictionary constant
     """
 
-    squares: tuple[int, int] = (8, 5)
-    square_size: float = 0.035
-    marker_size: float = 0.026
+    squares: tuple[int, int] = (9, 6)
+    square_size: float = 0.031
+    marker_size: float = 0.023
     dictionary: int = cv2.aruco.DICT_5X5_100
 
 
@@ -139,9 +139,9 @@ class HandEyeCfg:
     min corners, input/output paths, etc.
     """
 
-    square_numbers: tuple[int, int] = (5, 8)
-    square_length: float = 0.035
-    marker_length: float = 0.026
+    square_numbers: tuple[int, int] = (9, 6)
+    square_length: float = 0.031
+    marker_length: float = 0.023
     CHARUCO_DICT_MAP = {
         "5X5_50": cv2.aruco.DICT_5X5_50,
         "5X5_100": cv2.aruco.DICT_5X5_100,
@@ -177,7 +177,7 @@ class GridCalibCfg:
         (-250.0, -130.0),  # Y, mm
         (300.0, 400.0),  # Z, mm
     )
-    grid_step: float = 50.0
+    grid_step: float = 40.0
     tool_orientation: tuple[float, float, float] = (180.0, 0.0, 180.0)
     charuco_xml: str = str(paths.CAMERA_INTR / "charuco_cam.xml")
     calib_output_dir: str = str(paths.RESULTS_DIR)
@@ -231,6 +231,8 @@ class D415_Cfg:
     - alignment mode
     """
 
+    # rgb_width: int = 1920
+    # rgb_height: int = 1080
     rgb_width: int = 1280
     rgb_height: int = 720
     depth_width: int = 1280

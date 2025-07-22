@@ -29,7 +29,7 @@ class D415CameraSettings:
 class D415FilterConfig:
     """RealSense post-processing options."""
 
-    decimation: int = 100
+    decimation: int = 1
     spatial_alpha: float = 0.5
     spatial_delta: int = 20
     temporal_alpha: float = 0.4
@@ -114,7 +114,16 @@ class RealSenseD415(CameraBase):
         self.profile = self.pipeline.start(config)
         device = self.profile.get_device()
         sensors = {s.get_info(rs.camera_info.name): s for s in device.sensors}
-        self.depth_sensor = sensors.get("Stereo Module")
+        sensor = sensors.get("Stereo Module")
+        if sensor is None:
+            raise RuntimeError("Stereo Module (depth sensor) not found")
+
+        if not sensor.supports(rs.option.depth_units):
+            raise RuntimeError(
+                "Sensor does not support depth_units (not a depth sensor?)"
+            )
+
+        self.depth_sensor = sensor.as_depth_sensor()
         self.rgb_sensor = sensors.get("RGB Camera")
         if self.depth_sensor is None or self.rgb_sensor is None:
             raise RuntimeError("Required sensors not found")
@@ -123,6 +132,11 @@ class RealSenseD415(CameraBase):
         self.logger.info(f"Depth scale: {self.depth_scale:.6f} m/unit")
         if self.stream_cfg.align_to_color:
             self.align = rs.align(rs.stream.color)
+            self.logger.info("Depth frames will be aligned to color")
+        else:
+            self.align = None
+            self.logger.info("No alignment between depth and color")
+
         self._log_device_info(device)
         self._setup_filters()
         self.started = True
@@ -190,20 +204,51 @@ class RealSenseD415(CameraBase):
         return frame
 
     def get_frames(
-        self, aligned: bool = True
+        self, aligned: bool = True, as_float: bool = True
     ) -> Tuple[np.ndarray | None, np.ndarray | None]:
-        """Return the next color and depth frame pair."""
+        """Return the next color and depth frame pair.
 
+        Parameters
+        ----------
+        aligned : bool
+            If True, depth will be aligned to color.
+        as_float : bool
+            If True, depth will be returned in meters using depth_scale.
+
+        Returns
+        -------
+        color_img : np.ndarray or None
+            The RGB image (BGR format).
+        depth_img : np.ndarray or None
+            The depth map (aligned if specified). In meters if as_float=True.
+        """
         assert self.started, "Camera not started"
+        if aligned and not self.stream_cfg.align_to_color:
+            raise RuntimeError(
+                "get_frames(aligned=True) is invalid because align_to_color=False"
+            )
+
         frames = self.pipeline.wait_for_frames()
         if aligned and self.align:
             frames = self.align.process(frames)
-        depth = frames.get_depth_frame()
-        color = frames.get_color_frame()
-        if depth:
-            depth = self._process_depth(depth)
-        color_img = np.asanyarray(color.get_data()) if color else None
-        depth_img = np.asanyarray(depth.get_data()) if depth else None
+
+        depth_frame = frames.get_depth_frame()
+        color_frame = frames.get_color_frame()
+
+        if not depth_frame or not color_frame:
+            return None, None
+
+        depth_frame = self._process_depth(depth_frame)
+        color_img = np.asanyarray(color_frame.get_data())
+        depth_img = np.asanyarray(depth_frame.get_data())
+
+        # Convert depth to float (meters)
+        if as_float:
+            depth_img = depth_img.astype(np.float32) * self.depth_scale
+
+        if aligned and color_img.shape[:2] != depth_img.shape[:2]:
+            raise RuntimeError("Aligned depth and color resolution mismatch")
+
         return color_img, depth_img
 
 
