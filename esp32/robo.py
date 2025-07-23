@@ -8,17 +8,17 @@ PIN_LASER = 15
 
 
 class LaserController:
-    """Controls a laser connected to a digital output pin."""
+    """Controls a laser connected to a digital output pin"""
 
     def __init__(self, pin: int = PIN_LASER):
         self._laser = Pin(pin, Pin.OUT)
 
     def on(self):
-        """Turn the laser on."""
+        """Turn the laser on"""
         self._laser.value(1)
 
     def off(self):
-        """Turn the laser off."""
+        """Turn the laser off"""
         self._laser.value(0)
 
     def blink(self, count: int = 5, interval: float = 0.3):
@@ -36,7 +36,7 @@ class LaserController:
 
 
 class MotorController:
-    """Controls a stepper motor using step/direction pins."""
+    """Controls a stepper motor using step/direction pins"""
 
     def __init__(self, pul_pin: int = PIN_PUL, dir_pin: int = PIN_DIR):
         self._pul = Pin(pul_pin, Pin.OUT)
@@ -52,14 +52,14 @@ class MotorController:
         **kwargs,
     ):
         """
-        Move the stepper motor a number of steps.
+        Move the stepper motor a number of steps
 
         :param steps: Number of steps to move
         :param direction: 1 = forward, 0 = backward
         :param delay_us: Delay between step transitions
         :param invert_dir: If True, inverts direction logic
         :param pause_us: Optional delay between each pulse cycle
-        :param kwargs: Future extensibility (acceleration, etc.)
+        :param kwargs: Future extensibility
         """
         actual_dir = direction ^ invert_dir
         self._dir.value(actual_dir)
@@ -73,6 +73,5 @@ class MotorController:
                 sleep_us(pause_us)
 
 
-# Instantiate shared instances for use in REPL or remote exec
 laser = LaserController()
 motor = MotorController()
