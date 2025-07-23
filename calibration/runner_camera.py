@@ -34,7 +34,7 @@ class CameraRunner:
         try:
             self.camera.start()
             for i in range(count):
-                color, depth = self.camera.get_frames()
+                color, depth = self.camera.get_frames(as_float=True, aligned=True)
                 if color is None:
                     self.logger.error("Failed to get color frame")
                     continue

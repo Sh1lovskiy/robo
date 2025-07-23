@@ -105,7 +105,7 @@ class DataCollector:
         # if pose is None:
         #     self.logger.error("Pose read failed")
         #     return
-        color, depth = self.camera.camera.get_frames(aligned=True)
+        color, depth = self.camera.camera.get_frames(as_float=True, aligned=True)
         if color is None:
             self.logger.error("Image capture failed")
             return
