@@ -1,5 +1,5 @@
 """
-Hand-Eye Calibration Pipeline for Vision-Guided Robotics (Charuco version)
+Hand-Eye Calibration Pipeline for Vision-Guided Robotics (Charuco version, с использованием 3D-углов Charuco по depth)
 """
 
 from pathlib import Path
@@ -21,7 +21,7 @@ BOARD_SIZE = (8, 5)  # (squares_x, squares_y)
 SQUARE_LEN = 0.035  # [m]
 MARKER_LEN = 0.026  # [m]
 OVERLAY_ENABLED = True
-REPROJ_ERROR_THRESH = 1.5  # px
+REPROJ_ERROR_THRESH = 1.5  # px (not used for 3D, only for overlay)
 VERBOSE = True
 
 np.set_printoptions(suppress=True, precision=6, linewidth=200)
@@ -61,7 +61,6 @@ def overlay_charuco(img, ch_corners, ch_ids, board, out_file):
         log.debug("overlay_charuco: skip overlay (invalid corners/ids)")
         return
     vis = img.copy()
-    # opencv need (N,1,2) and (N,1)
     cc = ch_corners.reshape(-1, 1, 2).astype(np.float32)
     ci = ch_ids.reshape(-1, 1).astype(np.int32)
     cv2.aruco.drawDetectedCornersCharuco(vis, cc, ci, (0, 255, 0))
@@ -94,6 +93,10 @@ def load_image_pairs(img_dir):
     return pairs
 
 
+def load_depth_map(path):
+    return np.load(path)
+
+
 def load_robot_poses(json_file):
     with open(json_file) as f:
         data = json.load(f)
@@ -110,16 +113,92 @@ def load_robot_poses(json_file):
     return np.array(poses)
 
 
-def estimate_pose_pnp(obj_pts, img_pts, K, dist):
-    ok, rvec, tvec = cv2.solvePnP(obj_pts, img_pts, K, dist)
-    if not ok:
-        return None, np.inf
-    proj, _ = cv2.projectPoints(obj_pts, rvec, tvec, K, dist)
-    error = np.linalg.norm(proj.squeeze(1) - img_pts, axis=1)
+def deproject_pixel(K, pt2d, depth):
+    fx, fy = K[0, 0], K[1, 1]
+    cx, cy = K[0, 2], K[1, 2]
+    x, y = pt2d
+    X = (x - cx) * depth / fx
+    Y = (y - cy) * depth / fy
+    Z = depth
+    return np.array([X, Y, Z], dtype=np.float32)
+
+
+def get_depth_in_window(depth_map, x, y, win=5):
+    H, W = depth_map.shape
+    x0, x1 = max(0, x - win), min(W, x + win + 1)
+    y0, y1 = max(0, y - win), min(H, y + win + 1)
+    patch = depth_map[y0:y1, x0:x1]
+    patch = patch[np.isfinite(patch) & (patch > 0.1) & (patch < 5.0)]
+    if patch.size == 0:
+        return np.nan
+    return np.median(patch)
+
+
+def get_charuco_3d_from_depth(ch_corners, depth_map, K, win=2, outlier_thr=None):
+    pts3d = []
+    H, W = depth_map.shape
+    total = len(ch_corners)
+    valid = 0
+
+    for pt in ch_corners:
+        x, y = int(round(pt[0])), int(round(pt[1]))
+        if x < 0 or x >= W or y < 0 or y >= H:
+            pts3d.append([np.nan, np.nan, np.nan])
+            continue
+
+        x0, x1 = int(max(0, x - win)), int(min(W, x + win + 1))
+        y0, y1 = int(max(0, y - win)), int(min(H, y + win + 1))
+        patch = depth_map[y0:y1, x0:x1]
+        patch = patch[
+            (patch > 0.1)
+            & (patch < 5.0)
+            & (np.abs(patch - 65.535) > 1e-3)
+            & np.isfinite(patch)
+        ]
+        if patch.size == 0:
+            pts3d.append([np.nan, np.nan, np.nan])
+            continue
+
+        d = np.median(patch)
+        if np.isnan(d) or d < 0.1 or d > 5.0 or abs(d - 65.535) < 1e-3:
+            pts3d.append([np.nan, np.nan, np.nan])
+            continue
+
+        pt3d = deproject_pixel(K, pt, d)
+        pts3d.append(pt3d)
+        valid += 1
+
+    pts3d = np.array(pts3d, dtype=np.float32)
+
+    # Для дебага:
+    print(f"Total corners: {total}, valid 3D points: {valid}")
+
+    if outlier_thr is not None and valid > 4:
+        med = np.nanmedian(pts3d, axis=0)
+        dists = np.linalg.norm(pts3d - med, axis=1)
+        mask = (dists < outlier_thr) & np.all(np.isfinite(pts3d), axis=1)
+        pts3d[~mask] = np.nan
+
+    return pts3d
+
+
+def svd_rigid_transform(A, B):
+    assert len(A) == len(B) and len(A) >= 3
+    centroid_A = np.mean(A, axis=0)
+    centroid_B = np.mean(B, axis=0)
+    AA = A - centroid_A
+    BB = B - centroid_B
+    H = AA.T @ BB
+    U, S, Vt = np.linalg.svd(H)
+    Rmat = Vt.T @ U.T
+    if np.linalg.det(Rmat) < 0:
+        Vt[-1, :] *= -1
+        Rmat = Vt.T @ U.T
+    tvec = centroid_B - Rmat @ centroid_A
     T = np.eye(4)
-    T[:3, :3], _ = cv2.Rodrigues(rvec)
-    T[:3, 3] = tvec.ravel()
-    return T, np.mean(error)
+    T[:3, :3] = Rmat
+    T[:3, 3] = tvec
+    return T
 
 
 def calibrate_handeye(robot_T, target_T):
@@ -159,47 +238,58 @@ def main():
     log.info(f"Total image pairs found: {len(pairs)}")
     log.info(f"Total robot poses found: {len(robot_T)}")
 
-    target_T, reproj_errors, robot_Tf = [], [], []
-    detected_per_img = np.zeros(len(pairs), dtype=int)
+    target_T, robot_Tf = [], []
     num_corners = BOARD_SIZE[0] * BOARD_SIZE[1]
+    detected_per_img = np.zeros(len(pairs), dtype=int)
+    depth_scale = 1.0
 
-    for idx, (rgb_file, _) in enumerate(pairs):
+    for idx, (rgb_file, depth_file) in enumerate(pairs):
         img = cv2.imread(str(rgb_file))
+        depth = load_depth_map(depth_file)
         ch_corners, ch_ids = detect_charuco_corners(img, board, aruco_dict)
         if ch_corners is None or len(ch_corners) < 4:
             log.debug(f"[idx={idx}] Charuco: not found or <4 corners.")
             continue
         obj_pts = get_board_obj_points(ch_ids, board)
-        if obj_pts.shape[0] != ch_corners.shape[0]:
-            log.debug(f"[idx={idx}] Charuco: corner count mismatch.")
+        pts3d = get_charuco_3d_from_depth(ch_corners, depth, K_rgb, depth_scale)
+        mask = ~np.isnan(pts3d).any(axis=1)
+        if np.count_nonzero(mask) < 4:
+            log.debug(f"[idx={idx}] Charuco: <4 valid 3D points from depth.")
             continue
-        pose, err = estimate_pose_pnp(obj_pts, ch_corners, K_rgb, dist_rgb)
-        det = np.linalg.det(pose[:3, :3]) if pose is not None else 0
-        valid = pose is not None and err < REPROJ_ERROR_THRESH and det > 0.8
-        if valid:
-            target_T.append(pose)
-            robot_Tf.append(robot_T[idx])
-            reproj_errors.append(err)
-            detected_per_img[idx] = 1
-            overlay_path = IMG_DIR.parent / "over" / f"overlay_{idx:03d}.png"
-            overlay_charuco(img, ch_corners, ch_ids, board, overlay_path)
-        else:
-            log.debug(
-                f"[idx={idx}] Skipped: "
-                f"{'SolvePnP failed' if pose is None else ''} "
-                f"{'High reproj error' if err >= REPROJ_ERROR_THRESH else ''} "
-                f"{'Bad rot (det={:.3f})'.format(det) if det <= 0.8 else ''}"
-            )
+        obj_pts_valid = obj_pts[mask]
+        pts3d_valid = pts3d[mask]
+        if obj_pts_valid.shape[0] != pts3d_valid.shape[0]:
+            log.debug(f"[idx={idx}] Charuco: point count mismatch after filtering.")
+            continue
+
+        T_obj_to_cam = svd_rigid_transform(obj_pts_valid, pts3d_valid)
+        det = np.linalg.det(T_obj_to_cam[:3, :3])
+        if det < 0.8:
+            log.debug(f"[idx={idx}] Skipped: Bad rot (det={det:.3f})")
+            continue
+
+        pts3d_proj = (T_obj_to_cam[:3, :3] @ obj_pts_valid.T).T + T_obj_to_cam[:3, 3]
+        err = np.linalg.norm(pts3d_proj - pts3d_valid, axis=1)
+        mean_err = np.mean(err)
+
+        target_T.append(T_obj_to_cam)
+        robot_Tf.append(robot_T[idx])
+        detected_per_img[idx] = 1
+
+        overlay_path = IMG_DIR.parent / "over" / f"overlay_{idx:03d}.png"
+        overlay_charuco(img, ch_corners, ch_ids, board, overlay_path)
+
+        log.debug(
+            f"[idx={idx}] {obj_pts_valid.shape[0]} points, mean 3D error = {mean_err:.4f} m"
+        )
 
     num_detected = detected_per_img.sum()
     log.debug(f"Detected Charuco board in {num_detected} of {len(pairs)} images.")
     log.debug(f"Max possible corners per board: {num_corners}")
 
-    if len(reproj_errors) == 0:
+    if len(target_T) == 0:
         log.error("No valid Charuco board poses for calibration!")
         return
-    mean_reproj = float(np.mean(reproj_errors))
-    log.info(f"Mean reprojection error: {mean_reproj:.3f} px")
     if len(robot_Tf) < 3:
         log.error("Not enough valid pose pairs for hand-eye calibration.")
         return
@@ -230,7 +320,6 @@ def main():
 
     out_yaml = {
         "handeye_solutions": out_summary,
-        "mean_reprojection_error_px": mean_reproj,
         "charuco_detected": int(num_detected),
         "total_images": int(len(pairs)),
         "max_corners_per_board": int(num_corners),

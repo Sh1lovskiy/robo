@@ -32,7 +32,7 @@ class RobotController:
         self.tool_id = cfg.tool_id
         self.user_frame_id = cfg.user_frame_id
         self.velocity = cfg.velocity
-        self.logger = logger or Logger.get_logger("robot.controller")
+        self.logger = logger or Logger.get_logger("controller")
         self.robot = RPC(ip=self.ip)
         ErrorTracker.register_cleanup(self.shutdown)
 
@@ -95,7 +95,7 @@ class RobotController:
             return False
 
     def move_linear(
-        self, pose: List[float], pos_tol: float = 1.0, rot_tol: float = 2.0
+        self, pose: List[float], pos_tol: float = 1.0, rot_tol: float = 1.0
     ) -> bool:
         try:
             if self.robot.GetSafetyCode() != 0:

@@ -218,7 +218,7 @@ class CameraExtrinsics:
 
 
 # Default RealSense depth scale (meters per unit)
-DEPTH_SCALE = 0.0010000000474974513
+DEPTH_SCALE = 0.00010000000474974513
 
 
 @dataclass(frozen=True)
