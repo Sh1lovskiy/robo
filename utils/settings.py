@@ -244,7 +244,7 @@ class D415_Cfg:
     align_to_color: bool = True
 
 
-# Singleton RealSense D415 configuration
+# RealSense D415 configuration
 camera = D415_Cfg()
 
 

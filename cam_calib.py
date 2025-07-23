@@ -1,35 +1,5 @@
 """
-Charuco Stereo Calibration Module for RGB–Depth Camera Systems
-=============================================================
-
-This module provides a complete, physically-motivated pipeline for
-intrinsic and extrinsic calibration of an RGB–Depth stereo camera pair
-(Intel RealSense or similar), using a Charuco board visible to both cameras.
-
-Key Features:
--------------
-- Intrinsic calibration for both RGB and depth cameras using Charuco.
-- Stereo calibration to estimate extrinsic transformation (rotation, translation)
-  between RGB and depth camera frames, for metric 3D point mapping.
-- Depth-to-color and color-to-depth projections using extrinsics, allowing correct
-  mapping of 2D/3D points between the two modalities.
-- YAML, XML, and TXT output of all parameters for use in vision/robotics pipelines.
-- Full engineering-level docstrings and comments for all geometric and mathematical steps.
-
-Coordinate Conventions:
------------------------
-- All transformations are right-handed, units in meters.
-- Camera intrinsics: OpenCV pinhole camera model.
-- Extrinsics: R, t map points from one camera frame to another:
-    X_dst = R @ X_src + t
-  For example, to transform a point from the depth to the RGB frame,
-    X_color = R_depth2color @ X_depth + t_depth2color
-
-Required Inputs:
-----------------
-- Synchronized RGB and depth images of a Charuco board, saved as .png (color) and .npy (depth).
-- Depth maps should be metric (meters).
-- A Charuco board definition (OpenCV format).
+Charuco Stereo Calibration Module for RGB-Depth Camera Systems
 """
 
 import os
@@ -39,9 +9,9 @@ import numpy as np
 from typing import Optional, List, Tuple
 from utils.logger import Logger
 
-# =============================================================================
+
 # 1. ARUCO DICTIONARY MAP
-# =============================================================================
+
 
 DICT_MAP = {
     "4X4_50": cv2.aruco.DICT_4X4_50,
@@ -52,9 +22,8 @@ DICT_MAP = {
     "6X6_100": cv2.aruco.DICT_6X6_100,
 }
 
-# =============================================================================
+
 # 2. SAVING UTILITIES FOR CALIBRATION OUTPUT
-# =============================================================================
 
 
 def save_camera_params(filename, image_size, camera_matrix, dist_coeffs, total_avg_err):
@@ -93,9 +62,7 @@ def save_camera_params(filename, image_size, camera_matrix, dist_coeffs, total_a
     print(f"Saved calibration to {filename}")
 
 
-# =============================================================================
 # 3. CHARUCO CALIBRATOR: MONOCULAR INTRINSICS
-# =============================================================================
 
 
 class CharucoCalibrator:
@@ -205,9 +172,7 @@ class CharucoCalibrator:
         saver.save(filename, self.image_size, camera_matrix, dist_coeffs)
 
 
-# =============================================================================
 # 4. FILE SAVERS FOR OUTPUT
-# =============================================================================
 
 
 class OpenCVXmlSaver:
@@ -242,9 +207,7 @@ class TextSaver:
         print(f"Saved calibration to {filename} (TXT)")
 
 
-# =============================================================================
 # 5. CHARUCO STEREO: CORRESPONDENCES FOR STEREO CALIBRATION (EXTRINSICS)
-# =============================================================================
 
 
 def find_stereo_correspondences(
@@ -256,7 +219,7 @@ def find_stereo_correspondences(
     min_points=10,
 ) -> Tuple[list, list, list, tuple]:
     """
-    Find 3D–2D correspondences for stereo calibration.
+    Find 3D-2D correspondences for stereo calibration.
 
     For each Charuco frame, detects corners in both RGB and depth images,
     matches by ID, and returns object/image point lists for stereo calibration.
@@ -341,9 +304,7 @@ def find_stereo_correspondences(
     return objpoints_all, imgpoints_rgb, imgpoints_depth, image_size
 
 
-# =============================================================================
-# 6. STEREO CALIBRATION: RGB–DEPTH EXTRINSICS
-# =============================================================================
+# 6. STEREO CALIBRATION: RGB-DEPTH EXTRINSICS
 
 
 def stereo_calibrate(
@@ -396,9 +357,7 @@ def stereo_calibrate(
     }
 
 
-# =============================================================================
 # 7. MAIN PIPELINE: FULL INTRINSICS + EXTRINSICS CALIBRATION
-# =============================================================================
 
 
 def run_calibration(mode: str = "both"):
