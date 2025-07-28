@@ -55,11 +55,9 @@ logs/
 # -----------------
 # Calibration, clouds, patterns (for calibration), graphics and other data artifacts
 # -----------------
-calib/
-.calib_data/
-calib_data/
-.data/
-data/
+.data
+.data_calib
+.data_clouds
 
 # -----------------
 # Image/data files

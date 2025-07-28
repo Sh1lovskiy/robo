@@ -143,3 +143,21 @@ class CaptureStderrToLogger:
         # Let thread finish reading
         if self.thread:
             self.thread.join(timeout=0.2)
+
+
+class SuppressO3DInfo:
+    """Context: suppresses Open3D INFO/console help messages."""
+
+    def __enter__(self):
+        self._old_stdout = os.dup(1)
+        self._old_stderr = os.dup(2)
+        self.devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(self.devnull, 1)
+        os.dup2(self.devnull, 2)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        os.dup2(self._old_stdout, 1)
+        os.dup2(self._old_stderr, 2)
+        os.close(self.devnull)
+        os.close(self._old_stdout)
+        os.close(self._old_stderr)
