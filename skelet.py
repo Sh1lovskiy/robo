@@ -11,8 +11,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import open3d as o3d
 
+from scipy.ndimage import distance_transform_edt, label as nd_label
 from scipy.spatial import cKDTree
-from skimage.morphology import skeletonize
+from skimage.morphology import thin
+from skimage.segmentation import watershed, find_boundaries
 
 from utils.logger import Logger, SuppressO3DInfo
 
@@ -290,6 +292,23 @@ def toggle_skeletons(vis, o3d_branches, show_skeleton):
     return False
 
 
+def geodesic_skeletonization(mask):
+    # Step 1: find domain edges (design contour)
+    contour = find_boundaries(mask, mode="outer").astype(np.uint8)
+    # Step 2: find domain boundary (no load edges in OT, usually just boundary)
+    edges = cv2.Canny(mask.astype(np.uint8) * 255, 100, 200) // 255
+    # Step 3: geodesic distance from boundary
+    geo_dist = np.full_like(mask, np.inf, dtype=np.float32)
+    geo_dist[mask.astype(bool)] = distance_transform_edt(~edges)[mask.astype(bool)]
+    # Step 4: Add design contour (watershed "lake filling")
+    map2 = geo_dist + contour.astype(np.float32)
+    markers, _ = nd_label(mask)
+    map3 = watershed(map2, markers=markers, mask=mask)
+    # Step 5: Skeleton = watershed ridges (map3==0) minus outer contour
+    skeleton = thin((1 - map3 == 0).astype(np.uint8))
+    return skeleton, edges, contour, geo_dist, map2, map3
+
+
 def main():
     """
     Full pipeline: loads cloud, extracts main plane, projects to 2D,
@@ -341,7 +360,8 @@ def main():
 
     # 2D mask and skeletonization
     mask, img_xy = preprocess_mask(points, center, basis)
-    skel = skeletonize(mask)
+
+    skel, *_ = geodesic_skeletonization(mask)
     logger.info("Skeletonization complete")
     nodes = extract_nodes(skel)
     branches, node_neighbors = skeleton_branches(skel, nodes)
@@ -354,7 +374,7 @@ def main():
     graph_lineset = make_graph_lineset(node_coords_3d, branches, nodes)
 
     t1 = time.time()
-    logger.success(f"Pipeline finished in {t1-t0:.2f} s")
+    logger.success(f"Finished in {t1-t0:.2f}s")
 
     # Visualize only after all computation
     with SuppressO3DInfo():
