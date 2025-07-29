@@ -21,7 +21,6 @@ import threading
 from scipy.spatial.transform import Rotation as R
 from scipy.spatial import cKDTree
 from esp32.control import ESP32Controller
-from robot.rpc import RPC
 from utils.logger import Logger
 from skelet import run_pipeline, run_visualization
 from rectangle import (
@@ -31,7 +30,6 @@ from rectangle import (
     robot_movel,
     save_cloud_timestamped,
     transform_cloud_to_tcp,
-    get_bbox_crop,
 )
 
 

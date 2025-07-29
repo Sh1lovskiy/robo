@@ -58,6 +58,7 @@ logs/
 .data
 .data_calib
 .data_clouds
+calib/
 
 # -----------------
 # Image/data files

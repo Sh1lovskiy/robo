@@ -25,9 +25,19 @@ dependencies = [
     "lmdb",
 ]
 
+[project.optional-dependencies]
+docs = ["mkdocs", "mkdocs-material", "mkdocstrings[python]"]
+
 [tool.setuptools.package-data]
 robot = ["*.py", "*.pyx"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["robot*", "utils*", "vision*", "calibration*", "pattern*", "geometry*"]
+include = [
+    "robot*",
+    "utils*",
+    "vision*",
+    "calibration*",
+    "pattern*",
+    "geometry*",
+]
