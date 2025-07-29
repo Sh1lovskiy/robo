@@ -1,16 +1,15 @@
 """
-Extracts graph structure from a 3D point cloud plane via 2D skeletonization.
-Includes logging via project logger, time measurement, and progress bars.
+Modular pipeline for extracting graph structure from 3D point cloud planes
+via 2D skeletonization. All steps are split into independent methods.
 """
 
 import time
-from functools import partial
-
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import open3d as o3d
 
+from functools import partial
 from scipy.ndimage import distance_transform_edt, label as nd_label
 from scipy.spatial import cKDTree
 from skimage.morphology import thin
@@ -18,12 +17,13 @@ from skimage.segmentation import watershed, find_boundaries
 
 from utils.logger import Logger, SuppressO3DInfo
 
-
 logger = Logger.get_logger("skelet")
 
 
+# 1. --- IO, visualization, helpers --- #
+
+
 def show_mask(mask, title=""):
-    """Visualizes a 2D mask using matplotlib."""
     plt.figure(figsize=(4, 4))
     plt.imshow(mask, cmap="gray")
     plt.title(title)
@@ -32,29 +32,47 @@ def show_mask(mask, title=""):
 
 
 def load_point_cloud(path):
-    """
-    Loads a point cloud from the specified path.
-    Returns Open3D PointCloud with estimated normals.
-    """
     pcd = o3d.io.read_point_cloud(path)
     pcd.estimate_normals()
     logger.info(f"Loaded point cloud: {path} ({len(pcd.points)} points)")
     return pcd
 
 
+def crop_and_downsample(
+    pcd, bbox_points, voxel_size=0.001, nb_neighbors=30, std_ratio=2.0
+):
+    pcd_down = pcd.voxel_down_sample(voxel_size)
+    box = o3d.geometry.PointCloud()
+    box.points = o3d.utility.Vector3dVector(bbox_points)
+    cropped = pcd_down.crop(box.get_axis_aligned_bounding_box())
+    logger.info(f"Cropped to bbox: {len(cropped.points)} points")
+    pcd_clean, _ = cropped.remove_statistical_outlier(nb_neighbors, std_ratio)
+    logger.info(f"After outlier removal: {len(pcd_clean.points)} points")
+    return pcd_clean
+
+
+def get_main_plane(pcd, distance_threshold=0.004, ransac_n=3, num_iterations=500):
+    _, inliers = pcd.segment_plane(
+        distance_threshold=distance_threshold,
+        ransac_n=ransac_n,
+        num_iterations=num_iterations,
+    )
+    plane = pcd.select_by_index(inliers)
+    logger.info(f"Main plane: {len(plane.points)} points")
+    return plane
+
+
+# 2. --- Projections, skeletonization, graph extraction --- #
+
+
+def get_pca_basis(points):
+    center = np.mean(points, axis=0)
+    _, _, vt = np.linalg.svd(points - center, full_matrices=False)
+    basis = vt[:2]
+    return center, basis
+
+
 def preprocess_mask(points, center, basis, img_res=1024):
-    """
-    Projects 3D plane points to 2D via PCA and rasterizes to a binary mask.
-
-    points: (N, 3) array of plane points
-    center: mean 3D point
-    basis: (2, 3) PCA basis (first two right-singular vectors)
-    img_res: output mask resolution
-
-    Returns:
-        mask: binary mask (img_res, img_res)
-        img_xy: (N, 2) int pixel coordinates for each 3D point
-    """
     coords_2d = (points - center) @ basis.T
     min_xy = coords_2d.min(axis=0)
     max_xy = coords_2d.max(axis=0)
@@ -73,12 +91,19 @@ def preprocess_mask(points, center, basis, img_res=1024):
     return mask, img_xy
 
 
-def extract_nodes(skel):
-    """
-    Detects skeleton graph nodes: endpoints and junctions.
+def geodesic_skeletonization(mask):
+    contour = find_boundaries(mask, mode="outer").astype(np.uint8)
+    edges = cv2.Canny(mask.astype(np.uint8) * 255, 100, 200) // 255
+    geo_dist = np.full_like(mask, np.inf, dtype=np.float32)
+    geo_dist[mask.astype(bool)] = distance_transform_edt(~edges)[mask.astype(bool)]
+    map2 = geo_dist + contour.astype(np.float32)
+    markers, _ = nd_label(mask)
+    map3 = watershed(map2, markers=markers, mask=mask)
+    skeleton = thin((1 - map3 == 0).astype(np.uint8))
+    return skeleton
 
-    Node = pixel with number of neighbors != 2.
-    """
+
+def extract_nodes(skel):
     h, w = skel.shape
     offsets = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
     nodes = []
@@ -97,17 +122,6 @@ def extract_nodes(skel):
 
 
 def skeleton_branches(skel, nodes):
-    """
-    Traces all branches in skeleton between nodes.
-
-    For each node, traces all 8-connected skeleton paths to another node,
-    yielding a list of branches (list of pixels from node to node)
-    and adjacency dictionary.
-
-    Returns:
-        branches: list of [pixel, pixel, ...] for each branch
-        neighbors: dict node_index -> [neighbor_indices...]
-    """
     from collections import defaultdict
 
     node_map = {tuple(p): i for i, p in enumerate(nodes)}
@@ -158,15 +172,10 @@ def skeleton_branches(skel, nodes):
     return branches, neighbors
 
 
-def nodes2d_to_3d(nodes, img_xy, points):
-    """
-    Maps each node pixel to nearest 3D point on the plane.
-    Uses KD-tree for robust assignment.
+# 3. --- Mapping 2D nodes and branches to 3D --- #
 
-    nodes: [(y, x), ...]
-    img_xy: (N, 2) array of (y, x) for each 3D point
-    points: (N, 3) array
-    """
+
+def nodes2d_to_3d(nodes, img_xy, points):
     tree = cKDTree(img_xy)
     node_arr = np.array(nodes)
     dists, idxs = tree.query(node_arr, k=1)
@@ -176,12 +185,6 @@ def nodes2d_to_3d(nodes, img_xy, points):
 
 
 def skeleton_branches_to_3d(branches, img_xy, points_3d):
-    """
-    Maps each skeleton branch (list of pixels) to 3D points via (y, x) → 3D assignment.
-
-    Returns:
-        branches_3d: list of (M, 3) arrays
-    """
     pix_map = {}
     for i, (y, x) in enumerate(img_xy):
         pix_map.setdefault((y, x), []).append(i)
@@ -197,13 +200,10 @@ def skeleton_branches_to_3d(branches, img_xy, points_3d):
     return branches_3d
 
 
-def make_o3d_lineset(branches_3d, node_coords_3d):
-    """
-    Builds Open3D geometries for all branches and node spheres.
+# 4. --- Visualization builders --- #
 
-    branches_3d: list of (N, 3) arrays
-    node_coords_3d: (M, 3) array of node positions
-    """
+
+def make_o3d_lineset(branches_3d, node_coords_3d):
     pts, lines, colors = [], [], []
     idx = 0
     cmap = plt.colormaps["tab20"](np.linspace(0, 1, len(branches_3d)))[:, :3]
@@ -252,6 +252,9 @@ def make_graph_lineset(node_coords_3d, branches, nodes, eps=3):
     return graph_lineset
 
 
+# 5. --- Key callbacks --- #
+
+
 def toggle_plane(vis, plane, show_plane):
     if show_plane["visible"]:
         vis.remove_geometry(plane, reset_bounding_box=False)
@@ -292,91 +295,53 @@ def toggle_skeletons(vis, o3d_branches, show_skeleton):
     return False
 
 
-def geodesic_skeletonization(mask):
-    # Step 1: find domain edges (design contour)
-    contour = find_boundaries(mask, mode="outer").astype(np.uint8)
-    # Step 2: find domain boundary (no load edges in OT, usually just boundary)
-    edges = cv2.Canny(mask.astype(np.uint8) * 255, 100, 200) // 255
-    # Step 3: geodesic distance from boundary
-    geo_dist = np.full_like(mask, np.inf, dtype=np.float32)
-    geo_dist[mask.astype(bool)] = distance_transform_edt(~edges)[mask.astype(bool)]
-    # Step 4: Add design contour (watershed "lake filling")
-    map2 = geo_dist + contour.astype(np.float32)
-    markers, _ = nd_label(mask)
-    map3 = watershed(map2, markers=markers, mask=mask)
-    # Step 5: Skeleton = watershed ridges (map3==0) minus outer contour
-    skeleton = thin((1 - map3 == 0).astype(np.uint8))
-    return skeleton, edges, contour, geo_dist, map2, map3
+# 6. --- Pipeline steps as methods (main logic building blocks) --- #
 
 
-def main():
-    """
-    Full pipeline: loads cloud, extracts main plane, projects to 2D,
-    skeletonizes, builds graph and restores all in 3D.
-    Logs all major steps and runtime.
-    """
-    t0 = time.time()
-    cloud_path = ".data_clouds/farm1/cloud3d_iter4.ply"
+def run_pipeline(
+    cloud_path,
+    bbox_points,
+    voxel_size=0.001,
+    nb_neighbors=30,
+    std_ratio=2.0,
+    distance_threshold=0.004,
+    ransac_n=3,
+    img_res=1024,
+):
     logger.info(f"Loading point cloud: {cloud_path}")
     pcd_tcp = load_point_cloud(cloud_path)
-
-    # Bounding box crop (adjust as needed)
-    bbox_points = np.array(
-        [
-            [-0.57, -0.34, 0.46],
-            [-0.57, -0.24, 0.27],
-            [-0.38, -0.34, 0.27],
-            [-0.38, -0.34, 0.46],
-        ]
+    pcd_clean = crop_and_downsample(
+        pcd_tcp, bbox_points, voxel_size, nb_neighbors, std_ratio
     )
-    bbox_points[1:4, 1] += 0.2
-    voxel_size = 0.001
-    nb_neighbors = 30
-    std_ratio = 2.0
-    distance_threshold = 0.004
-    ransac_n = 3
-
-    pcd_tcp_down = pcd_tcp.voxel_down_sample(voxel_size=voxel_size)
-    logger.info(f"Downsampled to {len(pcd_tcp_down.points)} points")
-    box = o3d.geometry.PointCloud()
-    box.points = o3d.utility.Vector3dVector(bbox_points)
-    cropped = pcd_tcp_down.crop(box.get_axis_aligned_bounding_box())
-    logger.info(f"Cropped to bbox: {len(cropped.points)} points")
-    pcd_clean, _ = cropped.remove_statistical_outlier(
-        nb_neighbors=nb_neighbors, std_ratio=std_ratio
-    )
-    logger.info(f"After outlier removal: {len(pcd_clean.points)} points")
-
-    # Plane segmentation (RANSAC)
-    _, inliers = pcd_clean.segment_plane(
-        distance_threshold=distance_threshold, ransac_n=ransac_n, num_iterations=500
-    )
-    plane = pcd_clean.select_by_index(inliers)
-    logger.info(f"Main plane: {len(plane.points)} points")
+    plane = get_main_plane(pcd_clean, distance_threshold, ransac_n)
     points = np.asarray(plane.points)
-    center = np.mean(points, axis=0)
-    _, _, vt = np.linalg.svd(points - center, full_matrices=False)
-    basis = vt[:2]  # (2, 3) PCA basis
-
-    # 2D mask and skeletonization
-    mask, img_xy = preprocess_mask(points, center, basis)
-
-    skel, *_ = geodesic_skeletonization(mask)
-    logger.info("Skeletonization complete")
+    center, basis = get_pca_basis(points)
+    mask, img_xy = preprocess_mask(points, center, basis, img_res)
+    skel = geodesic_skeletonization(mask)
     nodes = extract_nodes(skel)
     branches, node_neighbors = skeleton_branches(skel, nodes)
-
-    # Map to 3D (branch and node positions)
     img_xy_pix = np.stack([img_xy[:, 1], img_xy[:, 0]], axis=1)
     branches_3d = skeleton_branches_to_3d(branches, img_xy_pix, points)
     node_coords_3d = nodes2d_to_3d(nodes, img_xy_pix, points)
     o3d_branches, o3d_nodes = make_o3d_lineset(branches_3d, node_coords_3d)
     graph_lineset = make_graph_lineset(node_coords_3d, branches, nodes)
+    logger.success("Pipeline finished.")
+    return {
+        "plane": plane,
+        "branches_3d": branches_3d,
+        "node_coords_3d": node_coords_3d,
+        "o3d_branches": o3d_branches,
+        "o3d_nodes": o3d_nodes,
+        "graph_lineset": graph_lineset,
+        "mask": mask,
+        "skel": skel,
+        "nodes": nodes,
+        "branches": branches,
+        "node_neighbors": node_neighbors,
+    }
 
-    t1 = time.time()
-    logger.success(f"Finished in {t1-t0:.2f}s")
 
-    # Visualize only after all computation
+def run_visualization(plane, o3d_branches, o3d_nodes, graph_lineset):
     with SuppressO3DInfo():
         vis = o3d.visualization.VisualizerWithKeyCallback()
         vis.create_window()
@@ -407,6 +372,34 @@ def main():
         )
         vis.run()
         vis.destroy_window()
+
+
+# 7. --- Main entry --- #
+
+
+def main():
+    t0 = time.time()
+    cloud_path = ".data_clouds/farm1/cloud3d_iter4.ply"
+    bbox_points = np.array(
+        [
+            [-0.57, -0.34, 0.46],
+            [-0.57, -0.24, 0.27],
+            [-0.38, -0.34, 0.27],
+            [-0.38, -0.34, 0.46],
+        ]
+    )
+    bbox_points[1:4, 1] += 0.2
+
+    results = run_pipeline(cloud_path, bbox_points)
+    t1 = time.time()
+    logger.success(f"Finished in {t1-t0:.2f}s")
+
+    run_visualization(
+        results["plane"],
+        results["o3d_branches"],
+        results["o3d_nodes"],
+        results["graph_lineset"],
+    )
 
 
 if __name__ == "__main__":
