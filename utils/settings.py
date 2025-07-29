@@ -231,10 +231,10 @@ class D415_Cfg:
     - alignment mode
     """
 
-    # rgb_width: int = 1920
-    # rgb_height: int = 1080
-    rgb_width: int = 1280
-    rgb_height: int = 720
+    rgb_width: int = 1920
+    rgb_height: int = 1080
+    # rgb_width: int = 1280
+    # rgb_height: int = 720
     depth_width: int = 1280
     depth_height: int = 720
     fps: int = 30

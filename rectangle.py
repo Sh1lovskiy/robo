@@ -2,6 +2,7 @@ from __future__ import annotations
 import time
 import numpy as np
 import open3d as o3d
+import os
 import cv2
 import pyrealsense2 as rs
 from scipy.spatial.transform import Rotation as R
@@ -9,8 +10,6 @@ from pynput import keyboard
 import threading
 from scipy.sparse.csgraph import minimum_spanning_tree
 from scipy.spatial.distance import cdist
-import alphashape
-from shapely.geometry import Polygon, MultiPolygon
 
 import signal
 from esp32.control import ESP32Controller
@@ -137,14 +136,44 @@ def get_camera_cloud() -> o3d.geometry.PointCloud:
     )
     profile = pipeline.start(config)
     align = rs.align(rs.stream.color)
-    for _ in range(5):  # сократил до 5 для ускорения
+
+    decimation = rs.decimation_filter()
+    decimation.set_option(rs.option.filter_magnitude, 2)
+
+    spatial = rs.spatial_filter()
+    spatial.set_option(rs.option.filter_magnitude, 5)
+    spatial.set_option(rs.option.filter_smooth_alpha, 1)
+    spatial.set_option(rs.option.filter_smooth_delta, 25)
+
+    temporal = rs.temporal_filter()
+    temporal.set_option(rs.option.filter_smooth_alpha, 0.3)
+    temporal.set_option(rs.option.filter_smooth_delta, 1)
+
+    hole_filling = rs.hole_filling_filter()
+    hole_filling.set_option(rs.option.holes_fill, 1)
+
+    for _ in range(5):
         align.process(pipeline.wait_for_frames())
     frames = align.process(pipeline.wait_for_frames())
-    color = np.asanyarray(frames.get_color_frame().get_data())
-    depth = np.asanyarray(frames.get_depth_frame().get_data())
+    color_frame = frames.get_color_frame()
+    depth_frame = frames.get_depth_frame()
+
+    depth_frame = decimation.process(depth_frame)
+    depth_frame = spatial.process(depth_frame)
+    depth_frame = temporal.process(depth_frame)
+    depth_frame = hole_filling.process(depth_frame)
+
+    color = np.asanyarray(color_frame.get_data())
+    depth = np.asanyarray(depth_frame.get_data())
+
+    if color.shape[0] != depth.shape[0] or color.shape[1] != depth.shape[1]:
+        color = cv2.resize(
+            color, (depth.shape[1], depth.shape[0]), interpolation=cv2.INTER_LINEAR
+        )
     scale = profile.get_device().first_depth_sensor().get_depth_scale()
     depth = depth.astype(np.float32) * scale
-    intr = frames.get_depth_frame().profile.as_video_stream_profile().get_intrinsics()
+
+    intr = depth_frame.profile.as_video_stream_profile().get_intrinsics()
     pinhole = o3d.camera.PinholeCameraIntrinsic(
         intr.width, intr.height, intr.fx, intr.fy, intr.ppx, intr.ppy
     )
@@ -159,8 +188,12 @@ def get_camera_cloud() -> o3d.geometry.PointCloud:
         0.2 < np.asarray(cloud.points)[:, 2], np.asarray(cloud.points)[:, 2] < 2.0
     )
     cloud = cloud.select_by_index(np.where(mask)[0])
+
+    cloud = cloud.voxel_down_sample(voxel_size=0.0005)
+    cloud, _ = cloud.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.0)
+
     pipeline.stop()
-    logger.info(f"Captured cloud with {len(cloud.points)} points")
+    logger.info(f"Captured & processed cloud with {len(cloud.points)} points")
     return cloud
 
 
@@ -195,6 +228,16 @@ def transform_cloud_to_tcp(pcd, handeye_R, handeye_t, tcp_pose):
         pcd_base.colors = pcd.colors
     logger.info(f"Transformed cloud to TCP/base")
     return pcd_tcp, pcd_base, T_cam2tcp
+
+
+def save_cloud_timestamped(pcd, dir_path=".data_clouds"):
+    os.makedirs(dir_path, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    fname = f"farm_{timestamp}.ply"
+    path = os.path.join(dir_path, fname)
+    o3d.io.write_point_cloud(path, pcd)
+    logger.info(f"Cloud saved to: {path}")
+    return path
 
 
 def get_bbox_crop(pcd: o3d.geometry.PointCloud) -> o3d.geometry.PointCloud:

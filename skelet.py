@@ -7,9 +7,10 @@ import time
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-import open3d as o3d
-
 from functools import partial
+from collections import defaultdict
+
+import open3d as o3d
 from scipy.ndimage import distance_transform_edt, label as nd_label
 from scipy.spatial import cKDTree
 from skimage.morphology import thin
@@ -91,6 +92,17 @@ def preprocess_mask(points, center, basis, img_res=1024):
     return mask, img_xy
 
 
+def get_graph_edges_from_branches(nodes, branches):
+    node_tree = cKDTree(nodes)
+    edges = set()
+    for branch in branches:
+        idx0 = node_tree.query(branch[0], k=1)[1]
+        idx1 = node_tree.query(branch[-1], k=1)[1]
+        if idx0 != idx1:
+            edges.add(tuple(sorted([idx0, idx1])))
+    return list(edges)
+
+
 def geodesic_skeletonization(mask):
     contour = find_boundaries(mask, mode="outer").astype(np.uint8)
     edges = cv2.Canny(mask.astype(np.uint8) * 255, 100, 200) // 255
@@ -122,8 +134,6 @@ def extract_nodes(skel):
 
 
 def skeleton_branches(skel, nodes):
-    from collections import defaultdict
-
     node_map = {tuple(p): i for i, p in enumerate(nodes)}
     visited = np.zeros_like(skel, dtype=bool)
     h, w = skel.shape
@@ -299,8 +309,9 @@ def toggle_skeletons(vis, o3d_branches, show_skeleton):
 
 
 def run_pipeline(
-    cloud_path,
-    bbox_points,
+    cloud_path=None,
+    bbox_points=None,
+    cloud_obj=None,
     voxel_size=0.001,
     nb_neighbors=30,
     std_ratio=2.0,
@@ -308,8 +319,15 @@ def run_pipeline(
     ransac_n=3,
     img_res=1024,
 ):
-    logger.info(f"Loading point cloud: {cloud_path}")
-    pcd_tcp = load_point_cloud(cloud_path)
+    if cloud_obj is not None:
+        pcd_tcp = cloud_obj
+        logger.info(f"Using provided PointCloud with {len(pcd_tcp.points)} points")
+    elif cloud_path is not None:
+        logger.info(f"Loading point cloud: {cloud_path}")
+        pcd_tcp = load_point_cloud(cloud_path)
+    else:
+        raise ValueError("Either cloud_path or cloud_obj must be provided")
+
     pcd_clean = crop_and_downsample(
         pcd_tcp, bbox_points, voxel_size, nb_neighbors, std_ratio
     )
@@ -321,10 +339,12 @@ def run_pipeline(
     nodes = extract_nodes(skel)
     branches, node_neighbors = skeleton_branches(skel, nodes)
     img_xy_pix = np.stack([img_xy[:, 1], img_xy[:, 0]], axis=1)
-    branches_3d = skeleton_branches_to_3d(branches, img_xy_pix, points)
     node_coords_3d = nodes2d_to_3d(nodes, img_xy_pix, points)
-    o3d_branches, o3d_nodes = make_o3d_lineset(branches_3d, node_coords_3d)
+    branches_3d = skeleton_branches_to_3d(branches, img_xy_pix, points)
+    edges = get_graph_edges_from_branches(nodes, branches)
+    # рисуем линии по найденным рёбрам (через make_graph_lineset или напрямую)
     graph_lineset = make_graph_lineset(node_coords_3d, branches, nodes)
+    o3d_branches, o3d_nodes = make_o3d_lineset(branches_3d, node_coords_3d)
     logger.success("Pipeline finished.")
     return {
         "plane": plane,
@@ -337,23 +357,43 @@ def run_pipeline(
         "skel": skel,
         "nodes": nodes,
         "branches": branches,
+        "edges": edges,
         "node_neighbors": node_neighbors,
     }
 
 
-def run_visualization(plane, o3d_branches, o3d_nodes, graph_lineset):
+def run_visualization(
+    plane,
+    o3d_branches,
+    o3d_nodes,
+    graph_lineset,
+    arrow_main=None,
+    arrow_normal=None,
+    frames=None,
+):
     with SuppressO3DInfo():
         vis = o3d.visualization.VisualizerWithKeyCallback()
         vis.create_window()
+
         vis.add_geometry(plane)
+        if arrow_main is not None:
+            vis.add_geometry(arrow_main)
+        if arrow_normal is not None:
+            vis.add_geometry(arrow_normal)
+        if frames is not None:
+            for f in frames:
+                vis.add_geometry(f)
+
         for node in o3d_nodes:
             vis.add_geometry(node)
         for ls in o3d_branches:
             vis.add_geometry(ls)
+
         show_plane = {"visible": True}
         show_graph = {"visible": False}
         show_nodes = {"visible": True}
         show_skeleton = {"visible": True}
+
         vis.register_key_callback(
             ord("G"), partial(toggle_plane, plane=plane, show_plane=show_plane)
         )
@@ -362,14 +402,18 @@ def run_visualization(plane, o3d_branches, o3d_nodes, graph_lineset):
             partial(toggle_graph, graph_lineset=graph_lineset, show_graph=show_graph),
         )
         vis.register_key_callback(
-            ord("N"), partial(toggle_nodes, o3d_nodes=o3d_nodes, show_nodes=show_nodes)
+            ord("N"),
+            partial(toggle_nodes, o3d_nodes=o3d_nodes, show_nodes=show_nodes),
         )
         vis.register_key_callback(
             ord("J"),
             partial(
-                toggle_skeletons, o3d_branches=o3d_branches, show_skeleton=show_skeleton
+                toggle_skeletons,
+                o3d_branches=o3d_branches,
+                show_skeleton=show_skeleton,
             ),
         )
+
         vis.run()
         vis.destroy_window()
 

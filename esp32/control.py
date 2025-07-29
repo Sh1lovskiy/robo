@@ -32,5 +32,5 @@ if __name__ == "__main__":
     esp = ESP32Controller()
 
     # esp.laser_blink(5, 0.5)
-    esp.move_motor(steps=100, direction=1, delay_us=5000)
+    esp.move_motor(steps=17, direction=1, delay_us=5000)
     # esp.laser_off()
