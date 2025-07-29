@@ -1,8 +1,19 @@
 site_name: Robo Docs
 theme:
   name: material
-
 nav:
   - Home: index.md
   - Usage: usage.md
+  - Pipeline: pipeline.md
   - API: api.md
+  - HANDEYE: handeye.md
+plugins:
+  - search
+  - mkdocstrings
+markdown_extensions:
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.superfences
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
