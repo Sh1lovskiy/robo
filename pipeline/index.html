@@ -434,8 +434,8 @@
 <li><strong>Assemble camera↔robot pairs</strong> and run <code>cv2.calibrateHandEye</code> using OpenCV’s Tsai/Park/Horaud/Andreff/Daniilidis methods.</li>
 <li><strong>Save results and diagnostics.</strong> The final hand–eye matrix is written to <code>handeye_res.yaml</code> together with per‑frame logs and overlay images.</li>
 </ol>
-<pre><code>RGB/Depth frames ──► detect pattern ──► solvePnP ──► hand‑eye calibrate ──► YAML
-</code></pre>
+<div class="highlight"><pre><span></span><code>RGB/Depth frames ──► detect pattern ──► solvePnP ──► hand‑eye calibrate ──► YAML
+</code></pre></div>
 <p>All measurements use meters and degrees. Input images are loaded from <code>calib/imgs/frame_*.png</code> with matching depth maps <code>frame_*.npy</code>. Robot poses are stored as <code>{ "tcp_coords": [x, y, z, Rx, Ry, Rz] }</code>.</p>
 
 
@@ -489,6 +489,8 @@
     
     
       <script src="../assets/javascripts/bundle.50899def.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>

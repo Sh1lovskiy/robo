@@ -452,23 +452,23 @@
 <p>Results are stored under <code>calibration/results/</code>.</p>
 <h2 id="robot-cli">Robot CLI</h2>
 <p>The <code>robot</code> package exposes a small command line interface for common tasks:</p>
-<pre><code class="language-bash">python -m robot.cli record --ip &lt;robot_ip&gt; --captures_dir ./captures
-</code></pre>
+<div class="highlight"><pre><span></span><code>python<span class="w"> </span>-m<span class="w"> </span>robot.cli<span class="w"> </span>record<span class="w"> </span>--ip<span class="w"> </span>&lt;robot_ip&gt;<span class="w"> </span>--captures_dir<span class="w"> </span>./captures
+</code></pre></div>
 <p>Arguments are defined in the <code>robot.cli</code> module:</p>
-<pre><code class="language-python">    def _add_record_args(parser: argparse.ArgumentParser) -&gt; None:
-        &quot;&quot;&quot;Arguments for the ``record`` subcommand.&quot;&quot;&quot;
-        parser.add_argument(&quot;--ip&quot;, default=robot.ip, help=&quot;Robot IP&quot;)
-        parser.add_argument(
-            &quot;--captures_dir&quot;,
-            default=str(paths.CAPTURES_DIR),
-            help=&quot;Directory for saved poses&quot;,
-        )
-        parser.add_argument(&quot;--drag&quot;, action=&quot;store_true&quot;, help=&quot;Enable drag teaching mode&quot;)
-        parser.add_argument(
-            &quot;--db_path&quot;, default=&quot;robot_data.lmdb&quot;, help=&quot;LMDB database path&quot;
-        )
-        parser.add_argument(&quot;--use-db&quot;, action=&quot;store_true&quot;, help=&quot;Use LMDB storage&quot;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>    <span class="k">def</span><span class="w"> </span><span class="nf">_add_record_args</span><span class="p">(</span><span class="n">parser</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Arguments for the ``record`` subcommand.&quot;&quot;&quot;</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--ip&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">robot</span><span class="o">.</span><span class="n">ip</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Robot IP&quot;</span><span class="p">)</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;--captures_dir&quot;</span><span class="p">,</span>
+            <span class="n">default</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">paths</span><span class="o">.</span><span class="n">CAPTURES_DIR</span><span class="p">),</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Directory for saved poses&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--drag&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Enable drag teaching mode&quot;</span><span class="p">)</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;--db_path&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;robot_data.lmdb&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;LMDB database path&quot;</span>
+        <span class="p">)</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--use-db&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Use LMDB storage&quot;</span><span class="p">)</span>
+</code></pre></div>
 <p>Use <code>robot.cli restart</code> to reconnect to the controller if the connection drops.</p>
 
 
@@ -522,6 +522,8 @@
     
     
       <script src="../assets/javascripts/bundle.50899def.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>

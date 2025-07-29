@@ -61,6 +61,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#handeye" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -305,6 +310,21 @@
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
       
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    HANDEYE
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
       
       <a href="./" class="md-nav__link md-nav__link--active">
         
@@ -317,6 +337,106 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-full-coordinate-transformation-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Full Coordinate Transformation Chain
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-intrinsic-camera-matrix-opencv-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      1.1 Intrinsic Camera Matrix (OpenCV Model)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-backprojection-from-rgb-image-to-3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      1.2 Backprojection from RGB image to 3D
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-camera-to-base-transform" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Camera-to-Base Transform
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#21-camera-to-tcp-transformation" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.1 Camera-to-TCP Transformation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#22-tcp-to-base-transformation" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2 TCP-to-Base Transformation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#23-euler-angle-rotation-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.3 Euler Angle Rotation Matrix
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-hand-eye-calibration" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Hand-Eye Calibration
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      References
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -339,6 +459,97 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-full-coordinate-transformation-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Full Coordinate Transformation Chain
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-intrinsic-camera-matrix-opencv-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      1.1 Intrinsic Camera Matrix (OpenCV Model)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-backprojection-from-rgb-image-to-3d" class="md-nav__link">
+    <span class="md-ellipsis">
+      1.2 Backprojection from RGB image to 3D
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-camera-to-base-transform" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Camera-to-Base Transform
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#21-camera-to-tcp-transformation" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.1 Camera-to-TCP Transformation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#22-tcp-to-base-transformation" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.2 TCP-to-Base Transformation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#23-euler-angle-rotation-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      2.3 Euler Angle Rotation Matrix
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-hand-eye-calibration" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Hand-Eye Calibration
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      References
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -354,9 +565,153 @@
 
 
 
-  <h1>HANDEYE</h1>
-
-<p>Камера преобразуется по формуле $T_{cam} = K [R | t]$.</p>
+<h1 id="handeye">HANDEYE</h1>
+<p>This document explains the full chain of transformations used to convert 2D pixel measurements and depth values into 3D robot base coordinates. Each step is mathematically grounded and annotated for clarity. References to OpenCV and robotics sources are included.</p>
+<h2 id="1-full-coordinate-transformation-chain">1. Full Coordinate Transformation Chain</h2>
+<div class="arithmatex">\[
+\begin{bmatrix}
+u \\
+v \\
+d
+\end{bmatrix}
+\xrightarrow{\mathrm{K_{depth}}}
+\mathrm{p_{depth}}
+\xrightarrow{\mathrm{T_{depth2rgb}}}
+\mathrm{p_{rgb}}
+\xrightarrow{\mathrm{T_{cam2base}}}
+\mathrm{p_{base}}
+\]</div>
+<p>Each arrow represents a transformation:</p>
+<ul>
+<li><strong><span class="arithmatex">\(\mathrm{K_{depth}}\)</span></strong>: Intrinsic matrix of the depth camera.</li>
+<li><strong><span class="arithmatex">\(\mathrm{T_{depth2rgb}}\)</span></strong>: Extrinsic calibration between Depth and RGB sensors.</li>
+<li><strong><span class="arithmatex">\(\mathrm{T_{cam2base}}\)</span></strong>: Robot pose transform from RGB sensors of camera through TCP to base.</li>
+</ul>
+<hr />
+<h2 id="11-intrinsic-camera-matrix-opencv-model">1.1 Intrinsic Camera Matrix (OpenCV Model)</h2>
+<div class="arithmatex">\[
+\mathrm{K} =
+\begin{bmatrix}
+f_x &amp; 0 &amp; c_x \\
+0 &amp; f_y &amp; c_y \\
+0 &amp; 0 &amp; 1
+\end{bmatrix} 
+\]</div>
+<ul>
+<li><strong><span class="arithmatex">\(f_x, f_y\)</span></strong>: Focal lengths in pixels.</li>
+<li><strong><span class="arithmatex">\(c_x, c_y\)</span></strong>: Principal point coordinates.</li>
+</ul>
+<p>Reference: <a href="https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html">OpenCV Camera Calibration</a></p>
+<hr />
+<h2 id="12-backprojection-from-rgb-image-to-3d">1.2 Backprojection from RGB image to 3D</h2>
+<div class="arithmatex">\[
+\begin{bmatrix}
+x \\
+y \\
+z
+\end{bmatrix}
+=
+\begin{bmatrix}
+(u - c_x) \cdot \dfrac{d}{f_x} \\
+(v - c_y) \cdot \dfrac{d}{f_y} \\
+d
+\end{bmatrix}
+\qquad
+\begin{aligned}
+d~&amp;-\text{depth value (m)} \\
+(u, v)~&amp;-\text{RGB image coordinates (pixels)} \\
+(x, y, z)~&amp;-\text{camera coordinates}
+\end{aligned}
+\]</div>
+<p>This converts depth and pixel coordinates into 3D points in the camera coordinate system.</p>
+<hr />
+<h2 id="2-camera-to-base-transform">2. Camera-to-Base Transform</h2>
+<div class="arithmatex">\[ 
+\mathrm{T_{cam2base}} = \mathrm{T_{tcp2base}} \times \mathrm{T_{cam2tcp}} 
+\]</div>
+<hr />
+<h2 id="21-camera-to-tcp-transformation">2.1 Camera-to-TCP Transformation</h2>
+<div class="arithmatex">\[ 
+\mathrm{T_{cam2tcp}} =
+\begin{bmatrix}
+R &amp; t\\
+0 &amp; 1 
+\end{bmatrix} 
+\]</div>
+<p>Rigid transformation from the camera coordinate system to the robot TCP (tool center point).</p>
+<p><strong>R</strong>: <span class="arithmatex">\(3\times3\)</span> rotation matrix.</p>
+<p><strong>t</strong>: <span class="arithmatex">\(3\times1\)</span> translation vector.</p>
+<p><strong>Reference</strong>: <a href="https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#gaebfc1c9f7434196a374c382abf43439b">cv2.calibrateHandEye</a></p>
+<div class="arithmatex">\[
+\mathrm{TARGET\_POSE} = [
+  \underset{mm}{x, y, z},\ 
+  \overset{degree}{r_x, r_y, r_z}
+]
+\]</div>
+<p>Target Pose of in robot base coords.</p>
+<p><strong><span class="arithmatex">\([x, y, z]\)</span></strong>: Translation of the object in millimeters.</p>
+<p><strong><span class="arithmatex">\([r_x, r_y, r_z]\)</span></strong>: Euler angles (XYZ order) in degrees.</p>
+<hr />
+<h2 id="22-tcp-to-base-transformation">2.2 TCP-to-Base Transformation</h2>
+<div class="arithmatex">\[
+\mathrm{T_{tcp2base}} =
+\begin{bmatrix}
+R(r_x, r_y, r_z) &amp; 0.001 \cdot \left[ x, y, z\right]^T \\
+0 &amp; 1 
+\end{bmatrix} 
+\]</div>
+<p><strong><span class="arithmatex">\(R(r_x, r_y, r_z)\)</span></strong>: Rotation matrix from Euler angles (converted to radians).</p>
+<p><strong><span class="arithmatex">\(0.001 \cdot \left[ x, y, z\right]^T\)</span></strong> : Converts mm to meters for robotics.</p>
+<hr />
+<h2 id="23-euler-angle-rotation-matrix">2.3 Euler Angle Rotation Matrix</h2>
+<div class="arithmatex">\[
+R(r_x, r_y, r_z) =
+\begin{bmatrix}
+c_{r_y} c_{r_z} &amp; c_{r_x} s_{r_y} s_{r_z} - s_{r_x} c_{r_z} &amp; c_{r_x} s_{r_y} c_{r_z} + s_{r_x} s_{r_z} \\
+c_{r_y} s_{r_z} &amp; s_{r_x} s_{r_y} s_{r_z} + c_{r_x} c_{r_z} &amp; c_{r_z} s_{r_x} s_{r_y} - c_{r_x} s_{r_z} \\
+-s_{r_y} &amp; c_{r_y} s_{r_x} &amp; c_{r_y} c_{r_x}
+\end{bmatrix}
+\]</div>
+<div class="arithmatex">\[
+\begin{aligned}
+c_{r_x} = \cos(r_x),\quad c_{r_y} = \cos(r_y),\quad c_{r_z} = \cos(r_z) \\
+s_{r_x} = \sin(r_x),\quad s_{r_y} = \sin(r_y),\quad s_{r_z} = \sin(r_z)
+\end{aligned}
+\]</div>
+<p>This formulation follows XYZ (roll-pitch-yaw) convention.</p>
+<hr />
+<h2 id="3-hand-eye-calibration">3. Hand-Eye Calibration</h2>
+<p>OpenCV implements several closed-form methods for solving the hand–eye calibration problem, which is formulated as the matrix equation:</p>
+<div class="arithmatex">\[
+\mathrm{A}_i \mathrm{X} = \mathrm{X} \mathrm{B}_i
+\]</div>
+<ul>
+<li><span class="arithmatex">\(\mathrm{A}_i = \mathrm{T_{robot}}^{(i)}\)</span>: the known robot pose from base to TCP at time <span class="arithmatex">\(i\)</span>.</li>
+<li><span class="arithmatex">\(\mathrm{B}_i = \mathrm{T_{target}}^{(i)}\)</span>: the known pose of a calibration target (e.g., Chess board, Charuco board) relative to the camera</li>
+<li><span class="arithmatex">\(\mathrm{X} = \mathrm{T_{cam2tcp}}\)</span>: the unknown camera-to-TCP transformation to solve for</li>
+</ul>
+<p>This is a form of the <strong>Sylvester-type equation</strong>, arising in rigid body calibration problems.</p>
+<p>OpenCV’s <a href="https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#gaebfc1c9f7434196a374c382abf43439b"><code>cv2.calibrateHandEye</code></a> solves this problem using one of several algorithms:</p>
+<ul>
+<li><strong>Tsai &amp; Lenz (1989)</strong> — classic decoupled rotation/translation method</li>
+<li><strong>Park &amp; Martin (1994)</strong> — screw-based method</li>
+<li><strong>Horaud et al. (1995)</strong> — quaternion-based optimization</li>
+<li><strong>Daniilidis (1999)</strong> — dual quaternion approach</li>
+<li><strong>Andreff et al. (2001)</strong> — algebraic method minimizing reprojection error</li>
+</ul>
+<p>The calibration minimizes:</p>
+<div class="arithmatex">\[
+\sum_i \\| \mathrm{A}_i \mathrm{X} - \mathrm{X} \mathrm{B}_i \\|^2
+\]</div>
+<h2 id="references">References</h2>
+<ul>
+<li><a href="https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#gaebfc1c9f7434196a374c382abf43439b">OpenCV: cv2.calibrateHandEye</a> — Hand-eye calibration routine</li>
+<li><a href="https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html">OpenCV Camera Calibration</a> — Intrinsic matrix and distortion model</li>
+<li><a href="https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html">OpenCV Pose Estimation (solvePnP)</a> — Camera pose from 2D–3D points</li>
+<li><a href="https://en.wikipedia.org/wiki/Euler_angles">Wikipedia: Euler Angles</a> — Rotation from roll, pitch, yaw</li>
+<li><a href="https://en.wikipedia.org/wiki/Transformation_matrix">Wikipedia: Transformation Matrix</a> — Homogeneous coordinate transforms</li>
+<li><a href="https://en.wikipedia.org/wiki/Sylvester_equation">Wikipedia: Sylvester Equation</a> — Sylvester matrix equations</li>
+</ul>
 
 
 
@@ -409,6 +764,8 @@
     
     
       <script src="../assets/javascripts/bundle.50899def.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>

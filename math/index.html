@@ -444,22 +444,22 @@
 <h1 id="mathematical-details">Mathematical Details</h1>
 <h2 id="perspectivenpoint">Perspective‑n‑Point</h2>
 <p>Board poses are estimated by solving the PnP problem:</p>
-<p>[
+<div class="arithmatex">\[
 \begin{aligned}
- r_vec, t_vec &amp;= \mathrm{solvePnP}(X_{obj}, x_{img}, K, d)\
- X_{cam} &amp;= R\;X_{obj} + t
+ r\_vec, t\_vec &amp;= \mathrm{solvePnP}(X\_{obj}, x\_{img}, K, d)\\
+ X\_{cam} &amp;= R\;X\_{obj} + t
 \end{aligned}
-]</p>
-<p>where $X_{obj}$ are known 3‑D points on the target and $x_{img}$ are the detected pixel coordinates.</p>
+\]</div>
+<p>where <span class="arithmatex">\(X\_{obj}\)</span> are known 3‑D points on the target and <span class="arithmatex">\(x\_{img}\)</span> are the detected pixel coordinates.</p>
 <h2 id="handeye-calibration">Hand‑Eye Calibration</h2>
-<p>OpenCV implements several closed‑form solutions to $AX = XB$ where</p>
-<p>[
-A_i = T_{robot}^{(i)}, \quad B_i = T_{target}^{(i)}.
-]</p>
-<p>The function <code>cv2.calibrateHandEye</code> returns rotation $R_{he}$ and translation $t_{he}$ that minimize</p>
-<p>[
-\sum_i | A_i X - X B_i |^2.
-]</p>
+<p>OpenCV implements several closed‑form solutions to <span class="arithmatex">\(AX = XB\)</span> where</p>
+<div class="arithmatex">\[
+A\_i = T\_{robot}^{(i)}, \quad B\_i = T\_{target}^{(i)}.
+\]</div>
+<p>The function <code>cv2.calibrateHandEye</code> returns rotation <span class="arithmatex">\(R\_{he}\)</span> and translation <span class="arithmatex">\(t\_{he}\)</span> that minimize</p>
+<div class="arithmatex">\[
+\sum\_i \| A\_i X - X B\_i \|^2.
+\]</div>
 <p>See <a href="https://doi.org/10.1109/70.34770">Tsai &amp; Lenz, 1989</a> for the classical formulation.</p>
 
 
@@ -513,6 +513,8 @@ A_i = T_{robot}^{(i)}, \quad B_i = T_{target}^{(i)}.
     
     
       <script src="../assets/javascripts/bundle.50899def.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>
