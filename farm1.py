@@ -1,199 +1,165 @@
-import os
-import random
-import time
 import numpy as np
 import open3d as o3d
-import networkx as nx
-import threading
-from scipy.spatial.transform import Rotation as R
+from sklearn.decomposition import PCA
 from scipy.spatial import cKDTree
-from esp32.control import ESP32Controller
-from utils.logger import Logger
-from skelet import run_pipeline, run_visualization
-from rectangle import (
-    robot_connect,
-    robot_movej,
-    get_camera_cloud,
-    robot_movel,
-    save_cloud_timestamped,
-    transform_cloud_to_tcp,
-)
+
+from farm import HAND_EYE_R, HAND_EYE_t
+from save_rotate_clouds import TARGET_POSE, transform_cloud_to_tcp
 
 
-SEED = 42
-random.seed(SEED)
-np.random.seed(SEED)
-os.environ["PYTHONHASHSEED"] = str(SEED)
-
-logger = Logger.get_logger("farm")
-ROBOT_IP = "192.168.58.2"
-STEPS_PER_ITER = [50, 50, 50, 50]
-LASER_ON_TIME = 1.0
-MOVE_DELAY = 0.5
-
-HAND_EYE_R = np.array(
-    [
-        [0.999048, 0.02428, -0.03625],
-        [-0.02706, 0.99658, -0.07804],
-        [0.03423, 0.07895, 0.99629],
-    ]
-)
-HAND_EYE_t = np.array([-0.03424, -0.07905, 0.00128]).reshape(3, 1)
-TARGET_POSE = np.array([3.63, -103.5, 540.2, -120.2, -1.13, 103.5])
-BBOX_POINTS = np.array(
-    [
-        [-0.57, -0.34, 0.46],
-        [-0.57, -0.05, 0.27],
-        [-0.38, -0.05, 0.27],
-        [-0.38, -0.05, 0.46],
-    ]
-)
-
-
-def get_plane_main_axes(plane):
-    pts = np.asarray(plane.points)
-    center = np.mean(pts, axis=0)
-    _, _, Vt = np.linalg.svd(pts - center, full_matrices=False)
-    return Vt[0], Vt[2]
-
-
-def compute_tcp_poses(points, main_axis, plane_normal, offset=(0.035, 0.015, -0.3)):
-    x = -main_axis / np.linalg.norm(main_axis)
-    z = -plane_normal / np.linalg.norm(plane_normal)
-    y = np.cross(z, x)
-    y /= np.linalg.norm(y)
-    R_tcp = np.column_stack((x, y, z))
-    offset_vec = R_tcp @ np.array(offset)
-    poses = []
-    for pt in points:
-        T = np.eye(4)
-        T[:3, :3] = R_tcp
-        T[:3, 3] = pt + offset_vec
-        pose = np.concatenate(
-            [T[:3, 3] * 1000, R.from_matrix(T[:3, :3]).as_euler("xyz", degrees=True)]
-        )
-        poses.append(pose)
-    return poses
-
-
-def merge_close_points_2d(points, radius=0.03):
-    tree = cKDTree(points[:, :2])
-    visited = np.zeros(len(points), dtype=bool)
-    merged = []
-    for i in range(len(points)):
-        if visited[i]:
-            continue
-        idxs = tree.query_ball_point(points[i, :2], radius)
-        cluster = points[idxs]
-        merged.append(np.mean(cluster, axis=0))
-        visited[idxs] = True
-    return np.array(merged)
-
-
-def sample_branch_nodes(branches_3d):
-    nodes = []
-    for b in branches_3d:
-        b = np.asarray(b)
-        if b.shape[0] == 0:
-            continue
-        if len(b) == 1:
-            nodes.append(b[0])
-        else:
-            nodes.extend([b[0], b[-1]])
-    return np.array(nodes)
-
-
-def move_robot_to_targets(rpc, esp32, poses, vel=35, laser_on_time=0.2):
-    for i, pose in enumerate(poses):
-        logger.info(f"[{i+1}/{len(poses)}] MoveJ to {np.round(pose[:3], 1)} mm")
-        try:
-            robot_movej(rpc, pose, vel=vel)
-            esp32.laser_on()
-            time.sleep(laser_on_time)
-        except Exception as e:
-            logger.error(f"MoveJ failed at {i+1}: {e}")
-    esp32.laser_off()
-
-
-def visualize_and_prepare_poses(branches_3d, main_axis, plane_normal):
-    nodes = sample_branch_nodes(branches_3d)
-    if nodes.size == 0:
-        logger.error("No node points extracted")
-        return []
-    merged_nodes = merge_close_points_2d(nodes, radius=0.02)
-    poses = compute_tcp_poses(merged_nodes, main_axis, plane_normal)
-    frames = [
-        o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.04).translate(
-            p[:3] / 1000
-        )
-        for p in poses
-    ]
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(merged_nodes)
-    pcd.paint_uniform_color([1, 0, 0])
-    o3d.visualization.draw_geometries([pcd] + frames)
-    return poses
-
-
-def single_farm_iteration(i, rpc, esp32):
-    logger.info(f"=== Iteration {i+1} ===")
-    pcd = get_camera_cloud()
-    save_cloud_timestamped(pcd)
-    pcd_tcp, _, _ = transform_cloud_to_tcp(pcd, HAND_EYE_R, HAND_EYE_t, TARGET_POSE)
-    graph = run_pipeline(
-        cloud_path=None, bbox_points=BBOX_POINTS, cloud_obj=pcd_tcp, voxel_size=0.0001
-    )
-    main_axis, plane_normal = get_plane_main_axes(graph["plane"])
-    if main_axis[0] < 0:
-        main_axis = -main_axis
-    if np.dot(plane_normal, [0, 0, 1]) < 0:
-        plane_normal = -plane_normal
-    poses = visualize_and_prepare_poses(graph["branches_3d"], main_axis, plane_normal)
-    input("Check visualization. Press Enter to start robot movement...")
-    move_robot_to_targets(rpc, esp32, poses, vel=35, laser_on_time=LASER_ON_TIME)
-    time.sleep(MOVE_DELAY)
-
-
-def move_motor_threaded(esp32, steps, direction=1, delay_us=5000):
-    time.sleep(0.5)
-    t = threading.Thread(target=esp32.move_motor, args=(steps, direction, delay_us))
-    t.start()
-    t.join()
-
-
-def farm_cycle():
-    logger.info("=== ROBOT FARM START ===")
-    rpc = robot_connect(ROBOT_IP, safety_mode=False)
-    esp32 = ESP32Controller()
-    esp32.laser_off()
-    robot_movej(rpc, TARGET_POSE, vel=40)
-    for i, steps in enumerate(STEPS_PER_ITER):
-        single_farm_iteration(i, rpc, esp32)
-        if i < len(STEPS_PER_ITER) - 1:
-            move_motor_threaded(esp32, steps)
-            robot_movej(rpc, TARGET_POSE, vel=40)
-            time.sleep(1)
-    robot_movej(rpc, TARGET_POSE, vel=40)
-    logger.success("=== ALL ITERATIONS COMPLETE ===")
-
-
-def run_from_file(pcd_path):
-    logger.info("=== RUN FROM FILE ===")
+def load_point_cloud(
+    pcd_path: str, voxel_size: float = 0.002
+) -> o3d.geometry.PointCloud:
     pcd = o3d.io.read_point_cloud(pcd_path)
-    pcd.estimate_normals()
-    logger.info(f"Loaded point cloud: {len(pcd.points)} points")
-    pcd_tcp, _, _ = transform_cloud_to_tcp(pcd, HAND_EYE_R, HAND_EYE_t, TARGET_POSE)
-    graph = run_pipeline(
-        cloud_path=None, bbox_points=BBOX_POINTS, cloud_obj=pcd_tcp, voxel_size=0.0001
+    pcd_down = pcd.voxel_down_sample(voxel_size)
+    return pcd_down
+
+
+def filter_bbox(
+    pcd: o3d.geometry.PointCloud, bbox_points: np.ndarray
+) -> o3d.geometry.PointCloud:
+    bbox_pcd = o3d.geometry.PointCloud()
+    bbox_pcd.points = o3d.utility.Vector3dVector(bbox_points)
+    bbox = bbox_pcd.get_axis_aligned_bounding_box()
+    return pcd.crop(bbox)
+
+
+def segment_dbscan(
+    pcd: o3d.geometry.PointCloud, eps: float = 0.01, min_points: int = 50
+) -> list[o3d.geometry.PointCloud]:
+    labels = np.array(pcd.cluster_dbscan(eps=eps, min_points=min_points))
+    clusters = []
+    for label in np.unique(labels):
+        if label < 0:
+            continue
+        cluster = pcd.select_by_index(np.where(labels == label)[0])
+        clusters.append(cluster)
+    return clusters
+
+
+def get_main_axis(cluster: o3d.geometry.PointCloud) -> np.ndarray:
+    points = np.asarray(cluster.points)
+    pca = PCA(n_components=3)
+    pca.fit(points)
+    return pca.components_[0]
+
+
+def get_obb(cluster: o3d.geometry.PointCloud) -> o3d.geometry.OrientedBoundingBox:
+    return cluster.get_oriented_bounding_box()
+
+
+def obb_aabb_intersect(
+    obb1: o3d.geometry.OrientedBoundingBox, obb2: o3d.geometry.OrientedBoundingBox
+) -> bool:
+    aabb1 = obb1.get_axis_aligned_bounding_box()
+    aabb2 = obb2.get_axis_aligned_bounding_box()
+    min1 = np.asarray(aabb1.get_min_bound())
+    max1 = np.asarray(aabb1.get_max_bound())
+    min2 = np.asarray(aabb2.get_min_bound())
+    max2 = np.asarray(aabb2.get_max_bound())
+    # Intersection if all intervals overlap in all axes
+    return np.all(max1 >= min2) and np.all(max2 >= min1)
+
+
+def intersect_clusters_obb(
+    obbs: list[o3d.geometry.OrientedBoundingBox],
+) -> list[tuple[int, int]]:
+    intersections = []
+    for i, obb1 in enumerate(obbs):
+        for j, obb2 in enumerate(obbs[i + 1 :], start=i + 1):
+            if obb_aabb_intersect(obb1, obb2):
+                intersections.append((i, j))
+    return intersections
+
+
+def visualize_clusters_with_obbs(clusters, obbs):
+    geometries = []
+    for cluster, obb in zip(clusters, obbs):
+        cluster.paint_uniform_color(np.random.rand(3))
+        obb.color = (0, 0, 0)
+        geometries.extend([cluster, obb])
+    o3d.visualization.draw_geometries(geometries)
+
+
+def find_main_plane(
+    pcd: o3d.geometry.PointCloud,
+    distance_threshold=0.004,
+    ransac_n=3,
+    num_iterations=1000,
+):
+    """
+    Fit main supporting plane using RANSAC.
+    Returns: plane_model, inliers (indices), plane_cloud, rest_cloud
+    """
+    plane_model, inliers = pcd.segment_plane(
+        distance_threshold, ransac_n, num_iterations
     )
-    main_axis, plane_normal = get_plane_main_axes(graph["plane"])
-    poses = visualize_and_prepare_poses(graph["branches_3d"], main_axis, plane_normal)
-    logger.info("TCP poses:")
-    for pose in poses:
-        logger.info(np.round(pose, 2))
-    logger.success("=== FILE MODE COMPLETE ===")
+    plane_cloud = pcd.select_by_index(inliers)
+    rest_cloud = pcd.select_by_index(inliers, invert=True)
+    return plane_model, inliers, plane_cloud, rest_cloud
 
 
+def filter_rectangular_clusters(clusters, min_aspect_ratio=2.0, min_length=0.05):
+    filtered = []
+    for cluster in clusters:
+        obb = cluster.get_oriented_bounding_box()
+        sizes = np.sort(obb.extent)
+        # Keep only clusters with pronounced length
+        aspect = sizes[2] / sizes[1] if sizes[1] > 0 else 0
+        if aspect > min_aspect_ratio and sizes[2] > min_length:
+            filtered.append(cluster)
+    return filtered
+
+
+# High-level function to run the complete pipeline quickly
+def run_truss_segmentation_pipeline(pcd_path: str, bbox_points: np.ndarray):
+    pcd = load_point_cloud(pcd_path)
+    pcd = transform_cloud_to_tcp(pcd, HAND_EYE_R, HAND_EYE_t, TARGET_POSE)
+    pcd_filtered = filter_bbox(pcd, bbox_points)
+
+    # NEW: find main plane and get points "над" ней
+    plane_model, inliers, plane_cloud, rest_cloud = find_main_plane(pcd_filtered)
+    print(f"Main plane equation: {plane_model}, points on plane: {len(inliers)}")
+
+    # Кластеризация только по тем, что вне плоскости (или рядом с ней)
+    clusters = segment_dbscan(plane_cloud, eps=0.05, min_points=400)
+    # clusters = filter_rectangular_clusters(clusters)
+    obbs = [get_obb(cluster) for cluster in clusters]
+    main_axes = [get_main_axis(cluster) for cluster in clusters]
+    intersections = intersect_clusters_obb(obbs)
+    print("Clusters found:", len(clusters))
+    for i, cluster in enumerate(clusters):
+        print(f"Cluster {i}: {len(cluster.points)} points")
+    # Визуализируем всё: плоскость (основу) + кластеры
+    geometries = [plane_cloud]
+    for cluster, obb in zip(clusters, obbs):
+        cluster.paint_uniform_color(np.random.rand(3))
+        obb.color = (0, 0, 0)
+        geometries.extend([cluster, obb])
+    o3d.visualization.draw_geometries(geometries)
+
+    return {
+        "plane_cloud": plane_cloud,
+        "clusters": clusters,
+        "obbs": obbs,
+        "main_axes": main_axes,
+        "intersections": intersections,
+    }
+
+
+# Example usage (can integrate into existing farm.py logic)
 if __name__ == "__main__":
-    # farm_cycle()
-    run_from_file(".data_clouds/farm_20250729_145942.ply")
+    BBOX_POINTS = np.array(
+        [
+            [-0.57, -0.34, 0.46],
+            [-0.57, -0.05, 0.27],
+            [-0.38, -0.05, 0.27],
+            [-0.38, -0.05, 0.46],
+        ]
+    )
+    result = run_truss_segmentation_pipeline(
+        ".data_clouds/farm_20250730_143651.ply", BBOX_POINTS
+    )
+    for idx, axis in enumerate(result["main_axes"]):
+        print(f"Cluster {idx} main axis: {axis}")
+    print("Intersections:", result["intersections"])

@@ -205,7 +205,8 @@ def transform_cloud_to_tcp(
     T_cam2base = np.eye(4)
     T_cam2base[:3, :3] = handeye_R
     T_cam2base[:3, 3] = handeye_t.flatten()
-    T_base2tcp = pose_to_transform(tcp_pose)
+    T_base2tcp = np.eye(4)
+    T_base2tcp[:3, 3] = tcp_pose.flatten()
     T_cam2tcp = T_base2tcp @ T_cam2base
     pts = np.asarray(pcd.points)
     pts_h = np.empty((4, pts.shape[0]), dtype=np.float64)

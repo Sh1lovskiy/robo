@@ -429,33 +429,79 @@ def load_point_cloud(path):
     return pcd
 
 
+def repair_surface(
+    pcd: o3d.geometry.PointCloud, method="laplacian"
+) -> o3d.geometry.PointCloud:
+    """
+    Repair and smooth a point cloud with missing regions or noisy borders.
+    Supported methods:
+    - "laplacian": Laplacian smoothing + outlier removal
+    - "rolling": Open3D mesh + rolling-ball-like smoothing
+    - "tsdf": TSDF voxel volume fusion (no color)
+    """
+    pcd = pcd.voxel_down_sample(0.002)
+    pcd.estimate_normals(
+        search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.01, max_nn=30)
+    )
+    pcd.orient_normals_consistent_tangent_plane(50)
+
+    if method == "laplacian":
+        mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(
+            pcd, alpha=0.001
+        )
+        mesh = mesh.filter_smooth_laplacian(number_of_iterations=5)
+        mesh.compute_vertex_normals()
+        return mesh.sample_points_poisson_disk(300000)
+
+    else:
+        raise ValueError(f"Unknown repair method: {method}")
+
+
 def run_from_file(pcd_path):
     logger.info("=== RUNNING FROM FILE ===")
     pcd = load_point_cloud(pcd_path)
     pcd_tcp, _, _ = transform_cloud_to_tcp(pcd, HAND_EYE_R, HAND_EYE_t, TARGET_POSE)
-    graph = run_pipeline(
-        cloud_path=None,
-        bbox_points=BBOX_POINTS,
-        cloud_obj=pcd_tcp,
-        voxel_size=0.0001,
-    )
-    # o3d.visualization.draw_geometries(
-    #     [graph["plane"]] + graph["o3d_branches"] + graph["o3d_nodes"]
-    # )
-    main_axis, plane_normal = get_plane_main_axes(graph["plane"])
-    logger.info("Visualizing target nodes")
-    target_poses = prepare_and_visualize_tcp_path(
-        graph["node_coords_3d"],
-        graph["branches_3d"],
-        graph["o3d_branches"],
-        graph["o3d_nodes"],
-        graph["plane"],
-        main_axis,
-        plane_normal,
-    )
-    logger.info("TCP poses:")
-    for pose in target_poses:
-        logger.info(np.round(pose, 2))
+
+    bbox = o3d.geometry.PointCloud()
+    bbox.points = o3d.utility.Vector3dVector(BBOX_POINTS)
+    cropped = pcd_tcp.crop(bbox.get_axis_aligned_bounding_box())
+
+    methods = ["laplacian"]
+    for method in methods:
+        logger.info(f"=== TESTING REPAIR METHOD: {method.upper()} ===")
+        repaired = repair_surface(cropped, method=method)
+        o3d.visualization.draw_geometries([repaired], window_name=f"REPAIRED: {method}")
+
+        try:
+            graph = run_pipeline(
+                cloud_path=None,
+                bbox_points=BBOX_POINTS,
+                cloud_obj=repaired,
+                voxel_size=0.0001,
+            )
+        except Exception as e:
+            logger.error(f"Pipeline failed for method '{method}': {e}")
+            continue
+
+        try:
+            main_axis, plane_normal = get_plane_main_axes(graph["plane"])
+            logger.info(f"Visualizing target nodes ({method})")
+            target_poses = prepare_and_visualize_tcp_path(
+                graph["node_coords_3d"],
+                graph["branches_3d"],
+                graph["o3d_branches"],
+                graph["o3d_nodes"],
+                graph["plane"],
+                main_axis,
+                plane_normal,
+            )
+            logger.info("TCP poses:")
+            for pose in target_poses:
+                logger.info(np.round(pose, 2))
+        except Exception as e:
+            logger.error(f"Visualization failed for method '{method}': {e}")
+            continue
+
     logger.success("=== FILE MODE COMPLETE ===")
 
 

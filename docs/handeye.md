@@ -1,9 +1,10 @@
 # HANDEYE
 
-This document explains the full chain of transformations used to convert 2D pixel measurements and depth values into 3D robot base coordinates. Each step is mathematically grounded and annotated for clarity. References to OpenCV and robotics sources are included.
+This document provides a structured, mathematical description of the full chain of transformations required to convert 2D pixel measurements and depth values into 3D robot base coordinates. Each mathematical step is detailed clearly and formally, with references to OpenCV and robotics literature included.
 
 ## 1. Full Coordinate Transformation Chain
 
+The following transformation chain converts pixel and depth data from camera coordinates into robot base coordinates:
 $$
 \begin{bmatrix}
 u \\
@@ -40,7 +41,7 @@ $$
 - **$f_x, f_y$**: Focal lengths in pixels.
 - **$c_x, c_y$**: Principal point coordinates.
 
-Reference: [OpenCV Camera Calibration](https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html)
+**Reference:** [OpenCV Camera Calibration](https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html)
 
 ---
 
@@ -90,9 +91,9 @@ $$
 
 Rigid transformation from the camera coordinate system to the robot TCP (tool center point).
 
-**R**: $3\times3$ rotation matrix.
+**R**: Rotation matrix $(3\times3)$.
 
-**t**: $3\times1$ translation vector.
+**t**: Translation vector $(3\times1)$.
 
 **Reference**: [cv2.calibrateHandEye](https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#gaebfc1c9f7434196a374c382abf43439b)
 
@@ -135,13 +136,12 @@ R(r_x, r_y, r_z) =
 c_{r_y} c_{r_z} & c_{r_x} s_{r_y} s_{r_z} - s_{r_x} c_{r_z} & c_{r_x} s_{r_y} c_{r_z} + s_{r_x} s_{r_z} \\
 c_{r_y} s_{r_z} & s_{r_x} s_{r_y} s_{r_z} + c_{r_x} c_{r_z} & c_{r_z} s_{r_x} s_{r_y} - c_{r_x} s_{r_z} \\
 -s_{r_y} & c_{r_y} s_{r_x} & c_{r_y} c_{r_x}
-\end{bmatrix}
-$$
-
-$$
+\end{bmatrix},
+\quad
 \begin{aligned}
-c_{r_x} = \cos(r_x),\quad c_{r_y} = \cos(r_y),\quad c_{r_z} = \cos(r_z) \\
-s_{r_x} = \sin(r_x),\quad s_{r_y} = \sin(r_y),\quad s_{r_z} = \sin(r_z)
+c_{(\cdot)} = \cos{\left[ \cdot \right]}
+\\
+s_{(\cdot)} = \sin{\left[ \cdot \right]}
 \end{aligned}
 $$
 
@@ -158,18 +158,18 @@ $$
 $$
 
 - $\mathrm{A}_i = \mathrm{T_{robot}}^{(i)}$: the known robot pose from base to TCP at time $i$.
-- $\mathrm{B}_i = \mathrm{T_{target}}^{(i)}$: the known pose of a calibration target (e.g., Chess board, Charuco board) relative to the camera
+- $\mathrm{B}_i = \mathrm{T_{target}}^{(i)}$: the known pose of a calibration target (e.g., Chess board, Charuco board) relative to the camera at time $i$.
 - $\mathrm{X} = \mathrm{T_{cam2tcp}}$: the unknown camera-to-TCP transformation to solve for
 
 This is a form of the **Sylvester-type equation**, arising in rigid body calibration problems.
 
 OpenCV’s [`cv2.calibrateHandEye`](https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#gaebfc1c9f7434196a374c382abf43439b) solves this problem using one of several algorithms:
 
-- **Tsai & Lenz (1989)** — classic decoupled rotation/translation method
-- **Park & Martin (1994)** — screw-based method
-- **Horaud et al. (1995)** — quaternion-based optimization
-- **Daniilidis (1999)** — dual quaternion approach
-- **Andreff et al. (2001)** — algebraic method minimizing reprojection error
+- **Tsai & Lenz (1989)**: Decoupled rotation/translation.
+- **Park & Martin (1994)**: Screw theory-based method.
+- **Horaud et al. (1995)**: Quaternion optimization.
+- **Daniilidis (1999)**: Dual quaternion method.
+- **Andreff et al. (2001)**: Algebraic approach minimizing reprojection error.
 
 The calibration minimizes:
 
@@ -179,9 +179,9 @@ $$
 
 ## References
 
-- [OpenCV: cv2.calibrateHandEye](https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#gaebfc1c9f7434196a374c382abf43439b) — Hand-eye calibration routine
-- [OpenCV Camera Calibration](https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html) — Intrinsic matrix and distortion model
-- [OpenCV Pose Estimation (solvePnP)](https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html) — Camera pose from 2D–3D points
-- [Wikipedia: Euler Angles](https://en.wikipedia.org/wiki/Euler_angles) — Rotation from roll, pitch, yaw
-- [Wikipedia: Transformation Matrix](https://en.wikipedia.org/wiki/Transformation_matrix) — Homogeneous coordinate transforms
-- [Wikipedia: Sylvester Equation](https://en.wikipedia.org/wiki/Sylvester_equation) — Sylvester matrix equations
+- [OpenCV: cv2.calibrateHandEye](https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#gaebfc1c9f7434196a374c382abf43439b)
+- [OpenCV Camera Calibration](https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html)
+- [OpenCV Pose Estimation (solvePnP)](https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html)
+- [Wikipedia: Euler Angles](https://en.wikipedia.org/wiki/Euler_angles)
+- [Wikipedia: Transformation Matrix](https://en.wikipedia.org/wiki/Transformation_matrix)
+- [Wikipedia: Sylvester Equation](https://en.wikipedia.org/wiki/Sylvester_equation)
