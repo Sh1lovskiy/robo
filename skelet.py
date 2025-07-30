@@ -312,11 +312,11 @@ def run_pipeline(
     cloud_path=None,
     bbox_points=None,
     cloud_obj=None,
-    voxel_size=0.001,
+    voxel_size=0.0001,
     nb_neighbors=30,
     std_ratio=2.0,
     distance_threshold=0.004,
-    ransac_n=3,
+    ransac_n=5,
     img_res=1024,
 ):
     if cloud_obj is not None:

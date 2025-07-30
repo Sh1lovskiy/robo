@@ -99,7 +99,7 @@ def compute_tcp_poses(
     target_points: np.ndarray,
     main_axis: np.ndarray,
     plane_normal: np.ndarray,
-    offset_xyz: tuple[float, float, float] = (0.03, 0.017, -0.25),
+    offset_xyz: tuple[float, float, float] = (0.03, 0.017, -0.35),
     frame_size: float = 0.05,
 ):
     """
@@ -107,7 +107,7 @@ def compute_tcp_poses(
     X: main_axis, Z: plane_normal, Y: right-hand rule.
     """
     x_axis = -main_axis / np.linalg.norm(main_axis)
-    z_axis = plane_normal / np.linalg.norm(plane_normal)
+    z_axis = -plane_normal / np.linalg.norm(plane_normal)
     y_axis = np.cross(z_axis, x_axis)
     y_axis /= np.linalg.norm(y_axis)
     R_tcp = np.column_stack((x_axis, y_axis, z_axis))
@@ -146,7 +146,7 @@ def build_graph(nodes, branches):
     return G
 
 
-def merge_close_points_2d(points: np.ndarray, radius: float = 0.2) -> np.ndarray:
+def merge_close_points_2d(points: np.ndarray, radius: float = 0.3) -> np.ndarray:
     """
     Merge 2D points that are closer than radius (in XY).
     Each cluster is replaced by its average.
@@ -200,7 +200,7 @@ def shortest_path_order(G, start_idx, targets):
 
 def visualize_targets_on_graph(graph, main_axis, plane_normal, frame_size=0.04):
     """Visualize nodes, graph, Dijkstra route and TCP frames. Return ordered TCP poses."""
-    nodes = merge_close_points_2d(np.array(graph["node_coords_3d"]), radius=0.02)
+    nodes = merge_close_points_2d(np.array(graph["node_coords_3d"]), radius=0.03)
     edges = rebuild_edges_from_coords(nodes, graph["branches_3d"])
     target_points = np.array(nodes)
 
@@ -261,7 +261,7 @@ def visualize_targets_on_graph(graph, main_axis, plane_normal, frame_size=0.04):
             cylinder_height=arrow_len * 0.8,
             cone_height=arrow_len * 0.2,
         ),
-        -plane_normal,
+        plane_normal,
     )
     arrow_normal.paint_uniform_color([0.1, 0.2, 1])
     arrow_normal.translate(center)
@@ -313,10 +313,14 @@ def single_farm_iteration(i, rpc, esp32):
         cloud_obj=pcd_tcp,
         voxel_size=0.0001,
     )
-    o3d.visualization.draw_geometries(
-        [graph["plane"]] + graph["o3d_branches"] + graph["o3d_nodes"]
-    )
+
+    o3d.visualization.draw_geometries(graph["o3d_branches"] + graph["o3d_nodes"])
     main_axis, plane_normal = get_plane_main_axes(graph["plane"])
+    if main_axis[0] < 0:
+        main_axis = -main_axis
+    CAMERA_DIR = np.array([0, 0, 1])
+    if np.dot(plane_normal, CAMERA_DIR) < 0:
+        plane_normal = -plane_normal
     logger.info("Visualizing target nodes")
     target_poses = visualize_targets_on_graph(graph, main_axis, plane_normal)
     logger.info(target_poses)
