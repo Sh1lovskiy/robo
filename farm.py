@@ -66,11 +66,28 @@ BBOX_POINTS = np.array(
 
 
 def get_plane_main_axes(plane):
-    """Estimate main axis and normal from O3D plane point cloud."""
+    """
+    Return fixed canonical axes for the plane:
+    - X axis: always upward (world +Z)
+    - Z axis: toward the camera (opposite of plane normal)
+    - Y axis: leftward (completes right-handed system)
+    """
     pts = np.asarray(plane.points)
     center = np.mean(pts, axis=0)
     _, _, Vt = np.linalg.svd(pts - center, full_matrices=False)
-    return Vt[0], Vt[2]  # main_axis, normal
+
+    normal = Vt[2]
+    if normal[2] < 0:
+        normal = -normal  # Z always toward camera
+
+    x_axis = Vt[0]  # fixed
+    y_axis = np.cross(normal, x_axis)  # leftward
+    y_axis /= np.linalg.norm(y_axis)
+
+    x_axis = np.cross(y_axis, normal)  # re-orthogonalize
+    x_axis /= np.linalg.norm(x_axis)
+
+    return x_axis, normal
 
 
 def align_arrow(mesh, direction):
@@ -106,7 +123,7 @@ def compute_tcp_poses(
     Build TCP poses ([x, y, z, rx, ry, rz]) and O3D frames for each target point.
     X: main_axis, Z: plane_normal, Y: right-hand rule.
     """
-    x_axis = -main_axis / np.linalg.norm(main_axis)
+    x_axis = main_axis / np.linalg.norm(main_axis)
     z_axis = -plane_normal / np.linalg.norm(plane_normal)
     y_axis = np.cross(z_axis, x_axis)
     y_axis /= np.linalg.norm(y_axis)
@@ -127,104 +144,119 @@ def compute_tcp_poses(
     return poses, frames
 
 
-def build_graph(nodes, branches):
-    """Build networkx graph from node coords and branch index pairs."""
-    # undirected graph
+def cluster_nodes_2d(
+    raw_points: np.ndarray, radius: float = 0.03, tree: cKDTree | None = None
+) -> tuple[np.ndarray, dict[int, int]]:
+    """
+    Cluster nearby 2D points (XY projection) within a given radius.
+    Each cluster is averaged into a single node. Returns the merged nodes
+    and a mapping from original point indices to cluster indices.
+    """
+    if tree is None:
+        tree = cKDTree(raw_points[:, :2])
+
+    visited = np.zeros(len(raw_points), dtype=bool)
+    merged = []
+    index_map = {}
+
+    for i in range(len(raw_points)):
+        if visited[i]:
+            continue
+        # find all neighbors in radius in XY space
+        idxs = tree.query_ball_point(raw_points[i], radius)
+        cluster = raw_points[idxs]
+        new_point = np.mean(cluster, axis=0)
+        new_idx = len(merged)
+        merged.append(new_point)
+        # map all clustered points to new index
+        for j in idxs:
+            index_map[j] = new_idx
+        visited[idxs] = True
+
+    return np.array(merged), index_map
+
+
+def rebuild_edges(
+    branches_xyz: list[np.ndarray],
+    raw_points: np.ndarray,
+    index_map: dict[int, int],
+    tree: cKDTree,
+) -> list[list[int]]:
+    """
+    Convert original 3D branches into a set of unique undirected edges between merged nodes.
+    Each branch is reduced to its start and end point and mapped through the clustering.
+    """
+    edges = set()
+    for branch in branches_xyz:
+        # find closest raw point index to branch endpoints
+        i_raw = tree.query(branch[0])[1]
+        j_raw = tree.query(branch[-1])[1]
+        # map to merged node index
+        i = index_map.get(i_raw)
+        j = index_map.get(j_raw)
+        if i is not None and j is not None and i != j:
+            edges.add(tuple(sorted((i, j))))
+    return [list(e) for e in edges]
+
+
+def build_graph(nodes: np.ndarray, edges: list[list[int]]) -> nx.Graph:
+    """
+    Build an undirected graph from 3D node positions and edges (by index).
+    Each edge is weighted by Euclidean distance.
+    """
     G = nx.Graph()
     for i, coord in enumerate(nodes):
-        # add each node with its 3D position as attribute
         G.add_node(i, pos=coord)
-
-    for branch in branches:
-        # use only the endpoints of the branch as graph edges
-        # i: first node in the branch, j: last node
-        i, j = branch[0], branch[-1]
-        # euclidean distance between endpoints
+    for i, j in edges:
         dist = np.linalg.norm(nodes[i] - nodes[j])
-        # add edge with distance as weight
         G.add_edge(i, j, weight=dist)
     return G
 
 
-def merge_close_points_2d(points: np.ndarray, radius: float = 0.3) -> np.ndarray:
+def compute_pose_order(G: nx.Graph, poses: list[np.ndarray]) -> list[int]:
     """
-    Merge 2D points that are closer than radius (in XY).
-    Each cluster is replaced by its average.
+    Given a graph and TCP poses, returns a greedy ordered list of node indices
+    based on Dijkstra shortest paths between successive nodes.
     """
-    tree = cKDTree(points[:, :2])
-    visited = np.zeros(len(points), dtype=bool)
-    merged = []
-    for i in range(len(points)):
-        if visited[i]:
-            continue
-        idxs = tree.query_ball_point(points[i, :2], radius)
-        cluster = points[idxs]
-        merged_point = np.mean(cluster, axis=0)
-        merged.append(merged_point)
-        visited[idxs] = True
-    return np.array(merged)
-
-
-def rebuild_edges_from_coords(
-    nodes: np.ndarray, branches_xyz: list[np.ndarray], tol=1e-6
-):
-    """Map 3D branches to new node indices after merging."""
-    tree = cKDTree(nodes)
-    edges = []
-    for branch in branches_xyz:
-        start, end = branch[0], branch[-1]
-        i = tree.query(start)[1]
-        j = tree.query(end)[1]
-        if i != j and [i, j] not in edges and [j, i] not in edges:
-            edges.append([i, j])
-    return edges
-
-
-def shortest_path_order(G, start_idx, targets):
-    """Order all targets by shortest path from start, greedy."""
-    # get the connected component that contains the starting node
-    component = set(nx.node_connected_component(G, start_idx))
-    # not reachable from start
-    filtered = [t for t in targets if t in component]
-    # path order list, current node, and set of unvisited targets
-    order, current, pool = [], start_idx, set(filtered)
+    nodes = np.array([p[:3] for p in poses])
+    current_pos = poses[0][:3]
+    # start from closest node to current TCP pose
+    start_idx = np.argmin(np.linalg.norm(nodes - current_pos, axis=1))
+    reachable = set(nx.node_connected_component(G, start_idx))
+    pool = set(range(len(poses))) & reachable
+    order, current = [], start_idx
     while pool:
+        # find next closest node in graph distance
         next_idx = min(
             pool, key=lambda t: nx.shortest_path_length(G, current, t, weight="weight")
         )
         order.append(next_idx)
-        current = next_idx
         pool.remove(next_idx)
+        current = next_idx
     return order
 
 
-def visualize_targets_on_graph(graph, main_axis, plane_normal, frame_size=0.04):
-    """Visualize nodes, graph, Dijkstra route and TCP frames. Return ordered TCP poses."""
-    nodes = merge_close_points_2d(np.array(graph["node_coords_3d"]), radius=0.03)
-    edges = rebuild_edges_from_coords(nodes, graph["branches_3d"])
-    target_points = np.array(nodes)
-
-    # Compute poses and frames
-    poses, frames = compute_tcp_poses(
-        target_points,
-        main_axis,
-        plane_normal,
-        offset_xyz=(0.0, 0.0, -0.2),
-        frame_size=frame_size,
-    )
-
-    # Build graph
-    G = build_graph(nodes, edges)
-    current_pos = poses[0][:3]
-    start_idx = np.argmin(np.linalg.norm(nodes - current_pos, axis=1))
-    order = shortest_path_order(G, start_idx, list(range(len(nodes))))
-    poses_in_path = [poses[i] for i in order]
-
-    # Geometries
+def render_path_visualization(
+    nodes: np.ndarray,
+    edges: list[list[int]],
+    o3d_branches: list[list[int]],
+    o3d_nodes: list[int],
+    order: list[int],
+    plane: o3d.geometry.PointCloud,
+    main_axis: np.ndarray,
+    plane_normal: np.ndarray,
+    frames: list[o3d.geometry.TriangleMesh],
+):
+    """
+    Visualize clustered nodes, graph edges, planned route and TCP poses in Open3D.
+    Also adds orientation arrows for main axis and surface normal.
+    """
+    # point cloud of nodes
     node_pcd = o3d.geometry.PointCloud()
     node_pcd.points = o3d.utility.Vector3dVector(nodes)
     node_pcd.paint_uniform_color([1, 0.4, 0])
 
+    # Dijkstra route
     route_lines = [[order[i], order[i + 1]] for i in range(len(order) - 1)]
     route_ls = o3d.geometry.LineSet(
         points=o3d.utility.Vector3dVector(nodes),
@@ -232,16 +264,17 @@ def visualize_targets_on_graph(graph, main_axis, plane_normal, frame_size=0.04):
     )
     route_ls.colors = o3d.utility.Vector3dVector([[1, 0, 0]] * len(route_lines))
 
+    # all edges in graph
     graph_ls = o3d.geometry.LineSet(
         points=o3d.utility.Vector3dVector(nodes),
         lines=o3d.utility.Vector2iVector(edges),
     )
     graph_ls.colors = o3d.utility.Vector3dVector([[0, 0, 0]] * len(edges))
 
-    # Direction arrows
     center = np.mean(nodes, axis=0)
     arrow_len = 0.025
 
+    # main axis arrow
     arrow_main = align_arrow(
         o3d.geometry.TriangleMesh.create_arrow(
             cylinder_radius=0.001,
@@ -254,6 +287,7 @@ def visualize_targets_on_graph(graph, main_axis, plane_normal, frame_size=0.04):
     arrow_main.paint_uniform_color([1, 0.1, 0.1])
     arrow_main.translate(center)
 
+    # normal vector arrow
     arrow_normal = align_arrow(
         o3d.geometry.TriangleMesh.create_arrow(
             cylinder_radius=0.001,
@@ -267,15 +301,57 @@ def visualize_targets_on_graph(graph, main_axis, plane_normal, frame_size=0.04):
     arrow_normal.translate(center)
 
     run_visualization(
-        plane=graph["plane"],
-        o3d_branches=graph["o3d_branches"],
-        o3d_nodes=graph["o3d_nodes"],
+        plane=plane,
+        o3d_branches=o3d_branches,
+        o3d_nodes=o3d_nodes,
         graph_lineset=graph_ls,
         arrow_main=arrow_main,
         arrow_normal=arrow_normal,
         frames=frames,
     )
 
+
+def prepare_and_visualize_tcp_path(
+    node_coords_3d: np.ndarray,
+    branches_3d: list[np.ndarray],
+    o3d_branches,
+    o3d_nodes,
+    plane: o3d.geometry.PointCloud,
+    main_axis: np.ndarray,
+    plane_normal: np.ndarray,
+    offset_xyz=(0.0, 0.0, -0.2),
+    radius=0.02,
+    frame_size=0.04,
+) -> list[np.ndarray]:
+    """
+    Complete pipeline:
+    - Cluster node positions in 2D
+    - Map branches to edges
+    - Build graph
+    - Compute TCP poses and sort them greedily by distance
+    - Visualize result
+    """
+    raw = np.asarray(node_coords_3d)
+    tree = cKDTree(raw)
+    merged, index_map = cluster_nodes_2d(raw, radius, tree)
+    edges = rebuild_edges(branches_3d, raw, index_map, tree)
+    poses, frames = compute_tcp_poses(
+        merged, main_axis, plane_normal, offset_xyz=offset_xyz, frame_size=frame_size
+    )
+    G = build_graph(merged, edges)
+    order = compute_pose_order(G, poses)
+    poses_in_path = [poses[i] for i in order]
+    render_path_visualization(
+        merged,
+        edges,
+        o3d_branches,
+        o3d_nodes,
+        order,
+        plane,
+        main_axis,
+        plane_normal,
+        frames,
+    )
     return poses_in_path
 
 
@@ -322,7 +398,7 @@ def single_farm_iteration(i, rpc, esp32):
     if np.dot(plane_normal, CAMERA_DIR) < 0:
         plane_normal = -plane_normal
     logger.info("Visualizing target nodes")
-    target_poses = visualize_targets_on_graph(graph, main_axis, plane_normal)
+    target_poses = prepare_and_visualize_tcp_path(graph, main_axis, plane_normal)
     logger.info(target_poses)
     input("Check visualization. Press Enter to start movement...")
     move_robot_to_targets(rpc, esp32, target_poses, LASER_ON_TIME)
@@ -368,7 +444,15 @@ def run_from_file(pcd_path):
     # )
     main_axis, plane_normal = get_plane_main_axes(graph["plane"])
     logger.info("Visualizing target nodes")
-    target_poses = visualize_targets_on_graph(graph, main_axis, plane_normal)
+    target_poses = prepare_and_visualize_tcp_path(
+        graph["node_coords_3d"],
+        graph["branches_3d"],
+        graph["o3d_branches"],
+        graph["o3d_nodes"],
+        graph["plane"],
+        main_axis,
+        plane_normal,
+    )
     logger.info("TCP poses:")
     for pose in target_poses:
         logger.info(np.round(pose, 2))
@@ -377,4 +461,4 @@ def run_from_file(pcd_path):
 
 if __name__ == "__main__":
     # farm_cycle()
-    run_from_file(".data_clouds/farm_20250729_145942.ply")
+    run_from_file(".data_clouds/farm_20250730_143651.ply")
