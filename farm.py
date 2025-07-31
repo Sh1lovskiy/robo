@@ -14,6 +14,9 @@ Automated cycle:
 import os
 import random
 import time
+import cv2
+import pyrealsense2 as rs
+from utils.settings import camera as cam_cfg
 import numpy as np
 import open3d as o3d
 import networkx as nx
@@ -26,7 +29,6 @@ from skelet import run_pipeline, run_visualization
 from rectangle import (
     robot_connect,
     robot_movej,
-    get_camera_cloud,
     robot_movel,
     save_cloud_timestamped,
     transform_cloud_to_tcp,
@@ -48,21 +50,29 @@ MOVE_DELAY = 0.5
 
 HAND_EYE_R = np.array(
     [
-        [0.999048, 0.02428, -0.03625],
-        [-0.02706, 0.99658, -0.07804],
-        [0.03423, 0.07895, 0.99629],
+        [0.999048, 0.00428, -0.00625],
+        [-0.00706, 0.99658, -0.00804],
+        [0.00423, 0.00895, 0.99629],
     ]
 )
-HAND_EYE_t = np.array([-0.03424, -0.07905, 0.00128]).reshape(3, 1)
+HAND_EYE_t = np.array([-0.036, -0.078, 0.006]).reshape(3, 1)
 TARGET_POSE = np.array([3.63, -103.5, 540.2, -120.2, -1.13, 103.5])
 BBOX_POINTS = np.array(
     [
-        [-0.57, -0.34, 0.46],
-        [-0.57, -0.05, 0.27],
-        [-0.38, -0.05, 0.27],
-        [-0.38, -0.05, 0.46],
+        [-0.57, -0.373, 0.46],
+        [-0.57, 0.0, 0.27],
+        [-0.38, 0.0, 0.27],
+        [-0.38, 0.0, 0.46],
     ]
 )
+
+
+def load_point_cloud(
+    pcd_path: str, voxel_size: float = 0.002
+) -> o3d.geometry.PointCloud:
+    pcd = o3d.io.read_point_cloud(pcd_path)
+    pcd_down = pcd.voxel_down_sample(voxel_size)
+    return pcd_down
 
 
 def get_plane_main_axes(plane):
@@ -116,14 +126,14 @@ def compute_tcp_poses(
     target_points: np.ndarray,
     main_axis: np.ndarray,
     plane_normal: np.ndarray,
-    offset_xyz: tuple[float, float, float] = (0.03, 0.017, -0.35),
+    offset_xyz: tuple[float, float, float] = (0.043, -0.005, -0.27),
     frame_size: float = 0.05,
 ):
     """
     Build TCP poses ([x, y, z, rx, ry, rz]) and O3D frames for each target point.
     X: main_axis, Z: plane_normal, Y: right-hand rule.
     """
-    x_axis = main_axis / np.linalg.norm(main_axis)
+    x_axis = -main_axis / np.linalg.norm(main_axis)
     z_axis = -plane_normal / np.linalg.norm(plane_normal)
     y_axis = np.cross(z_axis, x_axis)
     y_axis /= np.linalg.norm(y_axis)
@@ -145,47 +155,50 @@ def compute_tcp_poses(
 
 
 def cluster_nodes_2d(
-    raw_points: np.ndarray, radius: float = 0.03, tree: cKDTree | None = None
+    raw_points: np.ndarray,
+    plane_points: np.ndarray,
+    radius: float = 0.012,
+    refine_radius: float = 0.0,
 ) -> tuple[np.ndarray, dict[int, int]]:
-    """
-    Cluster nearby 2D points (XY projection) within a given radius.
-    Each cluster is averaged into a single node. Returns the merged nodes
-    and a mapping from original point indices to cluster indices.
-    """
-    if tree is None:
-        tree = cKDTree(raw_points[:, :2])
-
+    tree = cKDTree(raw_points[:, :2])
+    plane_tree = cKDTree(plane_points[:, :2])
     visited = np.zeros(len(raw_points), dtype=bool)
-    merged = []
-    index_map = {}
+    clusters, index_map = [], {}
 
-    for i in range(len(raw_points)):
-        if visited[i]:
+    for idx, pt in enumerate(raw_points):
+        if visited[idx]:
             continue
-        # find all neighbors in radius in XY space
-        idxs = tree.query_ball_point(raw_points[i], radius)
-        cluster = raw_points[idxs]
-        new_point = np.mean(cluster, axis=0)
-        new_idx = len(merged)
-        merged.append(new_point)
-        # map all clustered points to new index
-        for j in idxs:
-            index_map[j] = new_idx
-        visited[idxs] = True
+        neighbor_idxs = tree.query_ball_point(pt[:2], radius)
+        visited[neighbor_idxs] = True
+        cluster_pts = raw_points[neighbor_idxs]
+        cluster_center = np.mean(cluster_pts, axis=0)
+        clusters.append(cluster_center)
+        cluster_id = len(clusters) - 1
+        for ni in neighbor_idxs:
+            index_map[ni] = cluster_id
 
-    return np.array(merged), index_map
+    refined_nodes = []
+    for node in clusters:
+        nearby_plane_idxs = plane_tree.query_ball_point(node[:2], refine_radius)
+        if nearby_plane_idxs:
+            refined_center = np.mean(plane_points[nearby_plane_idxs], axis=0)
+            node[:2] = refined_center[:2]
+            node[2] = refined_center[2]
+        refined_nodes.append(node)
+
+    return np.array(refined_nodes), index_map
 
 
 def rebuild_edges(
     branches_xyz: list[np.ndarray],
     raw_points: np.ndarray,
     index_map: dict[int, int],
-    tree: cKDTree,
 ) -> list[list[int]]:
     """
     Convert original 3D branches into a set of unique undirected edges between merged nodes.
     Each branch is reduced to its start and end point and mapped through the clustering.
     """
+    tree = cKDTree(raw_points)
     edges = set()
     for branch in branches_xyz:
         # find closest raw point index to branch endpoints
@@ -214,25 +227,10 @@ def build_graph(nodes: np.ndarray, edges: list[list[int]]) -> nx.Graph:
 
 
 def compute_pose_order(G: nx.Graph, poses: list[np.ndarray]) -> list[int]:
-    """
-    Given a graph and TCP poses, returns a greedy ordered list of node indices
-    based on Dijkstra shortest paths between successive nodes.
-    """
     nodes = np.array([p[:3] for p in poses])
     current_pos = poses[0][:3]
-    # start from closest node to current TCP pose
     start_idx = np.argmin(np.linalg.norm(nodes - current_pos, axis=1))
-    reachable = set(nx.node_connected_component(G, start_idx))
-    pool = set(range(len(poses))) & reachable
-    order, current = [], start_idx
-    while pool:
-        # find next closest node in graph distance
-        next_idx = min(
-            pool, key=lambda t: nx.shortest_path_length(G, current, t, weight="weight")
-        )
-        order.append(next_idx)
-        pool.remove(next_idx)
-        current = next_idx
+    order = list(nx.dfs_preorder_nodes(G, source=start_idx))
     return order
 
 
@@ -311,17 +309,55 @@ def render_path_visualization(
     )
 
 
+def edge_dfs_path(G, start):
+    visited_edges = set()
+    path = []
+
+    def dfs(u):
+        for v in G.neighbors(u):
+            eid = tuple(sorted((u, v)))
+            if eid not in visited_edges:
+                visited_edges.add(eid)
+                dfs(v)
+        path.append(u)
+
+    dfs(start)
+    return path[::-1]
+
+
+def ant_colony_like_path(G, start=0, n_ants=30, n_iters=100):
+    edges = set(G.edges())
+    best_path = None
+    best_len = float("inf")
+    for _ in range(n_iters):
+        for _ in range(n_ants):
+            path = [start]
+            visited_edges = set()
+            current = start
+            while len(visited_edges) < len(edges):
+                neighbors = [
+                    n
+                    for n in G.neighbors(current)
+                    if tuple(sorted((current, n))) not in visited_edges
+                ]
+                if not neighbors:
+                    neighbors = list(G.neighbors(current))
+                nxt = random.choice(neighbors)
+                eid = tuple(sorted((current, nxt)))
+                visited_edges.add(eid)
+                path.append(nxt)
+                current = nxt
+            path_len = sum(G[u][v]["weight"] for u, v in zip(path[:-1], path[1:]))
+            if path_len < best_len:
+                best_len = path_len
+                best_path = path
+    return best_path
+
+
 def prepare_and_visualize_tcp_path(
-    node_coords_3d: np.ndarray,
-    branches_3d: list[np.ndarray],
-    o3d_branches,
-    o3d_nodes,
-    plane: o3d.geometry.PointCloud,
+    graph,
     main_axis: np.ndarray,
     plane_normal: np.ndarray,
-    offset_xyz=(0.0, 0.0, -0.2),
-    radius=0.02,
-    frame_size=0.04,
 ) -> list[np.ndarray]:
     """
     Complete pipeline:
@@ -331,27 +367,102 @@ def prepare_and_visualize_tcp_path(
     - Compute TCP poses and sort them greedily by distance
     - Visualize result
     """
-    raw = np.asarray(node_coords_3d)
-    tree = cKDTree(raw)
-    merged, index_map = cluster_nodes_2d(raw, radius, tree)
-    edges = rebuild_edges(branches_3d, raw, index_map, tree)
-    poses, frames = compute_tcp_poses(
-        merged, main_axis, plane_normal, offset_xyz=offset_xyz, frame_size=frame_size
-    )
-    G = build_graph(merged, edges)
-    order = compute_pose_order(G, poses)
-    poses_in_path = [poses[i] for i in order]
-    render_path_visualization(
-        merged,
-        edges,
-        o3d_branches,
-        o3d_nodes,
-        order,
-        plane,
-        main_axis,
-        plane_normal,
-        frames,
-    )
+    try:
+        logger.info("Extracting geometry from graph...")
+        plane = graph["plane"]
+        node_coords_3d = graph["node_coords_3d"]
+        branches_3d = graph["branches_3d"]
+        o3d_branches = graph["o3d_branches"]
+        o3d_nodes = graph["o3d_nodes"]
+    except Exception as e:
+        logger.error(f"Error extracting geometry: {e}")
+        raise
+
+    try:
+        logger.info("Preparing raw node points for clustering...")
+        raw = np.asarray(node_coords_3d)
+        plane_pts = np.asarray(plane.points)
+        raw_points = np.concatenate([branch[[0, -1]] for branch in branches_3d], axis=0)
+    except Exception as e:
+        logger.error(f"Error preparing raw points: {e}")
+        raise
+
+    try:
+        logger.info("Clustering node positions in 2D...")
+        merged, index_map = cluster_nodes_2d(raw_points, plane_pts)
+        logger.success(f"Clustered nodes: {len(merged)}")
+    except Exception as e:
+        logger.error(f"Error clustering nodes: {e}")
+        raise
+
+    try:
+        logger.info("Rebuilding graph edges...")
+        edges = []
+        for branch in branches_3d:
+            tree = cKDTree(raw_points)
+            i_raw = tree.query(branch[0])[1]
+            j_raw = tree.query(branch[-1])[1]
+            i = index_map[i_raw]
+            j = index_map[j_raw]
+            if i != j:
+                edges.append([i, j])
+        logger.success(f"Edges rebuilt: {len(edges)}")
+    except Exception as e:
+        logger.error(f"Error rebuilding edges: {e}")
+        raise
+
+    try:
+        logger.info("Building graph structure...")
+        G = build_graph(merged, edges)
+        logger.success(
+            f"Graph has {G.number_of_nodes()} nodes, {G.number_of_edges()} edges"
+        )
+    except Exception as e:
+        logger.error(f"Error building graph: {e}")
+        raise
+
+    try:
+        logger.info("Computing TCP poses...")
+        poses, frames = compute_tcp_poses(merged, main_axis, plane_normal)
+        logger.success("TCP poses computed")
+    except Exception as e:
+        logger.error(f"Error computing TCP poses: {e}")
+        raise
+
+    try:
+        logger.info("Building traversal order for TCP path...")
+        order = ant_colony_like_path(G, start=0)
+        logger.success(f"Order computed: {order}")
+    except Exception as e:
+        logger.error(f"Error computing traversal order: {e}")
+        raise
+
+    try:
+        logger.info("Filtering poses along traversal path...")
+        poses_in_path = [poses[i] for i in order if 0 <= i < len(poses)]
+        logger.success(f"Prepared {len(poses_in_path)} poses in path")
+    except Exception as e:
+        logger.error(f"Error filtering poses: {e}")
+        raise
+
+    try:
+        logger.info("Rendering path visualization in Open3D...")
+        render_path_visualization(
+            merged,
+            edges,
+            o3d_branches,
+            o3d_nodes,
+            order,
+            plane,
+            main_axis,
+            plane_normal,
+            frames,
+        )
+        logger.success("Visualization rendered")
+    except Exception as e:
+        logger.error(f"Error rendering visualization: {e}")
+        raise
+
     return poses_in_path
 
 
@@ -377,6 +488,50 @@ def move_robot_to_targets(rpc, esp32, poses, laser_on_time, vel=35):
     esp32.laser_off()
 
 
+def get_camera_cloud() -> o3d.geometry.PointCloud:
+    """Capture and return filtered point cloud from RealSense."""
+    pipeline = rs.pipeline()
+    cfg = rs.config()
+    cfg.enable_stream(
+        rs.stream.color,
+        cam_cfg.rgb_width,
+        cam_cfg.rgb_height,
+        rs.format.bgr8,
+        cam_cfg.fps,
+    )
+    cfg.enable_stream(
+        rs.stream.depth,
+        cam_cfg.depth_width,
+        cam_cfg.depth_height,
+        rs.format.z16,
+        cam_cfg.fps,
+    )
+    profile = pipeline.start(cfg)
+    align = rs.align(rs.stream.color)
+    for _ in range(10):
+        frames = align.process(pipeline.wait_for_frames())
+    color = np.asanyarray(frames.get_color_frame().get_data())
+    depth = np.asanyarray(frames.get_depth_frame().get_data())
+    scale = profile.get_device().first_depth_sensor().get_depth_scale()
+    depth = depth.astype(np.float32) * scale
+    intr = frames.get_depth_frame().profile.as_video_stream_profile().get_intrinsics()
+    pinhole = o3d.camera.PinholeCameraIntrinsic(
+        intr.width, intr.height, intr.fx, intr.fy, intr.ppx, intr.ppy
+    )
+    rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
+        o3d.geometry.Image(cv2.cvtColor(color, cv2.COLOR_BGR2RGB)),
+        o3d.geometry.Image(depth),
+        depth_scale=1,
+        convert_rgb_to_intensity=False,
+    )
+    pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, pinhole)
+    pts = np.asarray(pcd.points)
+    mask = (pts[:, 2] > 0.2) & (pts[:, 2] < 2.0)
+    pcd = pcd.select_by_index(np.where(mask)[0])
+    pipeline.stop()
+    return pcd
+
+
 def single_farm_iteration(i, rpc, esp32):
     """One complete farm pass: acquire, process, visualize, move, rotate."""
     logger.info(f"--- Iteration {i + 1} ---")
@@ -390,7 +545,7 @@ def single_farm_iteration(i, rpc, esp32):
         voxel_size=0.0001,
     )
 
-    o3d.visualization.draw_geometries(graph["o3d_branches"] + graph["o3d_nodes"])
+    # o3d.visualization.draw_geometries(graph["o3d_branches"] + graph["o3d_nodes"])
     main_axis, plane_normal = get_plane_main_axes(graph["plane"])
     if main_axis[0] < 0:
         main_axis = -main_axis
@@ -400,9 +555,38 @@ def single_farm_iteration(i, rpc, esp32):
     logger.info("Visualizing target nodes")
     target_poses = prepare_and_visualize_tcp_path(graph, main_axis, plane_normal)
     logger.info(target_poses)
-    input("Check visualization. Press Enter to start movement...")
+    input("Press Enter to start movement...")
     move_robot_to_targets(rpc, esp32, target_poses, LASER_ON_TIME)
     time.sleep(MOVE_DELAY)
+
+
+def from_file():
+    """Main robot farm logic."""
+    logger.info("=== ROBOT FARM CYCLE START ===")
+    pcd = load_point_cloud(".data_clouds/farm_20250729_143818.ply")
+    pcd_tcp, _, _ = transform_cloud_to_tcp(pcd, HAND_EYE_R, HAND_EYE_t, TARGET_POSE)
+    result, result_serializable = run_pipeline(
+        cloud_path=None,
+        bbox_points=BBOX_POINTS,
+        cloud_obj=pcd_tcp,
+        voxel_size=0.0001,
+    )
+    main_axis, plane_normal = get_plane_main_axes(result["plane"])
+    if main_axis[0] < 0:
+        main_axis = -main_axis
+    CAMERA_DIR = np.array([0, 0, 1])
+    if np.dot(plane_normal, CAMERA_DIR) < 0:
+        plane_normal = -plane_normal
+    logger.info("Visualizing target nodes")
+    target_poses = prepare_and_visualize_tcp_path(result, main_axis, plane_normal)
+    logger.info(target_poses)
+
+    save_graph = input("Save graph.npy? [y/n]: ").strip().lower()
+    if save_graph == "y":
+        np.save("graph.npy", result_serializable, allow_pickle=True)
+        print("Graph saved to graph.npy")
+    else:
+        print("Graph NOT saved.")
 
 
 def farm_cycle():
@@ -422,89 +606,6 @@ def farm_cycle():
     logger.success("=== ALL NODES PASSED ===")
 
 
-def load_point_cloud(path):
-    pcd = o3d.io.read_point_cloud(path)
-    pcd.estimate_normals()
-    logger.info(f"Loaded point cloud: {path} ({len(pcd.points)} points)")
-    return pcd
-
-
-def repair_surface(
-    pcd: o3d.geometry.PointCloud, method="laplacian"
-) -> o3d.geometry.PointCloud:
-    """
-    Repair and smooth a point cloud with missing regions or noisy borders.
-    Supported methods:
-    - "laplacian": Laplacian smoothing + outlier removal
-    - "rolling": Open3D mesh + rolling-ball-like smoothing
-    - "tsdf": TSDF voxel volume fusion (no color)
-    """
-    pcd = pcd.voxel_down_sample(0.002)
-    pcd.estimate_normals(
-        search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.01, max_nn=30)
-    )
-    pcd.orient_normals_consistent_tangent_plane(50)
-
-    if method == "laplacian":
-        mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(
-            pcd, alpha=0.001
-        )
-        mesh = mesh.filter_smooth_laplacian(number_of_iterations=5)
-        mesh.compute_vertex_normals()
-        return mesh.sample_points_poisson_disk(300000)
-
-    else:
-        raise ValueError(f"Unknown repair method: {method}")
-
-
-def run_from_file(pcd_path):
-    logger.info("=== RUNNING FROM FILE ===")
-    pcd = load_point_cloud(pcd_path)
-    pcd_tcp, _, _ = transform_cloud_to_tcp(pcd, HAND_EYE_R, HAND_EYE_t, TARGET_POSE)
-
-    bbox = o3d.geometry.PointCloud()
-    bbox.points = o3d.utility.Vector3dVector(BBOX_POINTS)
-    cropped = pcd_tcp.crop(bbox.get_axis_aligned_bounding_box())
-
-    methods = ["laplacian"]
-    for method in methods:
-        logger.info(f"=== TESTING REPAIR METHOD: {method.upper()} ===")
-        repaired = repair_surface(cropped, method=method)
-        o3d.visualization.draw_geometries([repaired], window_name=f"REPAIRED: {method}")
-
-        try:
-            graph = run_pipeline(
-                cloud_path=None,
-                bbox_points=BBOX_POINTS,
-                cloud_obj=repaired,
-                voxel_size=0.0001,
-            )
-        except Exception as e:
-            logger.error(f"Pipeline failed for method '{method}': {e}")
-            continue
-
-        try:
-            main_axis, plane_normal = get_plane_main_axes(graph["plane"])
-            logger.info(f"Visualizing target nodes ({method})")
-            target_poses = prepare_and_visualize_tcp_path(
-                graph["node_coords_3d"],
-                graph["branches_3d"],
-                graph["o3d_branches"],
-                graph["o3d_nodes"],
-                graph["plane"],
-                main_axis,
-                plane_normal,
-            )
-            logger.info("TCP poses:")
-            for pose in target_poses:
-                logger.info(np.round(pose, 2))
-        except Exception as e:
-            logger.error(f"Visualization failed for method '{method}': {e}")
-            continue
-
-    logger.success("=== FILE MODE COMPLETE ===")
-
-
 if __name__ == "__main__":
     # farm_cycle()
-    run_from_file(".data_clouds/farm_20250730_143651.ply")
+    from_file()

@@ -13,7 +13,7 @@ from collections import defaultdict
 import open3d as o3d
 from scipy.ndimage import distance_transform_edt, label as nd_label
 from scipy.spatial import cKDTree
-from skimage.morphology import thin
+from skimage.morphology import skeletonize, thin
 from skimage.segmentation import watershed, find_boundaries
 
 from utils.logger import Logger, SuppressO3DInfo
@@ -336,17 +336,18 @@ def run_pipeline(
     center, basis = get_pca_basis(points)
     mask, img_xy = preprocess_mask(points, center, basis, img_res)
     skel = geodesic_skeletonization(mask)
+    # skel = skeletonize(mask)
     nodes = extract_nodes(skel)
     branches, node_neighbors = skeleton_branches(skel, nodes)
     img_xy_pix = np.stack([img_xy[:, 1], img_xy[:, 0]], axis=1)
     node_coords_3d = nodes2d_to_3d(nodes, img_xy_pix, points)
     branches_3d = skeleton_branches_to_3d(branches, img_xy_pix, points)
     edges = get_graph_edges_from_branches(nodes, branches)
-    # рисуем линии по найденным рёбрам (через make_graph_lineset или напрямую)
+
     graph_lineset = make_graph_lineset(node_coords_3d, branches, nodes)
     o3d_branches, o3d_nodes = make_o3d_lineset(branches_3d, node_coords_3d)
     logger.success("Pipeline finished.")
-    return {
+    result = {
         "plane": plane,
         "branches_3d": branches_3d,
         "node_coords_3d": node_coords_3d,
@@ -360,6 +361,17 @@ def run_pipeline(
         "edges": edges,
         "node_neighbors": node_neighbors,
     }
+    result_serializable = {
+        "branches_3d": branches_3d,
+        "node_coords_3d": node_coords_3d,
+        "mask": mask,
+        "skel": skel,
+        "nodes": nodes,
+        "branches": branches,
+        "edges": edges,
+        "node_neighbors": node_neighbors,
+    }
+    return result, result_serializable
 
 
 def run_visualization(

@@ -195,29 +195,27 @@ def pose_to_transform(pose: list | np.ndarray) -> np.ndarray:
     return T
 
 
-def transform_cloud_to_tcp(
-    pcd: o3d.geometry.PointCloud,
-    handeye_R: np.ndarray,
-    handeye_t: np.ndarray,
-    tcp_pose: np.ndarray,
-):
-    """Transforms point cloud from camera to TCP and base frame."""
+def transform_cloud_to_tcp(pcd, handeye_R, handeye_t, tcp_pose):
     T_cam2base = np.eye(4)
     T_cam2base[:3, :3] = handeye_R
     T_cam2base[:3, 3] = handeye_t.flatten()
-    T_base2tcp = np.eye(4)
-    T_base2tcp[:3, 3] = tcp_pose.flatten()
+    T_base2tcp = pose_to_transform(tcp_pose)
     T_cam2tcp = T_base2tcp @ T_cam2base
     pts = np.asarray(pcd.points)
     pts_h = np.empty((4, pts.shape[0]), dtype=np.float64)
     pts_h[:3, :] = pts.T
     pts_h[3, :] = 1.0
     pts_tcp = (T_cam2tcp @ pts_h)[:3, :].T
+    pts_base = (T_cam2base @ pts_h)[:3, :].T
     pcd_tcp = o3d.geometry.PointCloud()
     pcd_tcp.points = o3d.utility.Vector3dVector(pts_tcp)
     if pcd.has_colors():
         pcd_tcp.colors = pcd.colors
-    logger.info(f"Transformed cloud to TCP frame")
+    pcd_base = o3d.geometry.PointCloud()
+    pcd_base.points = o3d.utility.Vector3dVector(pts_base)
+    if pcd.has_colors():
+        pcd_base.colors = pcd.colors
+    logger.info(f"Transformed cloud to TCP/base")
     return pcd_tcp
 
 

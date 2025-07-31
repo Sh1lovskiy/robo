@@ -47,7 +47,6 @@ def compute_bounding_boxes(clusters):
     for cluster in clusters:
         try:
             obb = cluster.get_oriented_bounding_box()
-            # Проверка: если extent по 2 осям очень мал, пропускать
             if np.sum(np.array(obb.extent) < 1e-4) >= 2:
                 continue
             obbs.append(obb)
@@ -58,7 +57,6 @@ def compute_bounding_boxes(clusters):
 
 
 def filter_parallelepiped_clusters(clusters, min_dim=0.0001, max_aspect_ratio=4.0):
-    """Оставляет только похожие на параллелепипед кластеры."""
     filtered = []
     for cluster in clusters:
         obb = cluster.get_oriented_bounding_box()
@@ -66,7 +64,6 @@ def filter_parallelepiped_clusters(clusters, min_dim=0.0001, max_aspect_ratio=4.
         min_side = np.min(sizes)
         max_side = np.max(sizes)
         aspect = max_side / (min_side + 1e-6)
-        # Не берем слишком вытянутые или слишком тонкие
         if min_side > min_dim and aspect < max_aspect_ratio:
             filtered.append(cluster)
     return filtered
@@ -89,11 +86,6 @@ def build_bbox_graph(obbs):
             if obb_intersect(obb1, obb2):
                 edges.append((i, j))
     return edges
-
-
-# clustering_ransac_features.py
-import numpy as np
-import open3d as o3d
 
 
 def segment_clusters_dbscan(pcd, eps=0.008, min_points=50):
@@ -133,7 +125,6 @@ def extract_features_from_clusters(clusters):
     return cluster_features
 
 
-# Example usage (integration)
 if __name__ == "__main__":
     BBOX_POINTS = np.array(
         [
