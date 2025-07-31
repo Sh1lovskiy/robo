@@ -1,33 +1,5 @@
-"""Robotics calibration package."""
+"""Unified camera calibration package."""
 
-# from .detector import (
-#     CheckerboardConfig,
-#     CharucoBoardConfig,
-#     ArucoBoardConfig,
-#     Detection,
-#     pose_from_detection,
-#     detect_charuco,
-#     find_aruco,
-#     draw_markers,
-# )
-from .comparison import HandEyeComparison
-from utils.cloud_utils import load_depth
-from utils.geometry import (
-    load_extrinsics,
-)
+from .base import Calibrator, CalibrationPattern
 
-
-__all__ = [
-    "CharucoBoardConfig",
-    "ArucoBoardConfig",
-    "ArucoPattern",
-    "find_aruco",
-    "draw_markers",
-    "HandEyeComparison",
-    "CheckerboardConfig",
-    "Detection",
-    "pose_from_detection",
-    "detect_charuco",
-    "load_depth",
-    "load_extrinsics",
-]
+__all__ = ["Calibrator", "CalibrationPattern"]

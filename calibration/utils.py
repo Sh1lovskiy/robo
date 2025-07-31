@@ -1,74 +1,189 @@
+"""Utility helpers for calibration workflows."""
+
 from __future__ import annotations
 
-"""I/O utilities for calibration results and timestamps."""
-
+import argparse
+import json
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import List, Tuple
 
 import cv2
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 from utils.logger import Logger
-from utils.error_tracker import ErrorTracker
-from utils.io import (
-    save_json as _save_json,
-    save_camera_params_xml,
-    save_camera_params_txt,
-)
 
-logger = Logger.get_logger("calibration.utils")
+log = Logger.get_logger("calibrate.utils")
+
+np.set_printoptions(suppress=True, precision=6)
 
 
-def timestamp() -> str:
-    """Return current timestamp string."""
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
+@dataclass
+class ImagePair:
+    """Container for synchronized RGB/depth file paths."""
+
+    rgb: Path
+    depth: Path
 
 
-def save_text(path: Path, text: str) -> None:
-    """Write plain text to ``path`` creating parent directories."""
-    logger.debug(f"Saving text to {path}")
+# ---------------------------------------------------------------------------
+# Filesystem helpers
+# ---------------------------------------------------------------------------
+
+def create_output_dir(
+    pattern: str, board_size: Tuple[int, int], square_length: float
+) -> Path:
+    """Return a timestamped directory for storing calibration data."""
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    name = (
+        f"{timestamp}_{pattern}_{board_size[0]}x{board_size[1]}_{square_length:.3f}"
+    )
+    out_dir = Path(".data_calib") / name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir
+
+
+def save_image_pair(rgb: np.ndarray, depth: np.ndarray, out_dir: Path, index: int) -> ImagePair:
+    """Save RGB and depth images to ``out_dir`` using zero padded index."""
+
+    rgb_path = out_dir / f"{index:03d}_rgb.png"
+    depth_path = out_dir / f"{index:03d}_depth.npy"
+    cv2.imwrite(str(rgb_path), rgb)
+    np.save(depth_path, depth)
+    log.debug("Saved image pair %s", rgb_path.stem)
+    return ImagePair(rgb_path, depth_path)
+
+
+def load_image_pairs(image_dir: Path) -> List[ImagePair]:
+    """Return all RGB/depth pairs from ``image_dir``.
+
+    The function expects files named ``*_rgb.png`` with matching
+    ``*_depth.npy`` files.
+    """
+
+    pairs: List[ImagePair] = []
+    for rgb_path in sorted(image_dir.glob("*_rgb.png")):
+        depth_path = rgb_path.with_name(rgb_path.stem.replace("_rgb", "_depth") + ".npy")
+        if depth_path.exists():
+            pairs.append(ImagePair(rgb_path, depth_path))
+        else:
+            log.warning("Missing depth file for %s", rgb_path.name)
+    log.info("Loaded %d image pairs from %s", len(pairs), image_dir)
+    return pairs
+
+
+# ---------------------------------------------------------------------------
+# Calibration helpers
+# ---------------------------------------------------------------------------
+
+def load_intrinsics_yml(path: Path) -> Tuple[np.ndarray, np.ndarray]:
+    """Read camera intrinsic matrix and distortion coefficients from YAML."""
+
+    if path.suffix == ".json":
+        with open(path) as f:
+            data = json.load(f)
+        K = np.array(data["camera_matrix"]).reshape(3, 3)
+        dist = np.array(data["distortion_coefficients"])
+        return K, dist
+
+    import yaml  # Lazy import
+
+    with open(path) as f:
+        yml = yaml.safe_load(f)
+    K = np.array(yml["camera_matrix"]["data"]).reshape(3, 3)
+    dist = np.array(yml["distortion_coefficients"]["data"])
+    return K, dist
+
+
+def save_intrinsics(K: np.ndarray, dist: np.ndarray, out_file: Path) -> None:
+    """Persist intrinsics and distortion coefficients to JSON."""
+
+    data = {
+        "camera_matrix": K.tolist(),
+        "distortion_coefficients": dist.tolist(),
+    }
+    with open(out_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    log.info("Saved intrinsics to %s", out_file)
+
+
+def estimate_pose_pnp(
+    obj_pts: np.ndarray, img_pts: np.ndarray, K: np.ndarray, dist: np.ndarray
+) -> Tuple[np.ndarray, float]:
+    """Estimate pose using ``cv2.solvePnP`` returning transformation matrix and error."""
+
+    success, rvec, tvec = cv2.solvePnP(obj_pts, img_pts, K, dist)
+    if not success:
+        raise RuntimeError("PnP failed")
+    proj, _ = cv2.projectPoints(obj_pts, rvec, tvec, K, dist)
+    err = float(np.linalg.norm(proj.squeeze(1) - img_pts, axis=1).mean())
+    Rmat, _ = cv2.Rodrigues(rvec)
+    T = np.eye(4)
+    T[:3, :3] = Rmat
+    T[:3, 3] = tvec.ravel()
+    return T, err
+
+
+def rotation_matrix_to_xyz(rot: np.ndarray) -> Tuple[float, float, float]:
+    """Convert rotation matrix to rotation-vector components."""
+
+    vec = R.from_matrix(rot).as_rotvec()
+    return float(vec[0]), float(vec[1]), float(vec[2])
+
+
+def save_poses(poses: List[np.ndarray], out_file: Path) -> None:
+    """Persist pose matrices in the required JSON format."""
+
+    results = {}
+    for idx, T in enumerate(poses):
+        x, y, z = T[:3, 3]
+        rx, ry, rz = rotation_matrix_to_xyz(T[:3, :3])
+        results[f"{idx:03d}"] = {
+            "x": round(float(x), 6),
+            "y": round(float(y), 6),
+            "z": round(float(z), 6),
+            "Rx": round(rx, 6),
+            "Ry": round(ry, 6),
+            "Rz": round(rz, 6),
+        }
+    with open(out_file, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2)
+    log.info("Saved %d poses to %s", len(poses), out_file)
+
+
+# ---------------------------------------------------------------------------
+# User interaction
+# ---------------------------------------------------------------------------
+
+def confirm(prompt: str, default: bool = True) -> bool:
+    """Ask the user to confirm an action."""
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w") as f:
-            f.write(text)
-    except Exception as exc:
-        logger.error(f"Failed to save text: {exc}")
-        ErrorTracker.report(exc)
+        from utils.keyboard import TerminalEchoSuppressor
+    except Exception:  # pragma: no cover - fallback when keyboard unavailable
+        class TerminalEchoSuppressor:  # type: ignore
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+    yn = "Y/n" if default else "y/N"
+    prompt = f"{prompt} [{yn}]: "
+    with TerminalEchoSuppressor():
+        ans = input(prompt).strip().lower()
+    if not ans:
+        return default
+    return ans.startswith("y")
 
 
-def save_json(path: Path, data: Any) -> None:
-    """Write JSON data to ``path`` creating parent directories."""
-    logger.debug(f"Saving JSON to {path}")
+def parse_board_size(text: str) -> Tuple[int, int]:
+    """Parse a ``WxH`` board size string."""
+
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        _save_json(str(path), data)
-    except Exception as exc:
-        logger.error(f"Failed to save JSON: {exc}")
-        ErrorTracker.report(exc)
-
-
-def save_transform(base: Path, matrix: np.ndarray) -> None:
-    """Save a transformation matrix to ``base`` with txt and json."""
-    logger.debug(f"Saving transform to {base}")
-    try:
-        save_text(base.with_suffix(".txt"), np.array2string(matrix, precision=8))
-        save_json(base.with_suffix(".json"), matrix.tolist())
-    except Exception as exc:
-        logger.error(f"Failed to save transform: {exc}")
-        ErrorTracker.report(exc)
-
-
-def save_camera_params(base: Path, K: np.ndarray, dist: np.ndarray, rms: float) -> None:
-    """Save camera intrinsics to ``base`` (.txt, .json and .xml)."""
-    logger.info(f"Saving camera parameters to {base}")
-    try:
-        base.parent.mkdir(parents=True, exist_ok=True)
-
-        txt = base.with_suffix(".txt")
-        xml = base.with_suffix(".xml")
-        save_camera_params_txt(str(txt), K, dist, rms)
-        save_camera_params_xml(str(xml), K, dist)
-    except Exception as exc:
-        logger.error(f"Failed to save camera params: {exc}")
-        ErrorTracker.report(exc)
+        w, h = text.lower().split("x")
+        return int(w), int(h)
+    except Exception as exc:  # pragma: no cover - user error path
+        raise argparse.ArgumentTypeError(f"Invalid board size '{text}'") from exc
