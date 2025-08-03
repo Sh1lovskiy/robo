@@ -43,6 +43,7 @@ class Paths:
     RESULTS_DIR: Path = CAPTURES_EXTR_DIR / "calib_res"
     VIZ_DIR: Path = CAPTURES_EXTR_DIR / "calib_viz"
     CLOUD_DIR: Path = BASE_DIR / ".clouds"
+    DATA_CLOUDS_DIR: Path = BASE_DIR / ".data_clouds"
     LOG_DIR: Path = BASE_DIR / ".logs"
     CAMERA_INTR: Path = BASE_DIR / ".data" / "results1980"
 

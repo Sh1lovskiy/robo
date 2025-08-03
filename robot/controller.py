@@ -1,11 +1,13 @@
 from __future__ import annotations
+"""High-level, safe, and minimal robot controller."""
+
 import time
 from typing import List, Optional
 
 import numpy as np
 
-from utils.logger import Logger, LoggerType
 from utils.error_tracker import ErrorTracker
+from utils.logger import Logger, LoggerType
 from utils.settings import robot as RobotSettings, RobotCfg
 
 from robot.rpc import RPC
@@ -94,9 +96,9 @@ class RobotController:
             ErrorTracker.report(exc)
             return False
 
-    def move_linear(
-        self, pose: List[float], pos_tol: float = 1.0, rot_tol: float = 1.0
-    ) -> bool:
+    def move_linear(self, pose: List[float]) -> bool:
+        """Move TCP linearly to ``pose``."""
+
         try:
             if self.robot.GetSafetyCode() != 0:
                 self.logger.error("Safety lock active!")
@@ -108,19 +110,30 @@ class RobotController:
                 vel=self.velocity,
             )
             if code != 0:
-                self.logger.error(f"MoveL failed: code {code}")
+                self.logger.error("MoveL failed: code %s", code)
                 return False
-            # actual = self.get_tcp_pose()
-            # if actual is None:
-            #     self.logger.error("No pose after motion")
-            #     return False
-            # pos_err, rot_err = calc_pose_errors(pose, actual)
-            # if pos_err > pos_tol or rot_err > rot_tol:
-            #     self.logger.warning(f"Pose mismatch after motion: pos_err={pos_err:.2f}, rot_err={rot_err:.2f}")
-            #     return False
             return True
         except Exception as exc:
             self.logger.error("move_linear failed")
+            ErrorTracker.report(exc)
+            return False
+
+    def move_joints(self, joints: List[float]) -> bool:
+        """Move robot joints to ``joints`` configuration."""
+
+        try:
+            code = self.robot.MoveJ(
+                joint=joints,
+                tool=self.tool_id,
+                user=self.user_frame_id,
+                vel=self.velocity,
+            )
+            if code != 0:
+                self.logger.error("MoveJ failed: code %s", code)
+                return False
+            return True
+        except Exception as exc:
+            self.logger.error("move_joints failed")
             ErrorTracker.report(exc)
             return False
 
@@ -140,8 +153,9 @@ class RobotController:
             return False
 
     def get_tcp_pose(self) -> Optional[List[float]]:
+        """Return current TCP pose or ``None`` on error."""
+
         code, pose = self.robot.GetActualTCPPose()
-        print(pose)
         try:
             if code == 0 and isinstance(pose, (list, tuple)) and len(pose) == 6:
                 return [float(x) for x in pose]
@@ -154,7 +168,9 @@ class RobotController:
             return None
 
     def restart(self, delay: float = 0.05, attempts: int = 3) -> bool:
-        self.logger.info(f"Restarting robot at {self.ip}")
+        """Restart RPC connection."""
+
+        self.logger.info("Restarting robot at %s", self.ip)
         try:
             self.disable()
             self.robot.CloseRPC()
@@ -165,3 +181,28 @@ class RobotController:
             self.logger.error("Restart failed")
             ErrorTracker.report(exc)
             return False
+
+    def stop(self) -> None:
+        """Emergency stop current motion."""
+
+        try:
+            self.robot.StopMotion()
+        except Exception as exc:
+            self.logger.error("StopMotion failed")
+            ErrorTracker.report(exc)
+
+    def get_status(self) -> Optional[dict]:
+        """Return basic robot status information."""
+
+        try:
+            safety = self.robot.GetSafetyCode()
+            code, motion_done = self.robot.GetRobotMotionDone()
+            return {
+                "safety_code": int(safety),
+                "motion_done": int(motion_done),
+                "error_code": int(code),
+            }
+        except Exception as exc:
+            self.logger.error("get_status failed")
+            ErrorTracker.report(exc)
+            return None

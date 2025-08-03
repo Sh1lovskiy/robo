@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
+import networkx as nx
 import numpy as np
 import open3d as o3d
+import plotly.graph_objects as go
 
+from utils.error_tracker import ErrorTracker
 from utils.logger import Logger
+from utils.settings import paths
 
 logger = Logger.get_logger("robot_scan.save")
 
-BASE_DIR = Path(".data_clouds")
+
+BASE_DIR = paths.DATA_CLOUDS_DIR
 
 
 def create_run_dir() -> Path:
@@ -41,6 +45,34 @@ def save_cloud(path: Path, idx: int, cloud: o3d.geometry.PointCloud) -> None:
     logger.info("Saved point cloud %s", pcd_path)
 
 
+def save_cloud_txt(path: Path, idx: int, cloud: o3d.geometry.PointCloud) -> None:
+    """Save point cloud to a text file with XYZ coordinates.
+
+    Parameters
+    ----------
+    path:
+        Directory for output files.
+    idx:
+        Frame index.
+    cloud:
+        Open3D point cloud object.
+    """
+
+    txt_path = path / f"{idx:03d}_cloud.txt"
+    try:
+        pts = np.asarray(cloud.points)
+        if cloud.has_normals():
+            normals = np.asarray(cloud.normals)
+            data = np.hstack([pts, normals])
+        else:
+            data = pts
+        np.savetxt(txt_path, data, fmt="%.6f")
+        logger.info("Saved cloud TXT %s", txt_path)
+    except Exception as exc:
+        logger.error("Failed saving cloud TXT")
+        ErrorTracker.report(exc)
+
+
 def save_metadata(path: Path, data: Dict[str, object]) -> None:
     meta_path = path / "metadata.txt"
     with open(meta_path, "w", encoding="utf-8") as f:
@@ -49,3 +81,87 @@ def save_metadata(path: Path, data: Dict[str, object]) -> None:
                 val = np.array2string(val, precision=6, suppress_small=True)
             f.write(f"{key}: {val}\n")
     logger.info("Saved metadata to %s", meta_path)
+
+
+def save_depth_txt(path: Path, idx: int, depth: np.ndarray, *, scale: float = 1.0) -> None:
+    """Save depth map as a text file with Z values in meters."""
+
+    txt_path = path / f"{idx:03d}_depth.txt"
+    try:
+        np.savetxt(txt_path, depth.astype(np.float64) * scale, fmt="%.6f")
+        logger.info("Saved depth TXT %s", txt_path)
+    except Exception as exc:
+        logger.error("Failed saving depth TXT")
+        ErrorTracker.report(exc)
+
+
+def save_graph_txt(path: Path, graph: nx.Graph, name: str = "graph") -> Path:
+    """Save a graph's nodes and edges to a text file."""
+
+    txt_path = path / f"{name}.txt"
+    try:
+        with open(txt_path, "w", encoding="utf-8") as f:
+            for node, data in graph.nodes(data=True):
+                pos = data.get("pos", (0.0, 0.0, 0.0))
+                f.write(f"node {node} {pos[0]:.6f} {pos[1]:.6f} {pos[2]:.6f}\n")
+            for u, v in graph.edges():
+                f.write(f"edge {u} {v}\n")
+        logger.info("Saved graph TXT %s", txt_path)
+    except Exception as exc:
+        logger.error("Failed saving graph TXT")
+        ErrorTracker.report(exc)
+    return txt_path
+
+
+def save_graph_html(
+    path: Path,
+    graph: nx.Graph,
+    cloud: Optional[o3d.geometry.PointCloud] = None,
+    name: str = "graph",
+) -> Path:
+    """Export an interactive 3D Plotly visualization of a graph."""
+
+    html_path = path / f"{name}.html"
+    try:
+        fig = go.Figure()
+        if cloud is not None:
+            pts = np.asarray(cloud.points)
+            fig.add_trace(
+                go.Scatter3d(
+                    x=pts[:, 0],
+                    y=pts[:, 1],
+                    z=pts[:, 2],
+                    mode="markers",
+                    marker=dict(size=1, color="lightgray"),
+                    name="cloud",
+                )
+            )
+        if graph.number_of_nodes() > 0:
+            xs, ys, zs = [], [], []
+            for u, v in graph.edges():
+                xu, yu, zu = graph.nodes[u]["pos"]
+                xv, yv, zv = graph.nodes[v]["pos"]
+                xs += [xu, xv, None]
+                ys += [yu, yv, None]
+                zs += [zu, zv, None]
+            fig.add_trace(
+                go.Scatter3d(x=xs, y=ys, z=zs, mode="lines", name="edges")
+            )
+            nx_pts = np.array([data["pos"] for _, data in graph.nodes(data=True)])
+            fig.add_trace(
+                go.Scatter3d(
+                    x=nx_pts[:, 0],
+                    y=nx_pts[:, 1],
+                    z=nx_pts[:, 2],
+                    mode="markers",
+                    marker=dict(size=3, color="red"),
+                    name="nodes",
+                )
+            )
+        fig.update_layout(scene_aspectmode="data")
+        fig.write_html(str(html_path))
+        logger.info("Saved graph HTML %s", html_path)
+    except Exception as exc:
+        logger.error("Failed saving graph HTML")
+        ErrorTracker.report(exc)
+    return html_path
