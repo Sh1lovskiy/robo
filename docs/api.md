@@ -6,10 +6,10 @@ The full Python API is generated from type‑hints and docstrings using **mkdocs
 
 - [`calibration`](../calibration)
 - [`robot`](../robot)
-- [`vision`](../vision)
+- [`robot_scan`](../robot_scan)
 - [`utils`](../utils)
 
 ::: calibration
 ::: robot
-::: vision
+::: robot_scan
 ::: utils

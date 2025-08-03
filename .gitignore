@@ -72,9 +72,8 @@ calib/
 # But include only these explicitly
 !.data/params/realsense_params.json
 !.data/params/rs2_params.json
-!.data/artifacts/graph_20250731_200614.npy
-!.data/artifacts/graph_20250731_195506.npy
-!.data/artifacts/cloud_for_pc2beam.txt
+!.data/artifacts/graph.npy
+!.data/artifacts/cloud.txt
 
 # -----------------
 # Env files

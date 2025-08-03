@@ -30,14 +30,18 @@ logger = Logger.get_logger("robot_scan.main")
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Robot scanning pipeline")
     parser.add_argument("--save-data", action="store_true", default=False)
-    parser.add_argument("--handeye", type=str, required=True, help="path to handeye matrix")
+    parser.add_argument(
+        "--handeye", type=str, required=True, help="path to handeye matrix"
+    )
     parser.add_argument(
         "--intrinsics",
         type=str,
         default=str(CAM_PARAMS_PATH),
         help="Camera intrinsics",
     )
-    parser.add_argument("--mode", choices=["auto", "interactive"], default="interactive")
+    parser.add_argument(
+        "--mode", choices=["auto", "interactive"], default="interactive"
+    )
     parser.add_argument("--robot-ip", type=str, default=None)
     parser.add_argument("--target-strategy", type=str, default="first")
     return parser.parse_args()
@@ -55,7 +59,7 @@ def main() -> None:
         code, pose = rpc.GetActualTCPPose(0)
         if code == 0:
             tcp_pose = np.array(pose)
-        logger.info("Robot TCP pose: %s", tcp_pose)
+        logger.info(f"Robot TCP pose: {tcp_pose}")
     frame = capture_rgbd()
     cloud = frame.cloud
     cloud = downsample_cloud(cloud)

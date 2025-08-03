@@ -25,7 +25,9 @@ class CalibrationPattern(ABC):
         self.square_length = square_length
 
     @abstractmethod
-    def detect(self, image: np.ndarray) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    def detect(
+        self, image: np.ndarray
+    ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
         """Detect pattern points in ``image``.
 
         Returns
@@ -66,7 +68,7 @@ class Calibrator:
         for idx, pair in enumerate(tqdm(pairs, desc="Frames")):
             rgb = cv2.imread(str(pair.rgb))
             if rgb is None:
-                log.warning("Skipping %s: missing RGB image", pair.rgb.name)
+                log.warning(f"Skipping {pair.rgb.name}: missing RGB image")
                 continue
             det = self.pattern.detect(rgb)
             if det is None:
@@ -85,4 +87,4 @@ class Calibrator:
 
         out_json = image_dir / "camera_poses.json"
         save_poses(poses, out_json)
-        log.info("Calibration finished -> %s", out_json)
+        log.info(f"Calibration finished -> {out_json}")

@@ -25,7 +25,7 @@ def load_handeye(path: str | Path) -> np.ndarray:
             mat = np.array(json.load(f))
     if mat.shape != (4, 4):
         raise ValueError("Hand-eye matrix must be 4x4")
-    logger.info("Loaded hand-eye matrix from %s", path)
+    logger.info(f"Loaded hand-eye matrix from {path}")
     return mat
 
 
@@ -62,7 +62,13 @@ def transform_cloud(
     out.colors = cloud.colors
     return out
 
-def compute_tcp_pose(point: np.ndarray, main_axis: np.ndarray, normal: np.ndarray, offset: tuple[float, float, float] = (0, 0, 0)) -> np.ndarray:
+
+def compute_tcp_pose(
+    point: np.ndarray,
+    main_axis: np.ndarray,
+    normal: np.ndarray,
+    offset: tuple[float, float, float] = (0, 0, 0),
+) -> np.ndarray:
     """Compute TCP pose from target point and plane orientation."""
     x = -main_axis / np.linalg.norm(main_axis)
     z = -normal / np.linalg.norm(normal)

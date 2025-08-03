@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple
+import yaml
 
 import cv2
 import numpy as np
@@ -32,28 +33,29 @@ class ImagePair:
 # Filesystem helpers
 # ---------------------------------------------------------------------------
 
+
 def create_output_dir(
     pattern: str, board_size: Tuple[int, int], square_length: float
 ) -> Path:
     """Return a timestamped directory for storing calibration data."""
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    name = (
-        f"{timestamp}_{pattern}_{board_size[0]}x{board_size[1]}_{square_length:.3f}"
-    )
+    name = f"{timestamp}_{pattern}_{board_size[0]}x{board_size[1]}_{square_length:.3f}"
     out_dir = Path(".data_calib") / name
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir
 
 
-def save_image_pair(rgb: np.ndarray, depth: np.ndarray, out_dir: Path, index: int) -> ImagePair:
+def save_image_pair(
+    rgb: np.ndarray, depth: np.ndarray, out_dir: Path, index: int
+) -> ImagePair:
     """Save RGB and depth images to ``out_dir`` using zero padded index."""
 
     rgb_path = out_dir / f"{index:03d}_rgb.png"
     depth_path = out_dir / f"{index:03d}_depth.npy"
     cv2.imwrite(str(rgb_path), rgb)
     np.save(depth_path, depth)
-    log.debug("Saved image pair %s", rgb_path.stem)
+    log.debug(f"Saved image pair {rgb_path.stem}")
     return ImagePair(rgb_path, depth_path)
 
 
@@ -66,18 +68,21 @@ def load_image_pairs(image_dir: Path) -> List[ImagePair]:
 
     pairs: List[ImagePair] = []
     for rgb_path in sorted(image_dir.glob("*_rgb.png")):
-        depth_path = rgb_path.with_name(rgb_path.stem.replace("_rgb", "_depth") + ".npy")
+        depth_path = rgb_path.with_name(
+            rgb_path.stem.replace("_rgb", "_depth") + ".npy"
+        )
         if depth_path.exists():
             pairs.append(ImagePair(rgb_path, depth_path))
         else:
-            log.warning("Missing depth file for %s", rgb_path.name)
-    log.info("Loaded %d image pairs from %s", len(pairs), image_dir)
+            log.warning(f"Missing depth file for {rgb_path.name}")
+    log.info(f"Loaded {len(pairs)} image pairs from {image_dir}")
     return pairs
 
 
 # ---------------------------------------------------------------------------
 # Calibration helpers
 # ---------------------------------------------------------------------------
+
 
 def load_intrinsics_yml(path: Path) -> Tuple[np.ndarray, np.ndarray]:
     """Read camera intrinsic matrix and distortion coefficients from YAML."""
@@ -88,8 +93,6 @@ def load_intrinsics_yml(path: Path) -> Tuple[np.ndarray, np.ndarray]:
         K = np.array(data["camera_matrix"]).reshape(3, 3)
         dist = np.array(data["distortion_coefficients"])
         return K, dist
-
-    import yaml  # Lazy import
 
     with open(path) as f:
         yml = yaml.safe_load(f)
@@ -107,7 +110,7 @@ def save_intrinsics(K: np.ndarray, dist: np.ndarray, out_file: Path) -> None:
     }
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-    log.info("Saved intrinsics to %s", out_file)
+    log.info(f"Saved intrinsics to {out_file}")
 
 
 def estimate_pose_pnp(
@@ -151,18 +154,20 @@ def save_poses(poses: List[np.ndarray], out_file: Path) -> None:
         }
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
-    log.info("Saved %d poses to %s", len(poses), out_file)
+    log.info(f"Saved {len(poses)} poses to {out_file}")
 
 
 # ---------------------------------------------------------------------------
 # User interaction
 # ---------------------------------------------------------------------------
 
+
 def confirm(prompt: str, default: bool = True) -> bool:
     """Ask the user to confirm an action."""
     try:
         from utils.keyboard import TerminalEchoSuppressor
     except Exception:  # pragma: no cover - fallback when keyboard unavailable
+
         class TerminalEchoSuppressor:  # type: ignore
             def __enter__(self):
                 return self

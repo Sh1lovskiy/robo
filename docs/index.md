@@ -4,7 +4,7 @@ Welcome to the project documentation. The repository groups several robotics and
 
 - **`calibration/`** – algorithms for intrinsic camera calibration, hand‑eye estimation and data collection.
 - **`robot/`** – a minimal robot control API with pose recording workflows.
-- **`vision/`** – camera drivers, point cloud utilities and RGB‑D pipelines.
+- **`robot_scan/`** – RGB‑D capture, point‑cloud processing and robot‑guided scanning.
 - **`utils/`** – shared helpers for logging, CLI dispatch and geometry math.
 
 The [README](../README.md) describes the directory layout in detail. Below is an excerpt:
@@ -34,19 +34,15 @@ project-root/
 │   ├── io.py                   # File and camera parameter I/O
 │   └── README.md               # Package overview
 │
-├── vision/               # Vision, cloud, and camera utils
-│   ├── camera_base.py          # Abstract camera interface
-│   ├── realsense.py            # RealSense camera implementation
-│   ├── camera_utils.py         # Depth/intrinsic debug helpers
-│   ├── opencv_utils.py         # OpenCV helper class
-│   ├── cloud/                  # Point cloud subpackage
-│   │   ├── generator.py            # PointCloudGenerator class
-│   │   ├── aggregator.py           # Multi-frame cloud builder
-│   │   └── pipeline.py             # Filtering/analysis helpers
-│   ├── mapping/               # PatchMatch & point set registration
-│   ├── tools.py                # Camera and cloud helper CLI
-│   ├── transform.py            # 3D transformation utilities
-│   └── README.md               # Explanation of transform chain
+├── robot_scan/           # Robot-guided scanning pipeline
+│   ├── capture.py             # RealSense RGB‑D frame capture
+│   ├── graph.py               # Skeleton graph construction
+│   ├── main.py                # End-to-end CLI pipeline
+│   ├── motion.py              # Robot motion helpers
+│   ├── preprocess.py          # Cloud filtering and plane detection
+│   ├── save.py                # Data export utilities
+│   ├── skeleton.py            # 2D skeletonization helpers
+│   └── visualization.py       # Plotly-based inspection tools
 ```
 
 Use the navigation on the left to explore usage examples, pipeline descriptions and the full Python API.

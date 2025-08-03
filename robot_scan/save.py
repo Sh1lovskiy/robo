@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 
+import cv2
 import networkx as nx
 import numpy as np
 import open3d as o3d
@@ -30,13 +31,11 @@ def create_run_dir() -> Path:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = BASE_DIR / ts
     path.mkdir(parents=True, exist_ok=True)
-    logger.info("Created data directory %s", path)
+    logger.info(f"Created data directory {path}")
     return path
 
 
 def save_rgbd(path: Path, idx: int, color: np.ndarray, depth: np.ndarray) -> None:
-    import cv2
-
     rgb_path = path / f"{idx:03d}_rgb.png"
     depth_path = path / f"{idx:03d}_depth.npy"
     cv2.imwrite(str(rgb_path), color)
@@ -47,12 +46,10 @@ def save_rgbd(path: Path, idx: int, color: np.ndarray, depth: np.ndarray) -> Non
 def save_cloud(path: Path, idx: int, cloud: o3d.geometry.PointCloud) -> None:
     pcd_path = path / f"{idx:03d}_cloud.pcd"
     o3d.io.write_point_cloud(str(pcd_path), cloud)
-    logger.info("Saved point cloud %s", pcd_path)
+    logger.info(f"Saved point cloud {pcd_path}")
 
 
-def save_cloud_txt(
-    cloud: o3d.geometry.PointCloud, path: Path = CLOUD_TXT_PATH
-) -> Path:
+def save_cloud_txt(cloud: o3d.geometry.PointCloud, path: Path = CLOUD_TXT_PATH) -> Path:
     """Save point cloud to a text file with XYZ coordinates.
 
     Parameters
@@ -76,7 +73,7 @@ def save_cloud_txt(
         else:
             data = pts
         np.savetxt(path, data, fmt="%.6f")
-        logger.info("Saved cloud TXT %s", path)
+        logger.info(f"Saved cloud TXT {path}")
     except Exception as exc:
         logger.error("Failed saving cloud TXT")
         ErrorTracker.report(exc)
@@ -90,16 +87,18 @@ def save_metadata(path: Path, data: Dict[str, object]) -> None:
             if isinstance(val, np.ndarray):
                 val = np.array2string(val, precision=6, suppress_small=True)
             f.write(f"{key}: {val}\n")
-    logger.info("Saved metadata to %s", meta_path)
+    logger.info(f"Saved metadata to {meta_path}")
 
 
-def save_depth_txt(path: Path, idx: int, depth: np.ndarray, *, scale: float = 1.0) -> None:
+def save_depth_txt(
+    path: Path, idx: int, depth: np.ndarray, *, scale: float = 1.0
+) -> None:
     """Save depth map as a text file with Z values in meters."""
 
     txt_path = path / f"{idx:03d}_depth.txt"
     try:
         np.savetxt(txt_path, depth.astype(np.float64) * scale, fmt="%.6f")
-        logger.info("Saved depth TXT %s", txt_path)
+        logger.info(f"Saved depth TXT {txt_path}")
     except Exception as exc:
         logger.error("Failed saving depth TXT")
         ErrorTracker.report(exc)
@@ -128,7 +127,7 @@ def save_graph_txt(graph: nx.Graph, path: Path = GRAPH_TXT_PATH) -> Path:
                 f.write(f"node {node} {pos[0]:.6f} {pos[1]:.6f} {pos[2]:.6f}\n")
             for u, v in graph.edges():
                 f.write(f"edge {u} {v}\n")
-        logger.info("Saved graph TXT %s", path)
+        logger.info(f"Saved graph TXT {path}")
     except Exception as exc:
         logger.error("Failed saving graph TXT")
         ErrorTracker.report(exc)
@@ -153,7 +152,7 @@ def save_graph_npy(graph: nx.Graph, path: Path = GRAPH_PATH) -> Path:
 
     try:
         np.save(path, nx.to_numpy_array(graph))
-        logger.info("Saved graph NPY %s", path)
+        logger.info(f"Saved graph NPY {path}")
     except Exception as exc:
         logger.error("Failed saving graph NPY")
         ErrorTracker.report(exc)
@@ -191,9 +190,7 @@ def save_graph_html(
                 xs += [xu, xv, None]
                 ys += [yu, yv, None]
                 zs += [zu, zv, None]
-            fig.add_trace(
-                go.Scatter3d(x=xs, y=ys, z=zs, mode="lines", name="edges")
-            )
+            fig.add_trace(go.Scatter3d(x=xs, y=ys, z=zs, mode="lines", name="edges"))
             nx_pts = np.array([data["pos"] for _, data in graph.nodes(data=True)])
             fig.add_trace(
                 go.Scatter3d(
@@ -207,7 +204,7 @@ def save_graph_html(
             )
         fig.update_layout(scene_aspectmode="data")
         fig.write_html(str(html_path))
-        logger.info("Saved graph HTML %s", html_path)
+        logger.info(f"Saved graph HTML {html_path}")
     except Exception as exc:
         logger.error("Failed saving graph HTML")
         ErrorTracker.report(exc)

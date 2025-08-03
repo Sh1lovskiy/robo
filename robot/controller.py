@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """High-level, safe, and minimal robot controller."""
 
 import time
@@ -110,7 +111,7 @@ class RobotController:
                 vel=self.velocity,
             )
             if code != 0:
-                self.logger.error("MoveL failed: code %s", code)
+                self.logger.error(f"MoveL failed: code {code}")
                 return False
             return True
         except Exception as exc:
@@ -129,7 +130,7 @@ class RobotController:
                 vel=self.velocity,
             )
             if code != 0:
-                self.logger.error("MoveJ failed: code %s", code)
+                self.logger.error(f"MoveJ failed: code {code}")
                 return False
             return True
         except Exception as exc:
@@ -170,7 +171,7 @@ class RobotController:
     def restart(self, delay: float = 0.05, attempts: int = 3) -> bool:
         """Restart RPC connection."""
 
-        self.logger.info("Restarting robot at %s", self.ip)
+        self.logger.info(f"Restarting robot at {self.ip}")
         try:
             self.disable()
             self.robot.CloseRPC()

@@ -238,28 +238,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../pipeline/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Pipeline
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../api/" class="md-nav__link">
         
   
@@ -330,6 +308,15 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#calibration-scanning-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Calibration &amp; Scanning Pipeline
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#1-full-coordinate-transformation-chain" class="md-nav__link">
@@ -447,6 +434,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#calibration-scanning-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Calibration &amp; Scanning Pipeline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#1-full-coordinate-transformation-chain" class="md-nav__link">
     <span class="md-ellipsis">
       1. Full Coordinate Transformation Chain
@@ -544,7 +540,17 @@
 
 
 <h1 id="handeye">HANDEYE</h1>
-<p>This document provides a structured, mathematical description of the full chain of transformations required to convert 2D pixel measurements and depth values into 3D robot base coordinates. Each mathematical step is detailed clearly and formally, with references to OpenCV and robotics literature included.</p>
+<p>This document provides a structured, mathematical description of the full chain of transformations required to convert 2D pixel measurements and depth values into 3D robot base coordinates. It also outlines how the code base implements each step of the calibration and scanning pipeline.</p>
+<h2 id="calibration-scanning-pipeline">Calibration &amp; Scanning Pipeline</h2>
+<ol>
+<li><strong>Capture RGB‑D frames and robot poses</strong> – <code>calibration.capture.capture_dataset</code> combines <code>robot.controller.RobotController</code> with <code>robot_scan.capture.capture_rgbd</code> to record synchronized color/depth images and TCP poses.</li>
+<li><strong>Detect the calibration pattern</strong> – <code>calibration.chessboard</code> and <code>calibration.charuco</code> locate board corners using OpenCV routines.</li>
+<li><strong>Estimate board pose</strong> – for each frame <code>cv2.solvePnP</code> is invoked inside <code>calibration.base</code> to obtain the pattern pose relative to the camera.</li>
+<li><strong>Solve hand‑eye</strong> – <code>calibration.charuco</code> and <code>calibration.chessboard</code> assemble camera↔robot pairs and call <code>cv2.calibrateHandEye</code>.</li>
+<li><strong>Build scan graph</strong> – <code>robot_scan.skeleton.skeletonize_plane</code> and <code>robot_scan.graph.build_graph</code> turn a cropped point cloud into a traversal graph for motion planning.</li>
+<li><strong>Execute motion</strong> – <code>robot_scan.motion.move_l</code> issues linear moves via the RPC interface in <code>robot.controller.RobotController</code>.</li>
+</ol>
+<p>The mathematical background for these steps is detailed below.</p>
 <h2 id="1-full-coordinate-transformation-chain">1. Full Coordinate Transformation Chain</h2>
 <p>The following transformation chain converts pixel and depth data from camera coordinates into robot base coordinates:
 $$

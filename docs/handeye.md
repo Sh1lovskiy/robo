@@ -1,6 +1,17 @@
 # HANDEYE
 
-This document provides a structured, mathematical description of the full chain of transformations required to convert 2D pixel measurements and depth values into 3D robot base coordinates. Each mathematical step is detailed clearly and formally, with references to OpenCV and robotics literature included.
+This document provides a structured, mathematical description of the full chain of transformations required to convert 2D pixel measurements and depth values into 3D robot base coordinates. It also outlines how the code base implements each step of the calibration and scanning pipeline.
+
+## Calibration & Scanning Pipeline
+
+1. **Capture RGB‑D frames and robot poses** – `calibration.capture.capture_dataset` combines `robot.controller.RobotController` with `robot_scan.capture.capture_rgbd` to record synchronized color/depth images and TCP poses.
+2. **Detect the calibration pattern** – `calibration.chessboard` and `calibration.charuco` locate board corners using OpenCV routines.
+3. **Estimate board pose** – for each frame `cv2.solvePnP` is invoked inside `calibration.base` to obtain the pattern pose relative to the camera.
+4. **Solve hand‑eye** – `calibration.charuco` and `calibration.chessboard` assemble camera↔robot pairs and call `cv2.calibrateHandEye`.
+5. **Build scan graph** – `robot_scan.skeleton.skeletonize_plane` and `robot_scan.graph.build_graph` turn a cropped point cloud into a traversal graph for motion planning.
+6. **Execute motion** – `robot_scan.motion.move_l` issues linear moves via the RPC interface in `robot.controller.RobotController`.
+
+The mathematical background for these steps is detailed below.
 
 ## 1. Full Coordinate Transformation Chain
 

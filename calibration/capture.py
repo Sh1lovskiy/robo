@@ -13,6 +13,7 @@ from utils.error_tracker import ErrorTracker
 from utils.logger import Logger
 
 from .utils import ImagePair, confirm, save_image_pair
+from robot_scan.capture import capture_rgbd
 
 log = Logger.get_logger("calibrate.capture")
 
@@ -40,12 +41,6 @@ def capture_dataset(
         Saved image pairs.
     """
 
-    from vision.camera.realsense_d415 import RealSenseD415
-
-    cam = RealSenseD415()
-    cam.start()
-    ErrorTracker.register_cleanup(cam.stop)
-
     robot = RobotController()
     robot.connect()
     ErrorTracker.register_cleanup(robot.shutdown)
@@ -57,11 +52,8 @@ def capture_dataset(
         for idx in range(max_frames):
             if interactive and not confirm(f"Capture frame {idx}?"):
                 break
-            rgb, depth = cam.get_frames()
-            if rgb is None or depth is None:
-                log.warning("Failed to capture frame %d", idx)
-                continue
-            pair = save_image_pair(rgb, depth, out_dir, idx)
+            frame = capture_rgbd()
+            pair = save_image_pair(frame.color, frame.depth, out_dir, idx)
             pairs.append(pair)
             tcp = robot.get_tcp_pose()
             if tcp is None:

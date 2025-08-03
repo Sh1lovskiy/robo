@@ -26,7 +26,7 @@ class GlobalKeyListener:
     def start(self) -> None:
         """Start listening for configured hotkeys."""
         self.listener.start()
-        self.logger.debug("GlobalKeyListener started with keys: %s", list(self.hotkeys))
+        self.logger.debug(f"GlobalKeyListener started with keys: {list(self.hotkeys)}")
 
     def stop(self) -> None:
         """Stop the hotkey listener."""
@@ -59,7 +59,7 @@ class TerminalEchoSuppressor:
             self.enabled = True
             self.logger.debug("Terminal echo disabled")
         except Exception as e:
-            self.logger.error("Failed to disable terminal echo: %s", e)
+            self.logger.error(f"Failed to disable terminal echo: {e}")
 
     def stop(self) -> None:
         """Restore echo settings."""
