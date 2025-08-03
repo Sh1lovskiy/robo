@@ -52,7 +52,7 @@ def segment_plane(
     plane = cloud.select_by_index(inliers)
     normal = np.array(plane_model[:3])
     center = np.asarray(plane.points).mean(axis=0)
-    logger.info("Plane segmented: %s points", len(plane.points))
+    logger.info(f"Plane segmented: {len(plane.points)} points")
     return plane, normal, center
 
 

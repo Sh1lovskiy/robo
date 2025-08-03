@@ -6,11 +6,13 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from utils.logger import Logger
+
 # Root dir
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Data directories and common file paths
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = BASE_DIR / ".data"
 PARAMS_DIR = DATA_DIR / "params"
 CAM_PARAMS_PATH = PARAMS_DIR / "cam_params.yml"
 DCAM_PARAMS_PATH = PARAMS_DIR / "dcam_params.yml"
@@ -55,8 +57,6 @@ def validate_required_paths() -> None:
         If any required configuration or data file is missing.
     """
 
-    from utils.logger import Logger  # Local import to avoid circular dependency
-
     log = Logger.get_logger(__name__)
     required = [
         CAM_PARAMS_PATH,
@@ -70,7 +70,7 @@ def validate_required_paths() -> None:
     ]
     for path in required:
         if not path.exists():
-            log.error("Missing required file: %s", path)
+            log.error(f"Missing required file: {path}")
             raise FileNotFoundError(path)
 
 
@@ -83,7 +83,6 @@ class Paths:
 
     CAPTURES_EXTR_DIR: Path = BASE_DIR / "calib"
     CAPTURES_DIR: Path = CAPTURES_EXTR_DIR / "imgs"
-    # RESULTS_DIR: Path = BASE_DIR / "calibration" / "results1"
     RESULTS_DIR: Path = CAPTURES_EXTR_DIR / "calib_res"
     VIZ_DIR: Path = CAPTURES_EXTR_DIR / "calib_viz"
     CLOUD_DIR: Path = BASE_DIR / ".clouds"

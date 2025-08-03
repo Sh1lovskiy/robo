@@ -80,5 +80,5 @@ def capture_rgbd() -> RGBDFrame:
     )
     cloud = cloud.select_by_index(np.where(mask)[0])
     pipeline.stop()
-    logger.info("Captured frame: %s points", len(cloud.points))
+    logger.info(f"Captured frame: {len(cloud.points)} points")
     return RGBDFrame(color=color, depth=depth, cloud=cloud)

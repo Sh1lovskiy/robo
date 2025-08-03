@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+import yaml
 
 import cv2
 import numpy as np
@@ -60,17 +61,17 @@ def save_camera_params(
         "avg_reprojection_error": float(total_avg_err),
     }
     filename.parent.mkdir(parents=True, exist_ok=True)
-    import yaml
-
     with open(filename, "w", encoding="utf-8") as f:
         yaml.dump(calibration_data, f)
-    logger.info("Saved calibration parameters to %s", filename)
+    logger.info(f"Saved calibration parameters to {filename}")
 
 
 class CharucoCalibrator:
     """Collects frames and performs Charuco intrinsic calibration."""
 
-    def __init__(self, board: cv2.aruco.CharucoBoard, dictionary: cv2.aruco_Dictionary) -> None:
+    def __init__(
+        self, board: cv2.aruco.CharucoBoard, dictionary: cv2.aruco_Dictionary
+    ) -> None:
         self.board = board
         self.dictionary = dictionary
         self.all_corners: list[np.ndarray] = []

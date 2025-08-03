@@ -48,7 +48,9 @@ def build_graph(nodes: np.ndarray, branches: List[np.ndarray], radius: float = 0
     for i, j in edges:
         dist = np.linalg.norm(merged[i] - merged[j])
         G.add_edge(i, j, weight=dist)
-    logger.info("Graph built: %s nodes, %s edges", G.number_of_nodes(), G.number_of_edges())
+    logger.info(
+        f"Graph built: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges"
+    )
     return G
 
 
@@ -130,9 +132,7 @@ def dijkstra_walk(graph: nx.Graph, start: int) -> List[Tuple[int, int]]:
                 e = tuple(sorted((node, n)))
                 if e not in visited:
                     return route + [n]
-                heapq.heappush(
-                    heap, (cost + graph[node][n]["weight"], route + [n])
-                )
+                heapq.heappush(heap, (cost + graph[node][n]["weight"], route + [n]))
         return None
 
     while len(visited) < graph.number_of_edges():
@@ -169,7 +169,8 @@ def greedy(graph: nx.Graph, start: int) -> List[Tuple[int, int]]:
             u = min(
                 candidates,
                 key=lambda x: np.linalg.norm(
-                    np.array(graph.nodes[current]["pos"]) - np.array(graph.nodes[x]["pos"])
+                    np.array(graph.nodes[current]["pos"])
+                    - np.array(graph.nodes[x]["pos"])
                 ),
             )
             e = tuple(sorted((current, u)))

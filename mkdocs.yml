@@ -4,7 +4,6 @@ theme:
 nav:
   - Home: index.md
   - Usage: usage.md
-  - Pipeline: pipeline.md
   - API: api.md
   - HANDEYE: handeye.md
 plugins:

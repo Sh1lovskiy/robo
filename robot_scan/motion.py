@@ -19,7 +19,7 @@ logger = Logger.get_logger("robot_scan.motion")
 
 def connect_robot(ip: str) -> RPC:
     """Connect to robot controller."""
-    logger.info("Connecting to robot at %s", ip)
+    logger.info(f"Connecting to robot at {ip}")
     rpc = RPC(ip=ip)
     if rpc.RobotEnable(1) != 0:
         raise RuntimeError("Failed to enable robot")
@@ -48,8 +48,10 @@ def move_l(rpc: RPC, pose: Iterable[float], vel: float | None = None) -> None:
     code, joints = rpc.GetInverseKin(0, pose_arr.tolist())
     if code != 0 or joints is None:
         raise RuntimeError(f"Inverse kinematics failed: code={code}")
-    code = rpc.MoveL(desc_pos=pose_arr.tolist(), tool=0, user=0, joint_pos=joints, vel=vel)
+    code = rpc.MoveL(
+        desc_pos=pose_arr.tolist(), tool=0, user=0, joint_pos=joints, vel=vel
+    )
     if code != 0:
         raise RuntimeError(f"MoveL failed: code={code}")
-    logger.info("MoveL executed to %s", pose_arr)
+    logger.info(f"MoveL executed to {pose_arr}")
     time.sleep(robot_cfg.restart_delay)

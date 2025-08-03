@@ -77,5 +77,5 @@ def load_extrinsics_json(
         t = np.array(ext["t"])
     else:
         raise KeyError("translation vector not found in extrinsics JSON")
-    logger.info("Extrinsics loaded from %s", json_path)
+    logger.info(f"Extrinsics loaded from {json_path}")
     return R, t

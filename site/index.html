@@ -248,28 +248,6 @@
   
   
     <li class="md-nav__item">
-      <a href="pipeline/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Pipeline
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="api/" class="md-nav__link">
         
   
@@ -346,7 +324,7 @@
 <ul>
 <li><strong><code>calibration/</code></strong> – algorithms for intrinsic camera calibration, hand‑eye estimation and data collection.</li>
 <li><strong><code>robot/</code></strong> – a minimal robot control API with pose recording workflows.</li>
-<li><strong><code>vision/</code></strong> – camera drivers, point cloud utilities and RGB‑D pipelines.</li>
+<li><strong><code>robot_scan/</code></strong> – RGB‑D capture, point‑cloud processing and robot‑guided scanning.</li>
 <li><strong><code>utils/</code></strong> – shared helpers for logging, CLI dispatch and geometry math.</li>
 </ul>
 <p>The <a href="../README.md">README</a> describes the directory layout in detail. Below is an excerpt:</p>
@@ -374,19 +352,15 @@
 │   ├── io.py                   # File and camera parameter I/O
 │   └── README.md               # Package overview
 │
-├── vision/               # Vision, cloud, and camera utils
-│   ├── camera_base.py          # Abstract camera interface
-│   ├── realsense.py            # RealSense camera implementation
-│   ├── camera_utils.py         # Depth/intrinsic debug helpers
-│   ├── opencv_utils.py         # OpenCV helper class
-│   ├── cloud/                  # Point cloud subpackage
-│   │   ├── generator.py            # PointCloudGenerator class
-│   │   ├── aggregator.py           # Multi-frame cloud builder
-│   │   └── pipeline.py             # Filtering/analysis helpers
-│   ├── mapping/               # PatchMatch &amp; point set registration
-│   ├── tools.py                # Camera and cloud helper CLI
-│   ├── transform.py            # 3D transformation utilities
-│   └── README.md               # Explanation of transform chain
+├── robot_scan/           # Robot-guided scanning pipeline
+│   ├── capture.py             # RealSense RGB‑D frame capture
+│   ├── graph.py               # Skeleton graph construction
+│   ├── main.py                # End-to-end CLI pipeline
+│   ├── motion.py              # Robot motion helpers
+│   ├── preprocess.py          # Cloud filtering and plane detection
+│   ├── save.py                # Data export utilities
+│   ├── skeleton.py            # 2D skeletonization helpers
+│   └── visualization.py       # Plotly-based inspection tools
 </code></pre></div>
 <p>Use the navigation on the left to explore usage examples, pipeline descriptions and the full Python API.</p>
 

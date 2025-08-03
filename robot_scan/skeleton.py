@@ -86,7 +86,7 @@ def _skeleton_branches(skel: np.ndarray, nodes: List[Tuple[int, int]]):
     for y, x in nodes:
         node_mask[y, x] = True
     branches = []
-    for (y0, x0) in nodes:
+    for y0, x0 in nodes:
         for dy, dx in offsets:
             y, x = y0 + dy, x0 + dx
             if 0 <= y < h and 0 <= x < w and skel[y, x] and not node_mask[y, x]:
@@ -144,10 +144,8 @@ def skeletonize_plane(
         [_pixel_to_3d(p, center, basis, min_xy, max_xy, img_res) for p in nodes_px]
     )
     branches = [
-        np.array(
-            [_pixel_to_3d(p, center, basis, min_xy, max_xy, img_res) for p in br]
-        )
+        np.array([_pixel_to_3d(p, center, basis, min_xy, max_xy, img_res) for p in br])
         for br in branches_px
     ]
-    logger.info("Skeleton extracted: %s nodes, %s branches", len(nodes), len(branches))
+    logger.info(f"Skeleton extracted: {len(nodes)} nodes, {len(branches)} branches")
     return nodes, branches
