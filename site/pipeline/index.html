@@ -405,7 +405,7 @@
 <p>This section summarizes the calibration workflow implemented in <code>handeye_chess.py</code> and <code>handeye_charuco.py</code>.</p>
 <h2 id="overview">Overview</h2>
 <ol>
-<li><strong>Load camera parameters and robot poses.</strong> Intrinsics <code>K</code> and distortion <code>d</code> are read from <code>cam_params.yml</code>. Depth‑to‑RGB extrinsics <code>R_ext</code>, <code>t_ext</code> provide sensor alignment.</li>
+<li><strong>Load camera parameters and robot poses.</strong> Intrinsics <code>K</code> and distortion <code>d</code> are read from <code>data/params/cam_params.yml</code>. Depth‑to‑RGB extrinsics <code>R_ext</code>, <code>t_ext</code> provide sensor alignment.</li>
 <li><strong>Detect the calibration pattern.</strong> Chess boards use <code>cv2.findChessboardCorners</code>; Charuco boards use <code>cv2.aruco.detectMarkers</code> followed by <code>cv2.aruco.interpolateCornersCharuco</code>.</li>
 <li><strong>Filter detections</strong> by reprojection error and board pose quality.</li>
 <li><strong>Estimate the board pose</strong> via <code>solvePnP</code> to obtain rotation <code>R</code> and translation <code>t</code> for each frame.</li>

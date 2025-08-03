@@ -10,6 +10,7 @@ import numpy as np
 
 from utils.error_tracker import ErrorTracker
 from utils.logger import Logger
+from utils.settings import CAM_PARAMS_PATH
 
 from .capture import capture_rgbd
 from .graph import build_graph
@@ -30,7 +31,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Robot scanning pipeline")
     parser.add_argument("--save-data", action="store_true", default=False)
     parser.add_argument("--handeye", type=str, required=True, help="path to handeye matrix")
-    parser.add_argument("--intrinsics", type=str, required=False)
+    parser.add_argument(
+        "--intrinsics",
+        type=str,
+        default=str(CAM_PARAMS_PATH),
+        help="Camera intrinsics",
+    )
     parser.add_argument("--mode", choices=["auto", "interactive"], default="interactive")
     parser.add_argument("--robot-ip", type=str, default=None)
     parser.add_argument("--target-strategy", type=str, default="first")

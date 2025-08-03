@@ -55,7 +55,6 @@ logs/
 # -----------------
 # Calibration, clouds, patterns (for calibration), graphics and other data artifacts
 # -----------------
-.data
 .data_calib
 .data_clouds
 calib/
@@ -69,6 +68,13 @@ calib/
 *.txt
 *.json
 *.ply
+
+# But include only these explicitly
+!.data/params/realsense_params.json
+!.data/params/rs2_params.json
+!.data/artifacts/graph_20250731_200614.npy
+!.data/artifacts/graph_20250731_195506.npy
+!.data/artifacts/cloud_for_pc2beam.txt
 
 # -----------------
 # Env files
