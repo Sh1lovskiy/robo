@@ -20,7 +20,7 @@
 
 * **Камера-интринсики:**
 
-  * Матрица внутренних параметров (intrinsics) $K$ (3×3), из файла `cam_params.yml`.
+  * Матрица внутренних параметров (intrinsics) $K$ (3×3), из файла `data/params/cam_params.yml`.
   * Коэффициенты дисторсии $d$.
 * **Экстринсики RGB↔Depth:**
 
@@ -118,7 +118,7 @@
 
 * **Входные:**
 
-  * `cam_params.yml` - параметры камеры
+  * `data/params/cam_params.yml` - параметры камеры
   * `calib/imgs/frame_*.png` - изображения
   * `calib/imgs/frame_*.npy` - глубина
   * `calib/poses_*.json` - TCP-позы

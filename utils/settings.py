@@ -9,6 +9,22 @@ import numpy as np
 # Root dir
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Data directories and common file paths
+DATA_DIR = BASE_DIR / "data"
+PARAMS_DIR = DATA_DIR / "params"
+CAM_PARAMS_PATH = PARAMS_DIR / "cam_params.yml"
+DCAM_PARAMS_PATH = PARAMS_DIR / "dcam_params.yml"
+RS2_JSON_PATH = PARAMS_DIR / "rs2_params.json"
+REALSENSE_JSON_PATH = PARAMS_DIR / "realsense_params.json"
+
+ARTIFACTS_DIR = DATA_DIR / "artifacts"
+GRAPH_PATH = ARTIFACTS_DIR / "graph.npy"
+GRAPH_TXT_PATH = ARTIFACTS_DIR / "graph.txt"
+CLOUD_TXT_PATH = ARTIFACTS_DIR / "cloud.txt"
+
+NOTEBOOKS_DIR = DATA_DIR / "notebooks"
+SKELET_NOTEBOOK_PATH = NOTEBOOKS_DIR / "skelet.ipynb"
+
 # Common file name extensions for project data (frames saving from RealSense2 cam)
 IMAGE_EXT = ".png"
 DEPTH_EXT = ".npy"
@@ -28,6 +44,34 @@ HAND_EYE_METHODS = [
 
 # Dictionary: string name → OpenCV constant identifier
 HAND_EYE_MAP = {name: method for method, name in HAND_EYE_METHODS}
+
+
+def validate_required_paths() -> None:
+    """Ensure that essential data files exist.
+
+    Raises
+    ------
+    FileNotFoundError
+        If any required configuration or data file is missing.
+    """
+
+    from utils.logger import Logger  # Local import to avoid circular dependency
+
+    log = Logger.get_logger(__name__)
+    required = [
+        CAM_PARAMS_PATH,
+        DCAM_PARAMS_PATH,
+        RS2_JSON_PATH,
+        REALSENSE_JSON_PATH,
+        GRAPH_PATH,
+        GRAPH_TXT_PATH,
+        CLOUD_TXT_PATH,
+        SKELET_NOTEBOOK_PATH,
+    ]
+    for path in required:
+        if not path.exists():
+            log.error("Missing required file: %s", path)
+            raise FileNotFoundError(path)
 
 
 @dataclass(frozen=True)
@@ -342,6 +386,19 @@ class CloudCfg:
 cloud = CloudCfg()
 
 __all__ = [
+    "DATA_DIR",
+    "PARAMS_DIR",
+    "CAM_PARAMS_PATH",
+    "DCAM_PARAMS_PATH",
+    "RS2_JSON_PATH",
+    "REALSENSE_JSON_PATH",
+    "ARTIFACTS_DIR",
+    "GRAPH_PATH",
+    "GRAPH_TXT_PATH",
+    "CLOUD_TXT_PATH",
+    "NOTEBOOKS_DIR",
+    "SKELET_NOTEBOOK_PATH",
+    "validate_required_paths",
     "Paths",
     "LoggingCfg",
     "RobotCfg",

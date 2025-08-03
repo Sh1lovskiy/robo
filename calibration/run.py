@@ -7,6 +7,7 @@ from pathlib import Path
 
 from utils.error_tracker import ErrorTracker
 from utils.logger import Logger
+from utils.settings import CAM_PARAMS_PATH
 
 from .april import AprilTagPattern
 from .base import Calibrator
@@ -31,7 +32,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--square-length", type=float, required=True, help="Square side length [m]")
     parser.add_argument("--aruco-dict", default="DICT_5X5_100")
     parser.add_argument("--image-dir", type=Path, help="Offline image directory")
-    parser.add_argument("--intrinsics", type=Path, default=Path("cam_params.yml"))
+    parser.add_argument(
+        "--intrinsics", type=Path, default=CAM_PARAMS_PATH, help="Camera intrinsics"
+    )
     parser.add_argument("--capture-poses", action="store_true", help="Capture images and robot poses")
     parser.add_argument("--save-images", action="store_true", help="Save overlay images")
     parser.add_argument("--interactive", action="store_true", help="Confirm steps via keyboard")

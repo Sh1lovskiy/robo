@@ -13,12 +13,17 @@ import plotly.graph_objects as go
 
 from utils.error_tracker import ErrorTracker
 from utils.logger import Logger
-from utils.settings import paths
+from utils.settings import (
+    ARTIFACTS_DIR,
+    CLOUD_TXT_PATH,
+    GRAPH_PATH,
+    GRAPH_TXT_PATH,
+)
 
 logger = Logger.get_logger("robot_scan.save")
 
 
-BASE_DIR = paths.DATA_CLOUDS_DIR
+BASE_DIR = ARTIFACTS_DIR
 
 
 def create_run_dir() -> Path:
@@ -45,20 +50,24 @@ def save_cloud(path: Path, idx: int, cloud: o3d.geometry.PointCloud) -> None:
     logger.info("Saved point cloud %s", pcd_path)
 
 
-def save_cloud_txt(path: Path, idx: int, cloud: o3d.geometry.PointCloud) -> None:
+def save_cloud_txt(
+    cloud: o3d.geometry.PointCloud, path: Path = CLOUD_TXT_PATH
+) -> Path:
     """Save point cloud to a text file with XYZ coordinates.
 
     Parameters
     ----------
-    path:
-        Directory for output files.
-    idx:
-        Frame index.
     cloud:
         Open3D point cloud object.
+    path:
+        Output file path. Defaults to ``data/artifacts/cloud.txt``.
+
+    Returns
+    -------
+    Path
+        Path to the saved file.
     """
 
-    txt_path = path / f"{idx:03d}_cloud.txt"
     try:
         pts = np.asarray(cloud.points)
         if cloud.has_normals():
@@ -66,11 +75,12 @@ def save_cloud_txt(path: Path, idx: int, cloud: o3d.geometry.PointCloud) -> None
             data = np.hstack([pts, normals])
         else:
             data = pts
-        np.savetxt(txt_path, data, fmt="%.6f")
-        logger.info("Saved cloud TXT %s", txt_path)
+        np.savetxt(path, data, fmt="%.6f")
+        logger.info("Saved cloud TXT %s", path)
     except Exception as exc:
         logger.error("Failed saving cloud TXT")
         ErrorTracker.report(exc)
+    return path
 
 
 def save_metadata(path: Path, data: Dict[str, object]) -> None:
@@ -95,22 +105,59 @@ def save_depth_txt(path: Path, idx: int, depth: np.ndarray, *, scale: float = 1.
         ErrorTracker.report(exc)
 
 
-def save_graph_txt(path: Path, graph: nx.Graph, name: str = "graph") -> Path:
-    """Save a graph's nodes and edges to a text file."""
+def save_graph_txt(graph: nx.Graph, path: Path = GRAPH_TXT_PATH) -> Path:
+    """Save a graph's nodes and edges to a text file.
 
-    txt_path = path / f"{name}.txt"
+    Parameters
+    ----------
+    graph:
+        Graph with nodes having ``pos`` attribute.
+    path:
+        Output file path. Defaults to ``data/artifacts/graph.txt``.
+
+    Returns
+    -------
+    Path
+        Path to the saved file.
+    """
+
     try:
-        with open(txt_path, "w", encoding="utf-8") as f:
+        with open(path, "w", encoding="utf-8") as f:
             for node, data in graph.nodes(data=True):
                 pos = data.get("pos", (0.0, 0.0, 0.0))
                 f.write(f"node {node} {pos[0]:.6f} {pos[1]:.6f} {pos[2]:.6f}\n")
             for u, v in graph.edges():
                 f.write(f"edge {u} {v}\n")
-        logger.info("Saved graph TXT %s", txt_path)
+        logger.info("Saved graph TXT %s", path)
     except Exception as exc:
         logger.error("Failed saving graph TXT")
         ErrorTracker.report(exc)
-    return txt_path
+    return path
+
+
+def save_graph_npy(graph: nx.Graph, path: Path = GRAPH_PATH) -> Path:
+    """Save a graph's adjacency matrix to a NumPy ``.npy`` file.
+
+    Parameters
+    ----------
+    graph:
+        Graph to serialize.
+    path:
+        Output file path. Defaults to ``data/artifacts/graph.npy``.
+
+    Returns
+    -------
+    Path
+        Path to the saved file.
+    """
+
+    try:
+        np.save(path, nx.to_numpy_array(graph))
+        logger.info("Saved graph NPY %s", path)
+    except Exception as exc:
+        logger.error("Failed saving graph NPY")
+        ErrorTracker.report(exc)
+    return path
 
 
 def save_graph_html(
