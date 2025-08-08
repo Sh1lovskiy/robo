@@ -68,6 +68,7 @@ calib/
 *.txt
 *.json
 *.ply
+*.pt
 
 # But include only these explicitly
 !.data/params/realsense_params.json

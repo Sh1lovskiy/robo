@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Tuple
+import yaml
 
 import numpy as np
 import open3d as o3d
@@ -16,15 +17,45 @@ logger = Logger.get_logger("robot_scan.transform")
 
 
 def load_handeye(path: str | Path) -> np.ndarray:
-    """Load a 4x4 hand-eye transformation matrix from ``.npy`` or JSON."""
+    """
+    Load a 4x4 hand-eye transformation matrix from `.npy`, `.json`, or `.yml`/`.yaml`.
+    """
     path = Path(path)
     if path.suffix == ".npy":
         mat = np.load(path)
-    else:
+    elif path.suffix == ".json":
         with open(path, "r", encoding="utf-8") as f:
             mat = np.array(json.load(f))
+    elif path.suffix in (".yml", ".yaml"):
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        if isinstance(data, list):
+            mat = np.array(data)
+        # 2. OpenCV-style: handeye: {rows: 4, cols: 4, data: [...]}
+        elif isinstance(data, dict):
+            for key in ("handeye", "matrix", "transformation", "T", "data"):
+                if key in data:
+                    v = data[key]
+                    if isinstance(v, dict) and "data" in v:
+                        arr = v["data"]
+                        rows = v.get("rows", 4)
+                        cols = v.get("cols", 4)
+                        mat = np.array(arr).reshape((rows, cols))
+                    elif isinstance(v, list):
+                        mat = np.array(v)
+                    break
+            else:
+                if "data" in data and "rows" in data and "cols" in data:
+                    mat = np.array(data["data"]).reshape((data["rows"], data["cols"]))
+                else:
+                    raise ValueError("Unrecognized YAML handeye format")
+        else:
+            raise ValueError("Unrecognized YAML content structure")
+    else:
+        raise ValueError(f"Unsupported file extension: {path.suffix}")
+
     if mat.shape != (4, 4):
-        raise ValueError("Hand-eye matrix must be 4x4")
+        raise ValueError(f"Hand-eye matrix must be 4x4, got {mat.shape}")
     logger.info(f"Loaded hand-eye matrix from {path}")
     return mat
 

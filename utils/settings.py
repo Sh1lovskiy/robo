@@ -2,11 +2,10 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import logging
 
 import cv2
 import numpy as np
-
-from utils.logger import Logger
 
 # Root dir
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -57,7 +56,15 @@ def validate_required_paths() -> None:
         If any required configuration or data file is missing.
     """
 
-    log = Logger.get_logger(__name__)
+    def _get_log():
+        try:
+            from utils.logger import Logger
+
+            return Logger.get_logger(__name__)
+        except ImportError:
+            return logging.getLogger(__name__)
+
+    log = _get_log()
     required = [
         CAM_PARAMS_PATH,
         DCAM_PARAMS_PATH,

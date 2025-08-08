@@ -46,28 +46,51 @@ class RobotController:
                 self.robot.StopMotion()
             except Exception:
                 self.logger.warning("StopMotion not available")
-            self.disable()
+            # self.disable()
             self.robot.CloseRPC()
             self.logger.info("Robot shutdown complete")
         except Exception as exc:
             self.logger.error("Shutdown failed")
             ErrorTracker.report(exc)
 
-    def connect(self, attempts: int = 3, delay: float = 0.2) -> bool:
+    def connect(
+        self,
+        attempts: int = 3,
+        delay: float = 0.2,
+        safety_check: bool = False,
+    ) -> bool:
         for attempt in range(1, attempts + 1):
             try:
                 self.logger.info(f"Connect attempt {attempt} to {self.ip}")
                 self.robot = RPC(ip=self.ip)
+
                 if self.enable():
-                    safety = self.robot.GetSafetyCode()
-                    if safety == 0:
-                        self.logger.info("Robot connected and in safe state")
+                    if not safety_check:
+                        self.logger.info("Robot connected (safety check skipped)")
                         return True
-                    self.logger.warning(f"Safety check failed: {safety}")
+
+                    try:
+                        start = time.time()
+                        while time.time() - start < 2.0:
+                            safety = self.robot.GetSafetyCode()
+                            if safety == 0:
+                                self.logger.info("Robot connected and in safe state")
+                                return True
+                            else:
+                                self.logger.warning(
+                                    f"Safety check failed: code {safety}"
+                                )
+                                time.sleep(0.2)
+                        self.logger.error("Timeout waiting for safe state")
+                    except Exception as e:
+                        self.logger.warning(f"GetSafetyCode failed: {e}")
+                        ErrorTracker.report(e)
+
             except Exception as exc:
                 self.logger.warning(f"Connect error: {exc}")
                 ErrorTracker.report(exc)
             time.sleep(delay)
+
         self.logger.error("Robot connection failed after retries")
         return False
 
@@ -85,6 +108,9 @@ class RobotController:
             return False
 
     def disable(self) -> bool:
+        if not self.robot or getattr(self.robot, "robot", None) is None:
+            self.logger.warning("RPC not initialized or already closed")
+            return False
         try:
             code = self.robot.RobotEnable(0)
             if code == 0:
