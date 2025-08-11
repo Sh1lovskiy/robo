@@ -2,11 +2,10 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import logging
 
 import cv2
 import numpy as np
-
-from utils.logger import Logger
 
 # Root dir
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -14,8 +13,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Data directories and common file paths
 DATA_DIR = BASE_DIR / ".data"
 PARAMS_DIR = DATA_DIR / "params"
-CAM_PARAMS_PATH = PARAMS_DIR / "cam_params.yml"
-DCAM_PARAMS_PATH = PARAMS_DIR / "dcam_params.yml"
+CAM_PARAMS_PATH = PARAMS_DIR / ".data/params/opencv_cam.yml"
+DCAM_PARAMS_PATH = PARAMS_DIR / ".data/params/opencv_dcam.yml"
 RS2_JSON_PATH = PARAMS_DIR / "rs2_params.json"
 REALSENSE_JSON_PATH = PARAMS_DIR / "realsense_params.json"
 
@@ -57,7 +56,15 @@ def validate_required_paths() -> None:
         If any required configuration or data file is missing.
     """
 
-    log = Logger.get_logger(__name__)
+    def _get_log():
+        try:
+            from utils.logger import Logger
+
+            return Logger.get_logger(__name__)
+        except ImportError:
+            return logging.getLogger(__name__)
+
+    log = _get_log()
     required = [
         CAM_PARAMS_PATH,
         DCAM_PARAMS_PATH,

@@ -58,10 +58,12 @@ logs/
 .data_calib
 .data_clouds
 calib/
+captures/
 
 # -----------------
 # Image/data files
 # -----------------
+yolo12/models/
 *.png
 *.npy
 *.npz

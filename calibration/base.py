@@ -72,14 +72,14 @@ class Calibrator:
                 continue
             det = self.pattern.detect(rgb)
             if det is None:
-                log.warning("Pattern not detected in frame %d", idx)
+                log.warning(f"Pattern not detected in frame {idx}")
                 continue
             obj_pts, img_pts, overlay = det
             pose, err = estimate_pose_pnp(obj_pts, img_pts, self.K, self.dist)
             poses.append(pose)
             if self.save_images and overlay is not None:
                 cv2.imwrite(str(image_dir / f"{idx:03d}_overlay.png"), overlay)
-            log.debug("Frame %d reprojection error %.3f", idx, err)
+            log.debug(f"Frame {idx} reprojection error {err:.3f}")
 
         if not poses:
             log.error("No valid poses computed")

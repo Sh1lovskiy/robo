@@ -54,12 +54,20 @@ class TerminalEchoSuppressor:
         try:
             self._orig_attrs = termios.tcgetattr(self.fd)
             new_attrs = termios.tcgetattr(self.fd)
-            new_attrs[3] &= ~(termios.ECHO | termios.ICANON)
+            new_attrs[3] &= ~termios.ECHO
             termios.tcsetattr(self.fd, termios.TCSADRAIN, new_attrs)
             self.enabled = True
             self.logger.debug("Terminal echo disabled")
         except Exception as e:
             self.logger.error(f"Failed to disable terminal echo: {e}")
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+        return False
 
     def stop(self) -> None:
         """Restore echo settings."""

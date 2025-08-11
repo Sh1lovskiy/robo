@@ -176,7 +176,7 @@ def confirm(prompt: str, default: bool = True) -> bool:
                 return False
 
     yn = "Y/n" if default else "y/N"
-    prompt = f"{prompt} [{yn}]: "
+    prompt = f"{prompt} [{yn}]:\n"
     with TerminalEchoSuppressor():
         ans = input(prompt).strip().lower()
     if not ans:
