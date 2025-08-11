@@ -689,15 +689,15 @@ def farm_from_captures_dir(
 
 if __name__ == "__main__":
     # farm_cycle()
-    # from_file()
-    if len(sys.argv) > 1 and os.path.isdir(sys.argv[1]):
-        # python farm.py captures/20250806_142752
-        farm_from_captures_dir(
-            sys.argv[1],
-            HAND_EYE_R,
-            HAND_EYE_t,
-            TARGET_POSE,
-            BBOX_POINTS,
-        )
-    else:
-        farm_cycle()
+    from_file()
+    # if len(sys.argv) > 1 and os.path.isdir(sys.argv[1]):
+    #     # python farm.py captures/20250806_142752
+    #     farm_from_captures_dir(
+    #         sys.argv[1],
+    #         HAND_EYE_R,
+    #         HAND_EYE_t,
+    #         TARGET_POSE,
+    #         BBOX_POINTS,
+    #     )
+    # else:
+    #     farm_cycle()
