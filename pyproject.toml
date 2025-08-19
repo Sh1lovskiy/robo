@@ -15,17 +15,16 @@ dependencies = [
     "pyyaml==6.0.2",
     "loguru==0.7.3",
     "tqdm==4.67.1",
-
     # Computer vision & geometry
     "open3d==0.19.0",
     "opencv-contrib-python==4.11.0.86",
     "pyrealsense2==2.55.1.6486",
     "scikit-image==0.24.0",
     "networkx==3.3",
-
     # Interaction & visualization
     "pynput==1.8.1",
     "plotly==6.1.2",
+    "matplotlib>=3.10.3",
 ]
 
 [project.optional-dependencies]

@@ -5,7 +5,6 @@ via 2D skeletonization. All steps are split into independent methods.
 
 import time
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 from functools import partial
 from collections import defaultdict
